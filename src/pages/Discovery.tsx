@@ -14,6 +14,14 @@ interface Talent {
   bio?: string;
 }
 
+interface Talent {
+  id: string;
+  display_name: string;
+  username: string;
+  avatar_url: string;
+  bio?: string;
+}
+
 const Discovery = () => {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [featuredTalent, setFeaturedTalent] = useState<Talent[]>([]);
