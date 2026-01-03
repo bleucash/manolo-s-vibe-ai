@@ -1,83 +1,199 @@
-import { useState } from "react";
-import { useUserMode } from "@/contexts/UserModeContext";
-import { Card } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Html5Qrcode } from "html5-qrcode";
+import { supabase } from "@/integrations/supabase/client";
+import { CheckCircle, XCircle, Camera, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldX, ScanLine, CheckCircle2, XCircle } from "lucide-react";
+import { useUserMode } from "@/contexts/UserModeContext";
+import { toast } from "sonner";
+
+type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
 
 const Bouncer = () => {
-  const { isManager, isLoading } = useUserMode();
-  const [scanResult, setScanResult] = useState<"idle" | "valid" | "invalid">("idle");
+  const navigate = useNavigate();
+  const { activeVenueId, userVenues, isManager, isLoading: contextLoading } = useUserMode();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [ticketData, setTicketData] = useState<any>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  if (isLoading)
-    return (
-      <div className="h-screen flex items-center justify-center bg-black">
-        <Loader2 className="animate-spin text-neon-green w-10 h-10" />
-      </div>
-    );
+  const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
-  if (!isManager)
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-black p-6">
-        <ShieldX className="w-16 h-16 text-red-500 mb-4" />
-        <h1 className="text-white font-display text-2xl tracking-tighter">ACCESS DENIED</h1>
-        <p className="text-zinc-500 text-sm mt-2">Manager access required</p>
-      </div>
-    );
+  // 1. Hardware Lifecycle Management
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+      }
+    };
+  }, []);
 
-  const handleSimulateScan = (result: "valid" | "invalid") => {
-    setScanResult(result);
-    setTimeout(() => setScanResult("idle"), 3000);
+  // 2. Permission Guard
+  useEffect(() => {
+    if (contextLoading) return;
+    if (isManager && activeVenueId) {
+      setIsAuthorized(true);
+      return;
+    }
+    // Redirect if unauthorized or no active venue selected
+    if (!activeVenueId) {
+      toast.error("No active venue selected");
+      navigate("/dashboard");
+    }
+  }, [isManager, activeVenueId, contextLoading, navigate]);
+
+  const onScanSuccess = async (qrCodeValue: string) => {
+    if (!activeVenueId) return;
+
+    // Stop scanner immediately to prevent double-reads
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+      setIsScanning(false);
+    }
+
+    const scannedValue = qrCodeValue.trim();
+
+    try {
+      // 3. ATOMIC VALIDATION: Use a single query to check and update
+      // We check venue_id, qr_code, and current status in one go
+      const { data: ticket, error } = await supabase
+        .from("tickets")
+        .select("id, status, venue_id, event_name, customer_segment")
+        .eq("qr_code", scannedValue)
+        .maybeSingle();
+
+      if (error || !ticket) {
+        setScanResult("invalid");
+        return;
+      }
+
+      if (ticket.venue_id !== activeVenueId) {
+        setScanResult("wrong_venue");
+        return;
+      }
+
+      if (ticket.status === "Scanned") {
+        setScanResult("already_used");
+        setTicketData(ticket);
+        return;
+      }
+
+      // 4. Update with status check to prevent race conditions
+      const { error: updateError } = await supabase
+        .from("tickets")
+        .update({
+          status: "Scanned",
+          scanned_at: new Date().toISOString(),
+        })
+        .eq("id", ticket.id)
+        .eq("status", "Valid"); // Ensure it's still valid at time of update
+
+      if (updateError) throw updateError;
+
+      setScanResult("success");
+      setTicketData(ticket);
+    } catch (err) {
+      toast.error("Database sync error");
+      resetScanner();
+    }
   };
 
+  const startScanner = async () => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("qr-reader");
+      }
+
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 15, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+        () => {},
+      );
+      setIsScanning(true);
+    } catch (err) {
+      toast.error("Camera access denied");
+    }
+  };
+
+  const resetScanner = () => {
+    setScanResult(null);
+    setTicketData(null);
+    startScanner();
+  };
+
+  if (contextLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="animate-spin text-neon-green" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background p-4 pb-24">
-      <div className="mb-6">
-        <h1 className="text-3xl font-display text-white uppercase tracking-tighter">
-          Door Scanner
-        </h1>
-        <p className="text-zinc-500 text-sm">Validate guest entry tickets</p>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white font-sans">
+      {/* Dynamic Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/5 p-4 flex justify-between items-center">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-zinc-400">
+          <ArrowLeft className="mr-2 w-4 h-4" /> Exit
+        </Button>
+        <div className="text-right">
+          <p className="text-neon-green text-xs font-black uppercase tracking-tighter">
+            {activeVenue?.name || "Operational Mode"}
+          </p>
+        </div>
       </div>
 
-      <Card className="bg-zinc-900 border-white/5 p-6 mb-6">
-        <div className="aspect-square max-w-sm mx-auto bg-black rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center">
-          {scanResult === "idle" ? (
-            <>
-              <ScanLine className="w-16 h-16 text-zinc-600 mb-4" />
-              <p className="text-zinc-500 text-sm uppercase tracking-widest">Ready to Scan</p>
-            </>
-          ) : scanResult === "valid" ? (
-            <>
-              <CheckCircle2 className="w-20 h-20 text-neon-green mb-4" />
-              <Badge className="bg-neon-green/20 text-neon-green text-lg px-4 py-2">
-                VALID ENTRY
-              </Badge>
-            </>
-          ) : (
-            <>
-              <XCircle className="w-20 h-20 text-red-500 mb-4" />
-              <Badge className="bg-red-500/20 text-red-500 text-lg px-4 py-2">
-                INVALID TICKET
-              </Badge>
-            </>
+      {scanResult === null ? (
+        <div className="w-full max-w-sm">
+          <div
+            id="qr-reader"
+            className="w-full aspect-square rounded-3xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_0_50px_rgba(0,0,0,1)]"
+          />
+          {!isScanning && (
+            <Button
+              onClick={startScanner}
+              className="w-full mt-8 bg-neon-green text-black h-16 text-lg font-black uppercase tracking-widest rounded-2xl hover:bg-neon-green/90"
+            >
+              <Camera className="mr-3" /> Initiate Scan
+            </Button>
           )}
         </div>
-      </Card>
+      ) : (
+        <div className="flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className={`p-8 rounded-full mb-6 ${scanResult === "success" ? "bg-neon-green/20" : "bg-red-500/20"}`}>
+            {scanResult === "success" ? (
+              <CheckCircle className="w-24 h-24 text-neon-green" />
+            ) : (
+              <XCircle className="w-24 h-24 text-red-500" />
+            )}
+          </div>
 
-      {import.meta.env.DEV && (
-        <div className="flex gap-4">
-          <Button
-            onClick={() => handleSimulateScan("valid")}
-            className="flex-1 bg-neon-green text-black font-bold uppercase"
+          <h2
+            className={`text-5xl font-black uppercase italic tracking-tighter mb-2 ${scanResult === "success" ? "text-neon-green" : "text-red-500"}`}
           >
-            Simulate Valid
-          </Button>
+            {scanResult === "success"
+              ? "Access Granted"
+              : scanResult === "wrong_venue"
+                ? "Invalid Venue"
+                : "Access Denied"}
+          </h2>
+
+          {ticketData && (
+            <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl mb-8">
+              <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-widest mb-1">Pass Identity</p>
+              <p className="text-white font-black uppercase">
+                {ticketData.customer_segment} • {ticketData.event_name}
+              </p>
+            </div>
+          )}
+
           <Button
-            onClick={() => handleSimulateScan("invalid")}
-            variant="outline"
-            className="flex-1 border-red-500/50 text-red-500"
+            onClick={resetScanner}
+            className="min-w-[240px] h-14 bg-white text-black font-black uppercase tracking-widest rounded-full hover:bg-zinc-200 transition-all active:scale-95"
           >
-            Simulate Invalid
+            Next Scan
           </Button>
         </div>
       )}
