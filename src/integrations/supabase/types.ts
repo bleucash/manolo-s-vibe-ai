@@ -369,12 +369,14 @@ export type Database = {
           event_date: string | null
           event_name: string | null
           id: string
+          payment_intent_id: string | null
           price_paid: number
           promo_code: string | null
           promoter_id: string | null
           qr_code: string | null
           scanned_at: string | null
           status: string | null
+          stripe_session_id: string | null
           user_id: string | null
           venue_id: string
         }
@@ -385,12 +387,14 @@ export type Database = {
           event_date?: string | null
           event_name?: string | null
           id?: string
+          payment_intent_id?: string | null
           price_paid: number
           promo_code?: string | null
           promoter_id?: string | null
           qr_code?: string | null
           scanned_at?: string | null
           status?: string | null
+          stripe_session_id?: string | null
           user_id?: string | null
           venue_id: string
         }
@@ -401,12 +405,14 @@ export type Database = {
           event_date?: string | null
           event_name?: string | null
           id?: string
+          payment_intent_id?: string | null
           price_paid?: number
           promo_code?: string | null
           promoter_id?: string | null
           qr_code?: string | null
           scanned_at?: string | null
           status?: string | null
+          stripe_session_id?: string | null
           user_id?: string | null
           venue_id?: string
         }
@@ -496,8 +502,10 @@ export type Database = {
       venues: {
         Row: {
           address: string | null
+          base_price: number | null
           capacity: number | null
           category: string | null
+          commission_rate: number | null
           created_at: string
           description: string | null
           entry_price: number | null
@@ -507,15 +515,19 @@ export type Database = {
           location: string
           name: string
           owner_id: string | null
+          settings: Json | null
           standard_commission: number | null
           table_min_spend: number | null
+          venue_type: string | null
           vip_price: number | null
           website: string | null
         }
         Insert: {
           address?: string | null
+          base_price?: number | null
           capacity?: number | null
           category?: string | null
+          commission_rate?: number | null
           created_at?: string
           description?: string | null
           entry_price?: number | null
@@ -525,15 +537,19 @@ export type Database = {
           location: string
           name: string
           owner_id?: string | null
+          settings?: Json | null
           standard_commission?: number | null
           table_min_spend?: number | null
+          venue_type?: string | null
           vip_price?: number | null
           website?: string | null
         }
         Update: {
           address?: string | null
+          base_price?: number | null
           capacity?: number | null
           category?: string | null
+          commission_rate?: number | null
           created_at?: string
           description?: string | null
           entry_price?: number | null
@@ -543,8 +559,10 @@ export type Database = {
           location?: string
           name?: string
           owner_id?: string | null
+          settings?: Json | null
           standard_commission?: number | null
           table_min_spend?: number | null
+          venue_type?: string | null
           vip_price?: number | null
           website?: string | null
         }
