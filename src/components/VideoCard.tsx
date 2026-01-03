@@ -2,30 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Heart, Share2, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-interface PostWithVenue {
-  id: string;
-  user_id: string | null;
-  venue_id: string | null;
-  image_url: string | null;
-  video_url: string | null;
-  thumbnail_url: string | null;
-  caption: string | null;
-  likes_count: number | null;
-  ai_vibe_score: number | null;
-  status: string | null;
-  created_at: string | null;
-  venues: {
-    id: string;
-    name: string;
-    category: string | null;
-  } | null;
-  profiles?: {
-    display_name: string | null;
-    sub_role: string | null;
-    avatar_url: string | null;
-  } | null;
-}
+import { PostWithVenue } from "@/types/database";
 
 interface VideoCardProps {
   post: PostWithVenue;
