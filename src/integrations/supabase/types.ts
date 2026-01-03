@@ -35,6 +35,13 @@ export type Database = {
             foreignKeyName: "conversation_participants_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
+            referencedRelation: "conversation_summary"
+            referencedColumns: ["conversation_id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
             referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
@@ -169,6 +176,13 @@ export type Database = {
           sender_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_summary"
+            referencedColumns: ["conversation_id"]
+          },
           {
             foreignKeyName: "messages_conversation_id_fkey"
             columns: ["conversation_id"]
@@ -570,6 +584,49 @@ export type Database = {
       }
     }
     Views: {
+      conversation_summary: {
+        Row: {
+          avatar_url: string | null
+          conversation_id: string | null
+          display_name: string | null
+          is_read: boolean | null
+          last_message_at: string | null
+          last_message_content: string | null
+          last_sender_id: string | null
+          participant_id: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_user_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_user_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "talent_earnings_summary"
+            referencedColumns: ["talent_id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["last_sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["last_sender_id"]
+            isOneToOne: false
+            referencedRelation: "talent_earnings_summary"
+            referencedColumns: ["talent_id"]
+          },
+        ]
+      }
       talent_earnings_summary: {
         Row: {
           talent_cut: number | null
