@@ -28,7 +28,7 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
 
   return (
     <div className="relative h-full w-full bg-black overflow-hidden">
-      {/* 🎬 VIDEO ENGINE */}
+      {/* 🎬 VIDEO ENGINE - Uses media_url */}
       <video ref={videoRef} src={post.media_url} className="h-full w-full object-cover" loop playsInline muted />
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
@@ -59,21 +59,26 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
             </div>
             <div>
               <p className="text-white font-black uppercase tracking-tighter text-lg leading-none">
-                {post.profiles?.display_name}
+                {post.profiles?.display_name || "Anonymous Talent"}
               </p>
               <p className="text-[hsl(150,100%,50%)] text-[9px] font-bold uppercase tracking-widest">
-                {post.profiles?.sub_role}
+                {post.profiles?.sub_role || "Performer"}
               </p>
             </div>
           </div>
+
+          {/* 📝 CONTENT - Replaced 'caption' */}
           <p className="text-zinc-300 text-sm line-clamp-2">{post.content}</p>
+
           <div className="flex items-center gap-1 text-zinc-400">
             <MapPin className="w-3 h-3" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">{post.venues?.name}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">
+              {post.venues?.name || "Unknown Venue"}
+            </span>
           </div>
         </div>
 
-        {/* 🚀 B2B CONVERSION TRIGGER */}
+        {/* 🚀 B2B CONVERSION TRIGGER - Referral Persistence */}
         <Button
           onClick={() => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`)}
           className="w-full h-14 bg-[hsl(150,100%,50%)] text-black font-black uppercase tracking-[0.2em] rounded-2xl"
