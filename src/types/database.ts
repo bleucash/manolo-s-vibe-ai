@@ -17,29 +17,19 @@ export interface Profile {
 
 export interface Post {
   id: string;
-  user_id: string | null;
-  venue_id: string | null;
-  image_url: string | null;
-  video_url: string | null;
-  thumbnail_url: string | null;
-  caption: string | null;
+  user_id: string; // Removed nullability for B2B referral logic
+  venue_id: string;
+  media_url: string; // Aligned with VideoCard src
+  content: string | null; // Aligned with VideoCard overlay
+  created_at: string;
   likes_count: number | null;
   ai_vibe_score: number | null;
   status: string | null;
-  created_at: string | null;
 }
 
 export interface PostWithVenue extends Post {
-  venues: {
-    id: string;
-    name: string;
-    category: string | null;
-  } | null;
-  profiles?: {
-    display_name: string | null;
-    sub_role: string | null;
-    avatar_url: string | null;
-  } | null;
+  venues: Venue | null;
+  profiles: Profile | null;
 }
 
 export interface Ticket {
@@ -47,7 +37,7 @@ export interface Ticket {
   user_id: string;
   venue_id: string;
   promoter_id: string | null;
-  qr_code: string;
-  status: string;
+  qr_code: string; // Matches Bouncer.tsx scan logic
+  status: string; // Matches 'Valid' | 'Scanned'
   price_paid: number;
 }
