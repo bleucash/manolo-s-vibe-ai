@@ -1,233 +1,121 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { MapPin, Star, Ticket, ChevronLeft, Zap } from "lucide-react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Venue as VenueType } from "@/types/database";
-import { TicketPurchaseDialog } from "@/components/TicketPurchaseDialog";
+import { Venue } from "@/types/database";
 import { Button } from "@/components/ui/button";
+import { MapPin, Star, Ticket, Loader2, ChevronLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import TicketPurchaseDialog from "@/components/TicketPurchaseDialog";
 
-const Venue = () => {
-  const { id } = useParams<{ id: string }>();
+const VenuePage = () => {
+  const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  
-  const [venue, setVenue] = useState<VenueType | null>(null);
+
+  const [venue, setVenue] = useState<Venue | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
-  // B2B Referral Capture
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+
+  // 🎯 CAPTURE REFERRAL: Extracts the Talent ID from ?ref= parameter
   const referralId = searchParams.get("ref");
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUserId(user?.id ?? null);
-
-      // Fetch venue details
-      if (!id) return;
-      
-      const { data, error } = await supabase
-        .from("venues")
-        .select("id, name, location, image_url, category, is_active")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (!error && data) {
-        setVenue(data as VenueType);
-      }
-      setLoading(false);
-    };
-
-    fetchData();
+    fetchVenueData();
   }, [id]);
+
+  const fetchVenueData = async () => {
+    try {
+      const { data, error } = await supabase.from("venues").select("*").eq("id", id).single();
+
+      if (error) throw error;
+      setVenue(data as Venue);
+    } catch (error) {
+      console.error("Error fetching venue:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <span className="text-primary font-display uppercase tracking-widest text-[10px]">
-            Loading Venue...
-          </span>
-        </motion.div>
+        <Loader2 className="w-10 h-10 animate-spin text-[hsl(150,100%,50%)]" />
       </div>
     );
   }
 
-  if (!venue) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <h1 className="text-2xl font-display uppercase text-white mb-2">
-            Venue Not Found
-          </h1>
-          <p className="text-muted-foreground text-sm mb-6">
-            This venue doesn't exist or has been removed.
-          </p>
-          <Button
-            onClick={() => navigate("/discovery")}
-            className="bg-primary text-primary-foreground"
-          >
-            Back to Discovery
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
+  if (!venue) return <div className="p-10 text-white font-display">Venue not found.</div>;
 
   return (
-    <div className="min-h-screen bg-black">
-      {/* Hero Section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative h-[50vh] w-full"
-      >
-        {/* Hero Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: venue.image_url
-              ? `url(${venue.image_url})`
-              : "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
-          }}
-        />
-        
-        {/* Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
+    <div className="min-h-screen bg-black pb-24">
+      {/* HERO SECTION */}
+      <div className="relative h-[45vh] w-full">
+        <img src={venue.image_url || "/placeholder.svg"} className="w-full h-full object-cover" alt={venue.name} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20" />
 
-        {/* Back Button */}
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+        {/* BACK BUTTON */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-12 left-4 bg-black/40 backdrop-blur-xl text-white rounded-full border border-white/10"
           onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 z-10 p-3 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 text-white hover:bg-black/70 transition-colors"
         >
-          <ChevronLeft className="w-5 h-5" />
-        </motion.button>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+      </div>
 
-        {/* Referral Active Indicator */}
-        {referralId && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="absolute top-4 right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-full bg-primary/20 backdrop-blur-sm border border-primary/50"
-          >
-            <Zap className="w-4 h-4 text-primary" />
-            <span className="text-primary text-xs font-bold uppercase tracking-wider">
-              Referral Active
-            </span>
-          </motion.div>
-        )}
-
-        {/* Venue Info Overlay */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="absolute bottom-0 left-0 right-0 p-6"
-        >
-          {venue.category && (
-            <span className="inline-block px-3 py-1 mb-3 text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/20 rounded-full border border-primary/30">
-              {venue.category}
-            </span>
-          )}
-          <h1 className="text-4xl font-display uppercase tracking-tighter text-white mb-2">
-            {venue.name}
-          </h1>
-          <div className="flex items-center gap-4 text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <MapPin className="w-4 h-4 text-accent" />
-              <span className="text-sm">{venue.location}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-primary fill-primary" />
-              <span className="text-sm">4.8</span>
+      {/* VENUE CONTENT */}
+      <div className="px-6 -mt-12 relative z-10">
+        <div className="flex justify-between items-end mb-6">
+          <div className="space-y-1">
+            <h1 className="text-4xl font-display text-white uppercase tracking-tighter leading-none">{venue.name}</h1>
+            <div className="flex items-center gap-2 text-zinc-400">
+              <MapPin className="w-4 h-4 text-neon-pink" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{venue.location}</span>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
 
-      {/* Content Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="p-6 space-y-6"
-      >
-        {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Vibe Score", value: "98%" },
-            { label: "Tonight", value: "Hot" },
-            { label: "Cover", value: "$20" },
-          ].map((stat, idx) => (
-            <div
-              key={idx}
-              className="bg-card border border-border rounded-xl p-4 text-center"
-            >
-              <div className="text-xl font-bold text-primary">{stat.value}</div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">
-                {stat.label}
-              </div>
-            </div>
-          ))}
+          {/* RATING BADGE */}
+          <div className="bg-white/5 backdrop-blur-2xl border border-white/10 p-3 rounded-2xl flex items-center gap-2 shadow-2xl">
+            <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+            <span className="text-white font-black text-sm tracking-tighter">4.9</span>
+          </div>
         </div>
 
-        {/* Description */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-2">
-            The Vibe
-          </h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Experience the ultimate nightlife destination. Premium sound systems, 
-            world-class DJs, and an atmosphere that keeps you coming back.
-          </p>
-        </div>
+        <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-sm">
+          {venue.category || "Exclusive Venue"} • Premium high-intensity nightlife experience. Discover the city's most
+          elite vibes and talent.
+        </p>
 
-        {/* Secure Entry CTA */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.6 }}
-          className="pt-4"
-        >
-          <TicketPurchaseDialog
-            venue={venue}
-            currentUserId={currentUserId}
-            referralId={referralId}
-          />
-        </motion.div>
-
-        {/* Referral Attribution Notice */}
+        {/* ⚡ B2B REFERRAL INDICATOR */}
         {referralId && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
-            className="text-center text-[10px] uppercase tracking-widest text-muted-foreground"
-          >
-            <Zap className="w-3 h-3 inline mr-1 text-primary" />
-            Your purchase supports a local promoter
-          </motion.p>
+          <div className="bg-[hsl(150,100%,50%)]/10 border border-[hsl(150,100%,50%)]/30 p-4 rounded-2xl mb-8 flex items-center justify-center animate-pulse">
+            <p className="text-[9px] text-[hsl(150,100%,50%)] font-black uppercase tracking-[0.3em]">
+              Direct Talent Referral Active
+            </p>
+          </div>
         )}
-      </motion.div>
+
+        {/* PURCHASE BUTTON */}
+        <Button
+          onClick={() => setPurchaseOpen(true)}
+          className="w-full h-16 bg-[hsl(150,100%,50%)] text-black font-black uppercase tracking-[0.25em] rounded-2xl shadow-[0_10px_40px_rgba(57,255,20,0.2)]"
+        >
+          <Ticket className="mr-3 w-5 h-5 fill-black" />
+          Secure Entry
+        </Button>
+      </div>
+
+      {/* 🚀 SALES ATTRIBUTION: Passing referralId to the checkout dialog */}
+      <TicketPurchaseDialog
+        open={purchaseOpen}
+        onOpenChange={setPurchaseOpen}
+        venueId={venue.id}
+        venueName={venue.name}
+        referralId={referralId}
+      />
     </div>
   );
 };
 
-export default Venue;
+export default VenuePage;
