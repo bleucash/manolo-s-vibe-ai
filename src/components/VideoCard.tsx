@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Heart, Share2, Ticket } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useRef, useEffect } from "react";
 import { PostWithVenue } from "@/types/database";
+import { Heart, Share2, Ticket, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface VideoCardProps {
   post: PostWithVenue;
@@ -10,141 +11,75 @@ interface VideoCardProps {
 }
 
 export function VideoCard({ post, isActive }: VideoCardProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(post.likes_count ?? 0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isLiked, setIsLiked] = useState(false);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-    
-    if (isActive) {
-      videoRef.current.play().catch(() => {
-        // Autoplay may be blocked, handle gracefully
-      });
-    } else {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+    if (videoRef.current) {
+      if (isActive) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
     }
   }, [isActive]);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikesCount((prev) => (liked ? prev - 1 : prev + 1));
-  };
-
-  const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/venue/${post.venue_id}?ref=${post.user_id}`;
-    if (navigator.share) {
-      await navigator.share({
-        title: post.venues?.name ?? "Check this out",
-        text: post.caption ?? "",
-        url: shareUrl,
-      });
-    } else {
-      await navigator.clipboard.writeText(shareUrl);
-    }
-  };
-
-  const handleSecureEntry = () => {
-    if (post.venue_id && post.user_id) {
-      navigate(`/venue/${post.venue_id}?ref=${post.user_id}`);
-    }
-  };
-
-  const displayName = post.profiles?.display_name ?? "Talent";
-  const subRole = post.profiles?.sub_role ?? "Promoter";
-  const venueName = post.venues?.name ?? "Venue";
-
   return (
-    <div className="relative h-full w-full snap-start snap-always bg-background">
-      {/* Video Player */}
-      {post.video_url ? (
-        <video
-          ref={videoRef}
-          src={post.video_url}
-          poster={post.thumbnail_url ?? undefined}
-          className="absolute inset-0 h-full w-full object-cover"
-          loop
-          muted
-          playsInline
-          preload="metadata"
-        />
-      ) : post.image_url ? (
-        <img
-          src={post.image_url}
-          alt={post.caption ?? "Post"}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-card">
-          <span className="text-muted-foreground">No media</span>
-        </div>
-      )}
+    <div className="relative h-full w-full bg-black overflow-hidden">
+      {/* 🎬 VIDEO ENGINE */}
+      <video ref={videoRef} src={post.media_url} className="h-full w-full object-cover" loop playsInline muted />
 
-      {/* Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
 
-      {/* Right Interaction Bar */}
-      <div className="absolute right-4 bottom-32 flex flex-col items-center gap-6">
-        <button
-          onClick={handleLike}
-          className="flex flex-col items-center gap-1 transition-transform active:scale-90"
-        >
-          <div
-            className={`flex h-12 w-12 items-center justify-center rounded-full ${
-              liked
-                ? "bg-[hsl(var(--neon-green))]"
-                : "bg-card/80 backdrop-blur-sm border border-border/50"
-            }`}
-          >
-            <Heart
-              className={`h-6 w-6 ${liked ? "fill-background text-background" : "text-foreground"}`}
-            />
-          </div>
-          <span className="text-xs font-medium text-foreground">{likesCount}</span>
+      {/* 🛠️ INTERACTION BAR */}
+      <div className="absolute right-4 bottom-32 flex flex-col gap-6 z-20">
+        <button onClick={() => setIsLiked(!isLiked)} className="flex flex-col items-center gap-1">
+          <Heart
+            className={cn("w-8 h-8", isLiked ? "fill-[hsl(150,100%,50%)] text-[hsl(150,100%,50%)]" : "text-white")}
+          />
+          <span className="text-[10px] font-bold text-white uppercase tracking-widest">Like</span>
         </button>
-
-        <button
-          onClick={handleShare}
-          className="flex flex-col items-center gap-1 transition-transform active:scale-90"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card/80 backdrop-blur-sm border border-border/50">
-            <Share2 className="h-6 w-6 text-foreground" />
-          </div>
-          <span className="text-xs font-medium text-foreground">Share</span>
+        <button className="flex flex-col items-center gap-1">
+          <Share2 className="w-8 h-8 text-white" />
+          <span className="text-[10px] font-bold text-white uppercase tracking-widest">Share</span>
         </button>
       </div>
 
-      {/* Bottom Content Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 pb-6">
-        {/* Talent Info */}
-        <div className="mb-4">
-          <h3 className="font-display text-2xl font-bold text-foreground tracking-wide">
-            {displayName}
-          </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm text-[hsl(var(--neon-green))] font-medium">
-              {subRole}
-            </span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-sm text-muted-foreground">{venueName}</span>
+      {/* 🎫 TALENT STOREFRONT OVERLAY */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 space-y-4 z-10">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div
+              onClick={() => navigate(`/talent/${post.profiles?.id}`)}
+              className="w-10 h-10 rounded-full border-2 border-[hsl(150,100%,50%)] overflow-hidden cursor-pointer"
+            >
+              <img src={post.profiles?.avatar_url || ""} className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p className="text-white font-black uppercase tracking-tighter text-lg leading-none">
+                {post.profiles?.display_name}
+              </p>
+              <p className="text-[hsl(150,100%,50%)] text-[9px] font-bold uppercase tracking-widest">
+                {post.profiles?.sub_role}
+              </p>
+            </div>
           </div>
-          {post.caption && (
-            <p className="mt-2 text-sm text-foreground/80 line-clamp-2">
-              {post.caption}
-            </p>
-          )}
+          <p className="text-zinc-300 text-sm line-clamp-2">{post.content}</p>
+          <div className="flex items-center gap-1 text-zinc-400">
+            <MapPin className="w-3 h-3" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">{post.venues?.name}</span>
+          </div>
         </div>
 
-        {/* Secure Entry CTA */}
+        {/* 🚀 B2B CONVERSION TRIGGER */}
         <Button
-          onClick={handleSecureEntry}
-          className="w-full h-14 text-lg font-display tracking-wider bg-[hsl(var(--neon-green))] hover:bg-[hsl(var(--neon-green))]/90 text-background rounded-xl"
-          style={{ boxShadow: "var(--shadow-green)" }}
+          onClick={() => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`)}
+          className="w-full h-14 bg-[hsl(150,100%,50%)] text-black font-black uppercase tracking-[0.2em] rounded-2xl"
         >
-          <Ticket className="mr-2 h-5 w-5" />
-          SECURE ENTRY
+          <Ticket className="mr-2 w-5 h-5" />
+          Secure Entry
         </Button>
       </div>
     </div>
