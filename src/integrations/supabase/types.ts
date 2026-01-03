@@ -129,6 +129,56 @@ export type Database = {
           },
         ]
       }
+      followers: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followers_follower_id_fkey"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followers_follower_id_fkey"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "talent_earnings_summary"
+            referencedColumns: ["talent_id"]
+          },
+          {
+            foreignKeyName: "followers_following_id_fkey"
+            columns: ["following_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followers_following_id_fkey"
+            columns: ["following_id"]
+            isOneToOne: false
+            referencedRelation: "talent_earnings_summary"
+            referencedColumns: ["talent_id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -266,43 +316,34 @@ export type Database = {
       }
       posts: {
         Row: {
-          ai_vibe_score: number | null
-          caption: string | null
-          created_at: string | null
+          content: string | null
+          created_at: string
           id: string
-          image_url: string | null
           likes_count: number | null
-          status: string | null
-          thumbnail_url: string | null
-          user_id: string | null
+          media_type: string | null
+          media_url: string
+          user_id: string
           venue_id: string | null
-          video_url: string | null
         }
         Insert: {
-          ai_vibe_score?: number | null
-          caption?: string | null
-          created_at?: string | null
+          content?: string | null
+          created_at?: string
           id?: string
-          image_url?: string | null
           likes_count?: number | null
-          status?: string | null
-          thumbnail_url?: string | null
-          user_id?: string | null
+          media_type?: string | null
+          media_url: string
+          user_id: string
           venue_id?: string | null
-          video_url?: string | null
         }
         Update: {
-          ai_vibe_score?: number | null
-          caption?: string | null
-          created_at?: string | null
+          content?: string | null
+          created_at?: string
           id?: string
-          image_url?: string | null
           likes_count?: number | null
-          status?: string | null
-          thumbnail_url?: string | null
-          user_id?: string | null
+          media_type?: string | null
+          media_url?: string
+          user_id?: string
           venue_id?: string | null
-          video_url?: string | null
         }
         Relationships: [
           {
@@ -318,6 +359,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "talent_earnings_summary"
             referencedColumns: ["talent_id"]
+          },
+          {
+            foreignKeyName: "posts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
           },
         ]
       }

@@ -19,7 +19,7 @@ import Wallet from "./pages/Wallet";
 import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
-import VenueDetails from "./pages/VenueDetails";
+import Venue from "./pages/Venue";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
@@ -92,7 +92,7 @@ const AppContent = () => {
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/discovery" element={<Discovery />} />
-          <Route path="/venue/:id" element={<VenueDetails />} />
+          <Route path="/venue/:id" element={<Venue />} />
 
           {/* Talent Interaction Routes */}
           <Route path="/talent-directory" element={<TalentDirectory />} />
