@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { PostWithVenue } from "@/types/database";
-import { Heart, Share2, Ticket, MapPin, Briefcase, ShieldCheck } from "lucide-react";
+import { Heart, Share2, Ticket, MapPin, Briefcase, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface VideoCardProps {
   post: PostWithVenue;
@@ -28,13 +29,12 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
     }
   }, [isActive]);
 
-  // Role-based Action Mapping
   const getActionConfig = () => {
     if (!session) {
       return {
         label: "Secure Entry",
         icon: <Ticket className="mr-2 w-5 h-5" />,
-        action: () => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`)
+        action: () => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`),
       };
     }
 
@@ -43,19 +43,19 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
         return {
           label: "Apply to Perform",
           icon: <Briefcase className="mr-2 w-5 h-5" />,
-          action: () => navigate(`/venue/${post.venue_id}`)
+          action: () => navigate(`/venue/${post.venue_id}`),
         };
       case "manager":
         return {
           label: "Claim Venue",
           icon: <ShieldCheck className="mr-2 w-5 h-5" />,
-          action: () => navigate(`/venue/${post.venue_id}`)
+          action: () => navigate(`/venue/${post.venue_id}`),
         };
       default:
         return {
           label: "Secure Entry",
           icon: <Ticket className="mr-2 w-5 h-5" />,
-          action: () => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`)
+          action: () => navigate(`/venue/${post.venue_id}?ref=${post.user_id}`),
         };
     }
   };
@@ -64,20 +64,15 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
 
   return (
     <div className="relative h-full w-full bg-black overflow-hidden">
-      <video
-        ref={videoRef}
-        src={post.media_url}
-        className="h-full w-full object-cover"
-        loop
-        playsInline
-        muted
-      />
+      <video ref={videoRef} src={post.media_url} className="h-full w-full object-cover" loop playsInline muted />
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
 
       <div className="absolute right-4 bottom-32 flex flex-col gap-6 z-20">
         <button onClick={() => setIsLiked(!isLiked)} className="flex flex-col items-center gap-1">
-          <Heart className={cn("w-8 h-8", isLiked ? "fill-[hsl(150,100%,50%)] text-[hsl(150,100%,50%)]" : "text-white")} />
+          <Heart
+            className={cn("w-8 h-8", isLiked ? "fill-[hsl(150,100%,50%)] text-[hsl(150,100%,50%)]" : "text-white")}
+          />
           <span className="text-[10px] font-bold text-white uppercase tracking-widest">Like</span>
         </button>
         <button className="flex flex-col items-center gap-1">
@@ -91,9 +86,14 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
           <div className="flex items-center gap-2">
             <div
               onClick={() => navigate(`/talent/${post.profiles?.id}`)}
-              className="w-10 h-10 rounded-full border-2 border-[hsl(150,100%,50%)] overflow-hidden cursor-pointer"
+              className="w-10 h-10 rounded-full border-2 border-[hsl(150,100%,50%)] overflow-hidden cursor-pointer bg-zinc-900"
             >
-              <img src={post.profiles?.avatar_url || ""} className="w-full h-full object-cover" alt="avatar" />
+              <Avatar className="w-full h-full">
+                <AvatarImage src={post.profiles?.avatar_url || ""} className="object-cover" />
+                <AvatarFallback>
+                  <User className="w-4 h-4 text-white" />
+                </AvatarFallback>
+              </Avatar>
             </div>
             <div>
               <p className="text-white font-black uppercase tracking-tighter text-lg leading-none">
@@ -105,4 +105,24 @@ export function VideoCard({ post, isActive }: VideoCardProps) {
             </div>
           </div>
 
-          <p className="text-zinc-300 text-sm line-clamp-2">{post.
+          <p className="text-zinc-300 text-sm line-clamp-2">{post.content}</p>
+
+          <div className="flex items-center gap-1 text-zinc-400">
+            <MapPin className="w-3 h-3" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">
+              {post.venues?.name || "Unknown Venue"}
+            </span>
+          </div>
+        </div>
+
+        <Button
+          onClick={config.action}
+          className="w-full h-14 bg-[hsl(150,100%,50%)] text-black font-black uppercase tracking-[0.2em] rounded-2xl"
+        >
+          {config.icon}
+          {config.label}
+        </Button>
+      </div>
+    </div>
+  );
+}
