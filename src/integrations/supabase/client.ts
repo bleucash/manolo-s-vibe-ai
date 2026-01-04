@@ -1,16 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Pulling from the environment variables we just set above
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Pre-flight check to prevent the 'supabaseKey is required' crash
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "🚨 CONNECTION ERROR: The app is looking for VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. " +
-      "Check your .env file or Lovable Secrets tab.",
-  );
-}
+// Initialize the client - always use external project zfghkkhsdqsrjkbpkujn
 
 // Initialize the client - always use external project zfghkkhsdqsrjkbpkujn
 const EXTERNAL_SUPABASE_URL = "https://zfghkkhsdqsrjkbpkujn.supabase.co";
