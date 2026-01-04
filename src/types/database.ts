@@ -5,6 +5,8 @@ export interface Venue {
   category: string | null;
   image_url?: string;
   is_active: boolean;
+  description?: string | null;
+  capacity?: number | null;
 }
 
 export interface Profile {
