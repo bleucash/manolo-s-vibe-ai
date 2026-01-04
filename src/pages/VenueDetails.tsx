@@ -129,7 +129,14 @@ const VenueDetails = () => {
             )}
           </Button>
         ) : (
-          <TicketPurchaseDialog venue={venue} currentUserId={currentUserId} />
+          {/* To this: */}
+<TicketPurchaseDialog 
+  open={purchaseOpen} 
+  onOpenChange={setPurchaseOpen} 
+  venueId={venue.id} 
+  venueName={venue.name} 
+  referralId={referralId} 
+/>
         )}
       </div>
 
