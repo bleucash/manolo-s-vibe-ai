@@ -10,6 +10,14 @@ import { Loader2, ArrowLeft, MapPin, Sparkles, UserPlus, CheckCircle2, Clock } f
 import { FollowButton } from "@/components/FollowButton";
 import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { z } from "zod";
+
+// Validation schema for venue staff invitations
+const venueStaffInviteSchema = z.object({
+  venue_id: z.string().uuid("Invalid venue ID"),
+  user_id: z.string().uuid("Invalid user ID"),
+  status: z.enum(["pending", "pending_talent_action"]),
+});
 
 const TalentProfile = () => {
   const { id } = useParams();
@@ -74,18 +82,46 @@ const TalentProfile = () => {
 
   const handleInvite = async () => {
     if (!activeVenueId || !id) return;
+    
+    // Validate input data before database call
+    const inviteData = {
+      venue_id: activeVenueId,
+      user_id: id,
+      status: "pending_talent_action" as const,
+    };
+    
+    const validation = venueStaffInviteSchema.safeParse(inviteData);
+    if (!validation.success) {
+      toast.error("Invalid invitation data");
+      return;
+    }
+    
     setInviting(true);
     try {
-      const { error } = await supabase.from("venue_staff").insert({
-        venue_id: activeVenueId,
-        user_id: id,
-        status: "pending_talent_action",
-      });
+      // Check for existing relationship first
+      const { data: existing } = await supabase
+        .from("venue_staff")
+        .select("status")
+        .eq("venue_id", activeVenueId)
+        .eq("user_id", id)
+        .maybeSingle();
+      
+      if (existing) {
+        toast.error(`Connection already exists with status: ${existing.status}`);
+        setConnectionStatus(existing.status);
+        return;
+      }
+      
+      const { error } = await supabase.from("venue_staff").insert(inviteData);
       if (error) throw error;
       toast.success("Invitation sent!");
       setConnectionStatus("pending_talent_action");
     } catch (err: any) {
-      toast.error("You have already invited this talent.");
+      if (err.code === "23505") {
+        toast.error("You have already invited this talent.");
+      } else {
+        toast.error("Failed to send invitation");
+      }
     } finally {
       setInviting(false);
     }
