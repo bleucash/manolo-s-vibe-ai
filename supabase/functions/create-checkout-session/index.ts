@@ -102,9 +102,10 @@ Deno.serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Critical Function Error:", error.message);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    console.error("Critical Function Error:", errorMessage);
     // 7. Ensure CORS headers are returned even on error
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
     });
