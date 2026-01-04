@@ -52,13 +52,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "conversation_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
         ]
       }
       conversations: {
@@ -157,25 +150,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "followers_follower_id_fkey"
-            columns: ["follower_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
-          {
             foreignKeyName: "followers_following_id_fkey"
             columns: ["following_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "followers_following_id_fkey"
-            columns: ["following_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
           },
         ]
       }
@@ -247,13 +226,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "messages_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
         ]
       }
       payout_requests: {
@@ -297,13 +269,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payout_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
           },
           {
             foreignKeyName: "payout_requests_venue_id_fkey"
@@ -352,13 +317,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "posts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
           },
           {
             foreignKeyName: "posts_venue_id_fkey"
@@ -487,25 +445,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "tickets_promoter_id_fkey"
-            columns: ["promoter_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
-          {
             foreignKeyName: "tickets_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tickets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
           },
         ]
       }
@@ -544,13 +488,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_staff_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
           },
           {
             foreignKeyName: "venue_staff_venue_id_fkey"
@@ -653,55 +590,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "conversation_participants_user_id_fkey"
-            columns: ["participant_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
-          {
             foreignKeyName: "messages_sender_id_fkey"
             columns: ["last_sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "messages_sender_id_fkey"
-            columns: ["last_sender_id"]
-            isOneToOne: false
-            referencedRelation: "talent_earnings_summary"
-            referencedColumns: ["talent_id"]
-          },
         ]
-      }
-      talent_earnings_summary: {
-        Row: {
-          talent_cut: number | null
-          talent_id: string | null
-          total_revenue: number | null
-          total_scans: number | null
-          username: string | null
-        }
-        Relationships: []
-      }
-      venue_intelligence: {
-        Row: {
-          current_inside: number | null
-          total_door_revenue: number | null
-          venue_id: string | null
-          vips_present: number | null
-        }
-        Relationships: []
-      }
-      venue_stats: {
-        Row: {
-          checked_in: number | null
-          total_revenue: number | null
-          total_tickets_sold: number | null
-          venue_id: string | null
-        }
-        Relationships: []
       }
     }
     Functions: {
