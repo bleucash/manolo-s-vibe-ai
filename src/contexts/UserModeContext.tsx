@@ -55,8 +55,9 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const { data: profile } = await supabase.from("profiles").select("role_type").eq("id", userId).maybeSingle();
 
       if (profile) {
+        // Adjusted to match 'manager' role type
         const role = profile.role_type || "guest";
-        const isMgr = role === "venue_manager";
+        const isMgr = role === "manager" || role === "venue_manager";
         const isTal = role === "talent";
 
         setIsManager(isMgr);
@@ -70,12 +71,15 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setModeState(correctMode);
 
         if (isMgr) {
+          // Fetch venues owned by this manager
           const { data: venues } = await supabase.from("venues").select("id, name, image_url").eq("owner_id", userId);
 
           if (venues && venues.length > 0) {
             setUserVenues(venues);
             const storedVenueId = localStorage.getItem("activeVenueId");
             const isValid = venues.find((v) => v.id === storedVenueId);
+
+            // Default to the first venue if no valid stored ID exists
             const finalId = isValid ? storedVenueId : venues[0].id;
             setActiveVenueIdState(finalId);
             localStorage.setItem("activeVenueId", finalId as string);
@@ -83,11 +87,9 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       } else {
         setModeState("guest");
-        localStorage.setItem("userMode", "guest");
       }
-    } catch {
-      setModeState("guest");
-      localStorage.setItem("userMode", "guest");
+    } catch (err) {
+      console.error("Context Sync Error:", err);
     } finally {
       setIsLoading(false);
       isVerifying.current = false;
@@ -97,7 +99,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     let mounted = true;
 
-    // 1. Initial Handshake
     supabase.auth.getSession().then(({ data: { session: initSession } }) => {
       if (!mounted) return;
       if (initSession) {
@@ -108,7 +109,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     });
 
-    // 2. Auth State Listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
