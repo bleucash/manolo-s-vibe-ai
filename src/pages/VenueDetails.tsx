@@ -4,11 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/tabs";
 import { TicketPurchaseDialog } from "@/components/TicketPurchaseDialog";
-import { Briefcase, ArrowLeft, Loader2, CheckCircle2, Clock } from "lucide-react";
+import { Briefcase, ArrowLeft, Loader2, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { Venue } from "@/types/venues";
+import { Venue } from "@/types/database";
 
 const VenueDetails = () => {
   const { id } = useParams();
@@ -19,33 +19,41 @@ const VenueDetails = () => {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+
   const currentUserId = session?.user?.id || null;
+  // Capture referral ID from URL or local storage for commission tracking
+  const referralId = searchParams.get("ref") || localStorage.getItem("referral_promoter_id");
 
   useEffect(() => {
-    const refId = searchParams.get("ref");
-    if (refId) localStorage.setItem("referral_promoter_id", refId);
+    if (searchParams.get("ref")) {
+      localStorage.setItem("referral_promoter_id", searchParams.get("ref")!);
+    }
     fetchVenue();
   }, [id, currentUserId]);
 
   const fetchVenue = async () => {
     if (!id) return;
 
-    // Fetch Venue Data
-    const { data } = await supabase.from("venues").select("*").eq("id", id).single();
-    if (data) setVenue(data);
+    try {
+      const { data } = await supabase.from("venues").select("*").eq("id", id).single();
+      if (data) setVenue(data as Venue);
 
-    // Check if Talent already has a connection/request
-    if (currentUserId && id) {
-      const { data: statusData } = await supabase
-        .from("venue_staff")
-        .select("status")
-        .eq("venue_id", id)
-        .eq("user_id", currentUserId)
-        .maybeSingle();
+      if (currentUserId && id) {
+        const { data: statusData } = await supabase
+          .from("venue_staff")
+          .select("status")
+          .eq("venue_id", id)
+          .eq("user_id", currentUserId)
+          .maybeSingle();
 
-      if (statusData) setConnectionStatus(statusData.status);
+        if (statusData) setConnectionStatus(statusData.status);
+      }
+    } catch (error) {
+      console.error("Error fetching venue:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleApply = async () => {
@@ -71,6 +79,7 @@ const VenueDetails = () => {
         <Loader2 className="animate-spin text-neon-green" />
       </div>
     );
+
   if (!venue)
     return <div className="h-screen flex items-center justify-center bg-black text-white">Venue Not Found</div>;
 
@@ -118,25 +127,38 @@ const VenueDetails = () => {
               <>
                 <Clock className="mr-2" /> Application Sent
               </>
-            ) : connectionStatus === "pending_talent_action" ? (
-              <>
-                <Clock className="mr-2" /> Check Your Gigs
-              </>
             ) : (
               <>
                 <Briefcase className="mr-2" /> Apply to Perform
               </>
             )}
           </Button>
+        ) : mode === "manager" ? (
+          <Button
+            size="lg"
+            onClick={() => navigate(`/venue/${id}/manage`)}
+            className="w-full h-14 text-lg font-bold uppercase tracking-widest rounded-xl shadow-2xl bg-zinc-800 text-white border border-white/10"
+          >
+            <ShieldCheck className="mr-2" /> Manage Venue
+          </Button>
         ) : (
-          {/* To this: */}
-<TicketPurchaseDialog 
-  open={purchaseOpen} 
-  onOpenChange={setPurchaseOpen} 
-  venueId={venue.id} 
-  venueName={venue.name} 
-  referralId={referralId} 
-/>
+          <>
+            <Button
+              size="lg"
+              onClick={() => setPurchaseOpen(true)}
+              className="w-full h-14 text-lg font-bold uppercase tracking-widest rounded-xl shadow-2xl bg-neon-green text-black"
+            >
+              <Ticket className="mr-2" /> Secure Entry
+            </Button>
+
+            <TicketPurchaseDialog
+              open={purchaseOpen}
+              onOpenChange={setPurchaseOpen}
+              venueId={venue.id}
+              venueName={venue.name}
+              referralId={referralId}
+            />
+          </>
         )}
       </div>
 
