@@ -1,12 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize the client - always use external project zfghkkhsdqsrjkbpkujn
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Initialize the client - always use external project zfghkkhsdqsrjkbpkujn
-const EXTERNAL_SUPABASE_URL = "https://zfghkkhsdqsrjkbpkujn.supabase.co";
-const EXTERNAL_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmZ2hra2hzZHFzcmprYnBrdWpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNTE1NjEsImV4cCI6MjA4MTgyNzU2MX0._11rmBT8j87yhmGuLN8R9KLOVLfve8FqQ9EszWQ-Mcc";
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    "🚨 SUPABASE CONNECTION ERROR: Missing required environment variables.\n" +
+    "Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your Lovable Secrets."
+  );
+  throw new Error("Missing Supabase configuration. Check console for details.");
+}
 
-export const supabase = createClient(
-  EXTERNAL_SUPABASE_URL,
-  EXTERNAL_SUPABASE_ANON_KEY,
-);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
