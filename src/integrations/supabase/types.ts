@@ -399,6 +399,7 @@ export type Database = {
           stripe_session_id: string | null
           user_id: string | null
           venue_id: string
+          venue_name: string | null
         }
         Insert: {
           created_at?: string | null
@@ -417,6 +418,7 @@ export type Database = {
           stripe_session_id?: string | null
           user_id?: string | null
           venue_id: string
+          venue_name?: string | null
         }
         Update: {
           created_at?: string | null
@@ -435,6 +437,7 @@ export type Database = {
           stripe_session_id?: string | null
           user_id?: string | null
           venue_id?: string
+          venue_name?: string | null
         }
         Relationships: [
           {
