@@ -10,6 +10,14 @@ import { TicketPurchaseDialog } from "@/components/TicketPurchaseDialog";
 import { Briefcase, ArrowLeft, Loader2, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Venue } from "@/types/database";
+import { z } from "zod";
+
+// Validation schema for venue staff applications
+const venueStaffApplicationSchema = z.object({
+  venue_id: z.string().uuid("Invalid venue ID"),
+  user_id: z.string().uuid("Invalid user ID"),
+  status: z.enum(["pending", "pending_talent_action"]),
+});
 
 const VenueDetails = () => {
   const { id } = useParams();
@@ -60,17 +68,48 @@ const VenueDetails = () => {
   const handleApply = async () => {
     if (!currentUserId || !id) return toast.error("Please log in to apply");
 
-    const { error } = await supabase.from("venue_staff").insert({
+    // Validate input data before database call
+    const applicationData = {
       venue_id: id,
       user_id: currentUserId,
-      status: "pending",
-    });
+      status: "pending" as const,
+    };
+    
+    const validation = venueStaffApplicationSchema.safeParse(applicationData);
+    if (!validation.success) {
+      toast.error("Invalid application data");
+      return;
+    }
 
-    if (error) {
-      toast.error("Application already exists");
-    } else {
-      toast.success("Application sent to management!");
-      setConnectionStatus("pending");
+    try {
+      // Check for existing relationship first
+      const { data: existing } = await supabase
+        .from("venue_staff")
+        .select("status")
+        .eq("venue_id", id)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+      
+      if (existing) {
+        toast.error(`Application already exists with status: ${existing.status}`);
+        setConnectionStatus(existing.status);
+        return;
+      }
+
+      const { error } = await supabase.from("venue_staff").insert(applicationData);
+      
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Application already exists");
+        } else {
+          toast.error("Failed to submit application");
+        }
+      } else {
+        toast.success("Application sent to management!");
+        setConnectionStatus("pending");
+      }
+    } catch (err) {
+      toast.error("Failed to submit application");
     }
   };
 
