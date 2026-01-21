@@ -11,6 +11,7 @@ interface TicketPurchaseDialogProps {
   onOpenChange: (open: boolean) => void;
   venueId: string;
   venueName: string;
+  price: number;
   referralId?: string | null; // The Talent ID for the 10% commission
 }
 
@@ -19,12 +20,11 @@ export const TicketPurchaseDialog = ({
   onOpenChange,
   venueId,
   venueName,
+  price,
   referralId,
 }: TicketPurchaseDialogProps) => {
   const [quantity, setQuantity] = useState(1);
   const [purchasing, setPurchasing] = useState(false);
-
-  const activePrice = 20.0; // Base price
   const incrementQuantity = () => setQuantity((q) => Math.min(q + 1, 10));
   const decrementQuantity = () => setQuantity((q) => Math.max(q - 1, 1));
 
@@ -76,7 +76,7 @@ export const TicketPurchaseDialog = ({
     }
   };
 
-  const totalPrice = (quantity * activePrice).toFixed(2);
+  const totalPrice = (quantity * price).toFixed(2);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,7 +94,7 @@ export const TicketPurchaseDialog = ({
           <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
             <div className="flex justify-between items-center mb-6">
               <span className="text-zinc-400 text-xs uppercase font-bold tracking-widest">General Admission</span>
-              <span className="text-[hsl(150,100%,50%)] font-black">${activePrice.toFixed(2)}</span>
+              <span className="text-[hsl(150,100%,50%)] font-black">${price.toFixed(2)}</span>
             </div>
 
             <div className="flex items-center justify-center gap-8">
