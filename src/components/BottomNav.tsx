@@ -4,18 +4,18 @@ import { Home, Compass, LayoutDashboard, User, Wallet, Mic2 } from "lucide-react
 import { cn } from "@/lib/utils";
 import { useUserMode } from "@/contexts/UserModeContext";
 
-export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
+const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Pulling 'mode' to ensure UI matches current intent, not just identity
+  // ✅ Pulling 'mode' to ensure UI matches current intent
   const { mode } = useUserMode();
 
   // Hide Nav on full-screen experiences like Auth or the Bouncer scanner
   const hiddenRoutes = ["/auth", "/bouncer"];
   if (hiddenRoutes.includes(location.pathname)) return null;
 
-  // 1. Guest Mode: Focus on Discovery and Tickets (Wallet)
+  // 1. Guest Mode
   const guestItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
@@ -23,7 +23,7 @@ export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
 
-  // 2. Talent Mode: Focus on Gigs and Performance Stats
+  // 2. Talent Mode
   const talentItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
@@ -31,7 +31,7 @@ export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
 
-  // 3. Manager Mode: Focus on Venue Operations
+  // 3. Manager Mode
   const managerItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
@@ -39,13 +39,12 @@ export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
 
-  // ✅ Determine items based on active UI mode, solving the "State Leak"
   const navItems = mode === "manager" ? managerItems : mode === "talent" ? talentItems : guestItems;
 
   return (
     <div
       ref={ref}
-      className="fixed bottom-0 left-0 right-0 z-50 bg-black/95 border-t border-white/10 backdrop-blur-lg pb-safe"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-black/95 border-t border-white/10 backdrop-blur-lg pb-safe animate-in fade-in slide-in-from-bottom-4 duration-700"
     >
       <div className="flex items-center justify-around h-16 max-w-md mx-auto px-2">
         {navItems.map((item) => {
@@ -55,14 +54,18 @@ export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
               key={item.label}
               onClick={() => navigate(item.path)}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 transition-all duration-300 min-w-[64px]",
+                "flex flex-col items-center gap-1 p-2 transition-all duration-300 min-w-[64px] active:scale-90",
                 isActive ? `${item.color} scale-110` : "text-zinc-500 hover:text-zinc-300",
               )}
             >
-              <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+              <item.icon
+                size={22}
+                strokeWidth={isActive ? 2.5 : 2}
+                className={cn(isActive && "drop-shadow-[0_0_8px_rgba(57,255,20,0.3)]")}
+              />
               <span
                 className={cn(
-                  "text-[9px] uppercase font-bold tracking-widest",
+                  "text-[9px] uppercase font-black tracking-[0.2em]",
                   isActive ? "opacity-100" : "opacity-60",
                 )}
               >
@@ -77,3 +80,6 @@ export const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
 });
 
 BottomNav.displayName = "BottomNav";
+
+// ✅ CRITICAL: Using default export to match App.tsx import style
+export default BottomNav;
