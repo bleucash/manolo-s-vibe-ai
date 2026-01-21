@@ -25,7 +25,9 @@ const Wallet = () => {
   const [tickets, setTickets] = useState<TicketData[]>([]);
 
   useEffect(() => {
-    const fetchTickets = async () => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupRealtimeAndFetch = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -35,10 +37,13 @@ const Wallet = () => {
         return;
       }
 
+      const userId = session.user.id;
+
+      // Initial fetch
       const { data, error } = await supabase
         .from("tickets")
         .select("id, event_name, event_date, status, qr_code, price_paid, venue_name, created_at")
-        .eq("user_id", session.user.id)
+        .eq("user_id", userId)
         .eq("status", "active")
         .order("created_at", { ascending: false });
 
@@ -47,9 +52,52 @@ const Wallet = () => {
       }
 
       setLoading(false);
+
+      // Subscribe to realtime inserts for this user's tickets
+      channel = supabase
+        .channel("wallet-tickets")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "tickets",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const newTicket = payload.new as TicketData;
+            if (newTicket.status === "active") {
+              setTickets((prev) => [newTicket, ...prev]);
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "tickets",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const updated = payload.new as TicketData;
+            setTickets((prev) =>
+              updated.status === "active"
+                ? prev.map((t) => (t.id === updated.id ? updated : t))
+                : prev.filter((t) => t.id !== updated.id)
+            );
+          }
+        )
+        .subscribe();
     };
 
-    fetchTickets();
+    setupRealtimeAndFetch();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [navigate]);
 
   const formatDate = (dateString: string) => {
