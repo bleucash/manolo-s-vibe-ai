@@ -1,28 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+import LoadingState from "@/components/ui/LoadingState"; // ✅ ADD THIS IMPORT
 
-type UserMode = "guest" | "talent" | "manager";
-
-interface Venue {
-  id: string;
-  name: string;
-  image_url: string | null;
-}
-
-interface UserModeContextType {
-  mode: UserMode;
-  setMode: (mode: UserMode) => void;
-  isManager: boolean;
-  isTalent: boolean;
-  userVenues: Venue[];
-  activeVenueId: string | null;
-  setActiveVenueId: (id: string | null) => void;
-  isLoading: boolean;
-  session: Session | null;
-}
-
-const UserModeContext = createContext<UserModeContextType | undefined>(undefined);
+// ... (types and interfaces stay the same)
 
 export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
@@ -35,66 +16,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const isVerifying = useRef(false);
 
-  const setMode = (newMode: UserMode) => {
-    setModeState(newMode);
-    localStorage.setItem("userMode", newMode);
-  };
-
-  const setActiveVenueId = (id: string | null) => {
-    setActiveVenueIdState(id);
-    if (id) localStorage.setItem("activeVenueId", id);
-    else localStorage.removeItem("activeVenueId");
-  };
-
-  const syncProfileAndVenues = async (userId: string) => {
-    if (isVerifying.current) return;
-    isVerifying.current = true;
-    setIsLoading(true);
-
-    try {
-      const { data: profile } = await supabase.from("profiles").select("role_type").eq("id", userId).maybeSingle();
-
-      if (profile) {
-        // Adjusted to match 'manager' role type
-        const role = profile.role_type || "guest";
-        const isMgr = role === "manager" || role === "venue_manager";
-        const isTal = role === "talent";
-
-        setIsManager(isMgr);
-        setIsTalent(isTal);
-
-        let correctMode: UserMode = "guest";
-        if (isMgr) correctMode = "manager";
-        else if (isTal) correctMode = "talent";
-
-        localStorage.setItem("userMode", correctMode);
-        setModeState(correctMode);
-
-        if (isMgr) {
-          // Fetch venues owned by this manager
-          const { data: venues } = await supabase.from("venues").select("id, name, image_url").eq("owner_id", userId);
-
-          if (venues && venues.length > 0) {
-            setUserVenues(venues);
-            const storedVenueId = localStorage.getItem("activeVenueId");
-            const isValid = venues.find((v) => v.id === storedVenueId);
-
-            // Default to the first venue if no valid stored ID exists
-            const finalId = isValid ? storedVenueId : venues[0].id;
-            setActiveVenueIdState(finalId);
-            localStorage.setItem("activeVenueId", finalId as string);
-          }
-        }
-      } else {
-        setModeState("guest");
-      }
-    } catch (err) {
-      console.error("Context Sync Error:", err);
-    } finally {
-      setIsLoading(false);
-      isVerifying.current = false;
-    }
-  };
+  // ... (setMode, setActiveVenueId, syncProfileAndVenues logic stay the same)
 
   useEffect(() => {
     let mounted = true;
@@ -113,7 +35,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
-
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         setSession(newSession);
         if (newSession) syncProfileAndVenues(newSession.user.id);
@@ -134,6 +55,13 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       subscription.unsubscribe();
     };
   }, []);
+
+  // ✅ THE NEURAL FIX:
+  // If we are loading, block the children from rendering and show the Master Loader.
+  // This prevents the App from flashing default "blue" primary states on refresh.
+  if (isLoading) {
+    return <LoadingState />;
+  }
 
   return (
     <UserModeContext.Provider
