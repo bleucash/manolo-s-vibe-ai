@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Loader2, Heart, MessageCircle, Share2, User, Plus, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Share2, User, Plus, Sparkles } from "lucide-react"; // Removed Loader2
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { formatDistanceToNow } from "date-fns";
@@ -11,6 +11,7 @@ import { ActivitySidebar } from "@/components/ActivitySidebar";
 import { EmptyFeedState } from "@/components/home/EmptyFeedState";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { PostWithVenue } from "@/types/database";
+import LoadingState from "@/components/ui/LoadingState"; // Unified Loader
 
 const Index = () => {
   const navigate = useNavigate();
@@ -23,7 +24,6 @@ const Index = () => {
 
   const { mode } = useUserMode();
 
-  // Managers and talent users can create posts
   const isCreator = mode === "manager" || mode === "talent";
 
   useEffect(() => {
@@ -105,16 +105,13 @@ const Index = () => {
     }
   };
 
+  // --- UNIFIED LOADING EXPERIENCE ---
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-neon-green" />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 animate-in fade-in duration-700">
       {/* HEADER */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 flex justify-between items-center">
         <h1 className="font-display text-xl text-foreground tracking-wide">
@@ -163,7 +160,7 @@ const Index = () => {
           />
         ) : (
           posts.map((post) => (
-            <Card key={post.id} className="bg-card/40 border-border overflow-hidden">
+            <Card key={post.id} className="bg-card/40 border-border overflow-hidden shadow-lg">
               <CardHeader className="p-4 flex flex-row items-center gap-3 space-y-0">
                 <Avatar
                   className="w-10 h-10 border border-border cursor-pointer"
@@ -189,7 +186,7 @@ const Index = () => {
               </CardHeader>
 
               {post.media_url && (
-                <div className="w-full aspect-square bg-background relative">
+                <div className="w-full aspect-square bg-background relative overflow-hidden">
                   {post.media_url.endsWith(".mp4") || post.media_url.includes("video") ? (
                     <video src={post.media_url} className="w-full h-full object-cover" muted playsInline />
                   ) : (
@@ -200,9 +197,9 @@ const Index = () => {
 
               <CardContent className="p-4 pb-2">
                 <div className="flex items-center gap-4 mb-3">
-                  <Heart className="w-6 h-6 text-foreground hover:text-pink-500 cursor-pointer transition-colors" />
-                  <MessageCircle className="w-6 h-6 text-foreground hover:text-accent cursor-pointer transition-colors" />
-                  <Share2 className="w-6 h-6 text-foreground hover:text-primary cursor-pointer transition-colors" />
+                  <Heart className="w-6 h-6 text-foreground hover:text-pink-500 cursor-pointer transition-all active:scale-90" />
+                  <MessageCircle className="w-6 h-6 text-foreground hover:text-accent cursor-pointer transition-all" />
+                  <Share2 className="w-6 h-6 text-foreground hover:text-primary cursor-pointer transition-all" />
                   <span className="ml-auto text-sm text-muted-foreground">
                     {post.likes_count ? `${post.likes_count} likes` : ""}
                   </span>
@@ -228,7 +225,7 @@ const Index = () => {
       {isCreator && (
         <button
           onClick={() => setDialogOpen(true)}
-          className="fixed bottom-24 right-4 z-40 w-14 h-14 rounded-full bg-pink-500 hover:bg-pink-600 text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+          className="fixed bottom-24 right-4 z-40 w-14 h-14 rounded-full bg-pink-500 hover:bg-pink-600 text-white shadow-xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-pink-500/20"
         >
           <Plus className="w-7 h-7" />
         </button>
