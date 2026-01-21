@@ -1,7 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { useWorkerPermissions } from "@/hooks/useWorkerPermissions";
-import { LoadingState } from "@/components/ui/LoadingState";
 
 type UserMode = "guest" | "talent" | "manager";
 
@@ -14,40 +13,40 @@ export const ProtectedRoute = ({ children, allowedModes }: ProtectedRouteProps) 
   const { isLoading: contextLoading, session, mode } = useUserMode();
   const location = useLocation();
 
-  // Verify database permissions (Staff/Talent checks)
+  // Use our permissions hook to verify the database status
   const { isTalentRole, isStaffRole, loading: permissionsLoading } = useWorkerPermissions(session?.user?.id || null);
 
-  // 1. Unified Loading State
-  // This replaces the blue/different colored circles with your branded green loader
+  // 1. Loading State: Don't redirect until we know who the user is
   if (contextLoading || permissionsLoading) {
-    return <LoadingState />;
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
-  // 2. Auth Check: Send to login if no session exists
+  // 2. Auth Check: If no session, send to login but save the current location to redirect back later
   if (!session) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // 3. Permission & Mode Integrity Check
+  // 3. Permission & Mode Check:
   if (allowedModes) {
-    // Block access to Manager mode if the DB says they aren't staff
+    // If they want to enter 'manager' mode, check if they actually have staff permissions
     if (mode === "manager" && !isStaffRole) {
-      console.warn("Unauthorized Manager access attempt");
       return <Navigate to="/" replace />;
     }
 
-    // Block access to Talent mode if the DB says they aren't talent
+    // If they want to enter 'talent' mode, check if they are actually talent
     if (mode === "talent" && !isTalentRole) {
-      console.warn("Unauthorized Talent access attempt");
       return <Navigate to="/" replace />;
     }
 
-    // Ensure the current mode is explicitly allowed for this route
+    // Finally, check if the current mode is allowed for this specific route
     if (!allowedModes.includes(mode)) {
       return <Navigate to="/" replace />;
     }
   }
 
-  // Return the children (the actual page) once all checks pass
   return <>{children}</>;
 };
