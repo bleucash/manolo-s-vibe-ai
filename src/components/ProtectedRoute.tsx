@@ -1,8 +1,10 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { useWorkerPermissions } from "@/hooks/useWorkerPermissions";
-import LoadingState from "@/components/ui/LoadingState"; // Ensure this matches your file location
+// Ensure this import does NOT have curly braces {}
+import LoadingState from "@/components/ui/LoadingState";
 
+// ... rest of your ProtectedRoute code
 type UserMode = "guest" | "talent" | "manager";
 
 interface ProtectedRouteProps {
