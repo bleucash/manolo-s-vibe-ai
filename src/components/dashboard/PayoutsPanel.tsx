@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet, Send, History } from "lucide-react";
+import { Wallet, Send, History as HistoryIcon, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface PayoutsPanelProps {
   venueId: string;
 }
-
 interface TalentPayout {
   promoterId: string;
   displayName: string;
@@ -16,118 +15,134 @@ interface TalentPayout {
   ticketCount: number;
 }
 
-// 1. Changed to a standard const for the export default pattern
 const PayoutsPanel = ({ venueId }: PayoutsPanelProps) => {
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
   const [payouts, setPayouts] = useState<TalentPayout[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchCommissions() {
-      setIsLoading(true);
+    if (venueId) fetchData();
+  }, [venueId, activeTab]);
 
-      // Using the promoter relationship to aggregate data
-      const { data, error } = await supabase
+  const fetchData = async () => {
+    setLoading(true);
+    if (activeTab === "pending") {
+      // Fetch Pending Logic
+      const { data } = await supabase
         .from("tickets")
-        .select(
-          `
-          promoter_id,
-          price_paid,
-          profiles:promoter_id (
-            display_name,
-            username
-          )
-        `,
-        )
+        .select(`promoter_id, price_paid, profiles:promoter_id (display_name, username)`)
         .eq("venue_id", venueId)
         .eq("status", "Scanned")
         .not("promoter_id", "is", null);
 
-      if (error) {
-        console.error("Error fetching commissions:", error);
-        setIsLoading(false);
-        return;
-      }
-
       const aggregated = new Map<string, TalentPayout>();
-
       data?.forEach((ticket) => {
         const promoterId = ticket.promoter_id as string;
         const profile = ticket.profiles as any;
         const displayName = profile?.display_name || profile?.username || "Unknown Talent";
-        const commission = (ticket.price_paid || 0) * 0.15; // 15% rate
+        const commission = (ticket.price_paid || 0) * 0.15;
 
         if (aggregated.has(promoterId)) {
-          const existing = aggregated.get(promoterId)!;
-          existing.totalCommission += commission;
-          existing.ticketCount += 1;
+          const e = aggregated.get(promoterId)!;
+          e.totalCommission += commission;
+          e.ticketCount += 1;
         } else {
-          aggregated.set(promoterId, {
-            promoterId,
-            displayName,
-            totalCommission: commission,
-            ticketCount: 1,
-          });
+          aggregated.set(promoterId, { promoterId, displayName, totalCommission: commission, ticketCount: 1 });
         }
       });
-
       setPayouts(Array.from(aggregated.values()));
-      setIsLoading(false);
+    } else {
+      // Fetch History Logic
+      const { data } = await supabase
+        .from("payout_history")
+        .select(`*, profiles:promoter_id(display_name, username)`)
+        .eq("venue_id", venueId)
+        .order("processed_at", { ascending: false });
+      setHistory(data || []);
     }
-
-    if (venueId) {
-      fetchCommissions();
-    }
-  }, [venueId]);
-
-  const handleProcessPayout = (talent: TalentPayout) => {
-    toast.success(`Settlement processed for ${talent.displayName}`, {
-      description: `Neural Link cleared for $${talent.totalCommission.toFixed(2)}`,
-    });
+    setLoading(false);
   };
 
-  // ✅ UNIFIED LOADING STRATEGY
-  if (isLoading) {
-    return null;
-  }
+  const handleProcessPayout = async (talent: TalentPayout) => {
+    try {
+      const { error } = await supabase.from("payout_history").insert({
+        venue_id: venueId,
+        promoter_id: talent.promoterId,
+        amount: talent.totalCommission,
+        ticket_count: talent.ticketCount,
+      });
+
+      if (error) throw error;
+
+      toast.success(`Settlement processed for ${talent.displayName}`, {
+        description: `Neural Ledger updated: $${talent.totalCommission.toFixed(2)}`,
+        icon: <CheckCircle2 className="text-neon-green" />,
+      });
+
+      fetchData(); // Refresh list
+    } catch (err) {
+      toast.error("Database sync failed");
+    }
+  };
+
+  if (loading) return null;
 
   return (
     <div className="animate-in fade-in duration-500 space-y-4">
-      <div className="flex items-center gap-2 px-1 mb-2">
-        <Wallet className="h-4 w-4 text-neon-green" />
-        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Neural Ledger Settlements</h4>
+      {/* Mini Toggle */}
+      <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
+        <button
+          onClick={() => setActiveTab("pending")}
+          className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${activeTab === "pending" ? "bg-white/10 text-neon-green" : "text-zinc-500"}`}
+        >
+          Pending
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${activeTab === "history" ? "bg-white/10 text-white" : "text-zinc-500"}`}
+        >
+          History
+        </button>
       </div>
 
-      {payouts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-white/5 bg-zinc-900/20">
-          <History className="h-8 w-8 mb-3 text-zinc-800" />
-          <p className="font-black uppercase tracking-widest text-[10px] text-zinc-600">No Active Commissions</p>
+      {activeTab === "pending" ? (
+        <div className="space-y-3">
+          {payouts.length === 0 ? (
+            <div className="py-12 text-center opacity-50">
+              <p className="text-[10px] font-black uppercase tracking-widest">Clear Ledger</p>
+            </div>
+          ) : (
+            payouts.map((t) => (
+              <Card key={t.promoterId} className="bg-zinc-900/50 border-white/5 p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-black text-sm text-white uppercase italic">{t.displayName}</p>
+                  <p className="text-[9px] text-zinc-500 uppercase font-black">{t.ticketCount} Units</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="font-display text-lg text-neon-green">${t.totalCommission.toFixed(2)}</span>
+                  <Button
+                    size="sm"
+                    onClick={() => handleProcessPayout(t)}
+                    className="bg-neon-green text-black font-black uppercase text-[10px] h-8 rounded-lg"
+                  >
+                    Settle
+                  </Button>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {payouts.map((talent) => (
-            <Card
-              key={talent.promoterId}
-              className="bg-zinc-900/50 border-white/5 p-4 flex items-center justify-between group hover:bg-zinc-900 transition-colors"
-            >
-              <div className="space-y-1">
-                <p className="font-black uppercase tracking-tight text-sm text-white italic">{talent.displayName}</p>
-                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-500">
-                  {talent.ticketCount} Units Verified
-                </p>
+          {history.map((h) => (
+            <div key={h.id} className="flex items-center justify-between p-3 border-b border-white/5 opacity-80">
+              <div>
+                <p className="text-[10px] font-bold text-white uppercase">{h.profiles?.display_name || "Talent"}</p>
+                <p className="text-[8px] text-zinc-500 uppercase">{new Date(h.processed_at).toLocaleDateString()}</p>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="font-display text-xl text-neon-green italic">
-                  ${talent.totalCommission.toFixed(2)}
-                </span>
-                <Button
-                  size="sm"
-                  onClick={() => handleProcessPayout(talent)}
-                  className="bg-neon-green text-black hover:bg-white font-black uppercase tracking-widest text-[10px] h-9 px-4 rounded-xl"
-                >
-                  Settle <Send className="h-3 w-3 ml-2" />
-                </Button>
-              </div>
-            </Card>
+              <p className="text-sm font-display text-zinc-300">${h.amount.toFixed(2)}</p>
+            </div>
           ))}
         </div>
       )}
@@ -135,5 +150,4 @@ const PayoutsPanel = ({ venueId }: PayoutsPanelProps) => {
   );
 };
 
-// ✅ THE MISSING PIECE: Default Export
 export default PayoutsPanel;
