@@ -36,7 +36,6 @@ const Bouncer = () => {
       setIsAuthorized(true);
       return;
     }
-    // Redirect if unauthorized or no active venue selected
     if (!activeVenueId) {
       toast.error("No active venue selected");
       navigate("/dashboard");
@@ -46,7 +45,7 @@ const Bouncer = () => {
   const onScanSuccess = async (qrCodeValue: string) => {
     if (!activeVenueId) return;
 
-    // Stop scanner immediately to prevent double-reads
+    // Stop scanner immediately to prevent double-reads during processing
     if (scannerRef.current?.isScanning) {
       await scannerRef.current.stop();
       setIsScanning(false);
@@ -55,45 +54,34 @@ const Bouncer = () => {
     const scannedValue = qrCodeValue.trim();
 
     try {
-      // 3. ATOMIC VALIDATION: Use a single query to check and update
-      // We check venue_id, qr_code, and current status in one go
-      const { data: ticket, error } = await supabase
-        .from("tickets")
-        .select("id, status, venue_id, event_name, customer_segment")
-        .eq("qr_code", scannedValue)
-        .maybeSingle();
+      // SECURE RPC CALL: All validation happens inside the database transaction
+      const { data, error } = await supabase.rpc("check_in_guest", {
+        qr_input: scannedValue,
+        current_venue_id: activeVenueId,
+      });
 
-      if (error || !ticket) {
-        setScanResult("invalid");
-        return;
+      if (error) throw error;
+
+      const result = data.result as ScanResult;
+      setScanResult(result);
+
+      if (data.ticket) {
+        setTicketData(data.ticket);
       }
 
-      if (ticket.venue_id !== activeVenueId) {
-        setScanResult("wrong_venue");
-        return;
+      // Visual and Audio feedback (optional)
+      if (result === "success") {
+        toast.success("Access Granted");
+      } else {
+        const messages = {
+          already_used: "Ticket already scanned",
+          wrong_venue: "Invalid venue for this ticket",
+          invalid: "Ticket code not recognized",
+        };
+        toast.error(messages[result as keyof typeof messages] || "Scan failed");
       }
-
-      if (ticket.status === "Scanned") {
-        setScanResult("already_used");
-        setTicketData(ticket);
-        return;
-      }
-
-      // 4. Update with status check to prevent race conditions
-      const { error: updateError } = await supabase
-        .from("tickets")
-        .update({
-          status: "Scanned",
-          scanned_at: new Date().toISOString(),
-        })
-        .eq("id", ticket.id)
-        .eq("status", "Valid"); // Ensure it's still valid at time of update
-
-      if (updateError) throw updateError;
-
-      setScanResult("success");
-      setTicketData(ticket);
     } catch (err) {
+      console.error("Scan error:", err);
       toast.error("Database sync error");
       resetScanner();
     }
@@ -123,7 +111,7 @@ const Bouncer = () => {
     startScanner();
   };
 
-  if (contextLoading) {
+  if (contextLoading || !isAuthorized) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="animate-spin text-neon-green" />
@@ -133,14 +121,13 @@ const Bouncer = () => {
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white font-sans">
-      {/* Dynamic Header */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/5 p-4 flex justify-between items-center">
         <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-zinc-400">
           <ArrowLeft className="mr-2 w-4 h-4" /> Exit
         </Button>
         <div className="text-right">
           <p className="text-neon-green text-xs font-black uppercase tracking-tighter">
-            {activeVenue?.name || "Operational Mode"}
+            {activeVenue?.name || "Bouncer Mode"}
           </p>
         </div>
       </div>
@@ -149,14 +136,14 @@ const Bouncer = () => {
         <div className="w-full max-w-sm">
           <div
             id="qr-reader"
-            className="w-full aspect-square rounded-3xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_0_50px_rgba(0,0,0,1)]"
+            className="w-full aspect-square rounded-3xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
           />
           {!isScanning && (
             <Button
               onClick={startScanner}
               className="w-full mt-8 bg-neon-green text-black h-16 text-lg font-black uppercase tracking-widest rounded-2xl hover:bg-neon-green/90"
             >
-              <Camera className="mr-3" /> Initiate Scan
+              <Camera className="mr-3" /> Start Scanner
             </Button>
           )}
         </div>
@@ -173,18 +160,14 @@ const Bouncer = () => {
           <h2
             className={`text-5xl font-black uppercase italic tracking-tighter mb-2 ${scanResult === "success" ? "text-neon-green" : "text-red-500"}`}
           >
-            {scanResult === "success"
-              ? "Access Granted"
-              : scanResult === "wrong_venue"
-                ? "Invalid Venue"
-                : "Access Denied"}
+            {scanResult === "success" ? "Access Granted" : "Access Denied"}
           </h2>
 
           {ticketData && (
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl mb-8">
-              <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-widest mb-1">Pass Identity</p>
+              <p className="text-zinc-400 text-[10px] uppercase font-bold tracking-widest mb-1">Guest Info</p>
               <p className="text-white font-black uppercase">
-                {ticketData.customer_segment} • {ticketData.event_name}
+                {ticketData.customer_segment || "General"} • {ticketData.event_name || "Entry"}
               </p>
             </div>
           )}
@@ -193,7 +176,7 @@ const Bouncer = () => {
             onClick={resetScanner}
             className="min-w-[240px] h-14 bg-white text-black font-black uppercase tracking-widest rounded-full hover:bg-zinc-200 transition-all active:scale-95"
           >
-            Next Scan
+            Ready for Next
           </Button>
         </div>
       )}
