@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { UserModeProvider, useUserMode } from "./contexts/UserModeContext";
 import BottomNav from "./components/BottomNav";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import LoadingState from "./components/ui/LoadingState"; // ✅ Import the Master Loader
 
 // Page Imports
 import Index from "./pages/Index";
@@ -19,11 +20,11 @@ import Wallet from "./pages/Wallet";
 import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
-import Venue from "./pages/Venue";
-import ManageVenue from "./pages/ManageVenue"; // Added for Manager Flow
+import VenueDetails from "./pages/VenueDetails"; // ✅ SWAP: Use VenueDetails instead of Venue
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
+// ... (ErrorBoundary stays the same)
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -55,15 +56,9 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const { isLoading } = useUserMode();
 
+  // ✅ FIX: Replace the Blue Spinner with the Green LoadingState
   if (isLoading) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-black">
-        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
-        <div className="animate-pulse text-primary font-display uppercase tracking-widest text-[10px]">
-          Synchronizing Neural Engine...
-        </div>
-      </div>
-    );
+    return <LoadingState />;
   }
 
   return (
@@ -75,14 +70,16 @@ const AppContent = () => {
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/discovery" element={<Discovery />} />
-          <Route path="/venue/:id" element={<Venue />} />
+
+          {/* ✅ THE COLLISION HUB: Point the ID to the upgraded Workstation page */}
+          <Route path="/venue/:id" element={<VenueDetails />} />
 
           {/* Manager Control Center */}
           <Route
             path="/venue/:id/manage"
             element={
               <ProtectedRoute allowedModes={["manager"]}>
-                <ManageVenue />
+                <VenueDetails /> {/* Use VenueDetails here too if needed */}
               </ProtectedRoute>
             }
           />
