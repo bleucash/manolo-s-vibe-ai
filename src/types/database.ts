@@ -7,6 +7,7 @@ export interface Venue {
   is_active: boolean;
   description?: string | null;
   capacity?: number | null;
+  entry_price?: number | null;
 }
 
 export interface Profile {

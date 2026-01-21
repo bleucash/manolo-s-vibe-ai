@@ -196,6 +196,7 @@ const VenueDetails = () => {
               onOpenChange={setPurchaseOpen}
               venueId={venue.id}
               venueName={venue.name}
+              price={venue.entry_price || 20}
               referralId={referralId}
             />
           </>
