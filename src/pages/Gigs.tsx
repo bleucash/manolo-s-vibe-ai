@@ -1,13 +1,13 @@
 import { useUserMode } from "@/contexts/UserModeContext";
-import { ShieldX } from "lucide-react"; // Removed Loader2
+import { ShieldX } from "lucide-react"; // Loader2 removed
 import TalentDashboard from "@/components/TalentDashboard";
 
 const Gigs = () => {
   const { isTalent, isLoading, session } = useUserMode();
 
   // ✅ UNIFIED LOADING STRATEGY
-  // We return null so the ProtectedRoute's "Neural Engine" stays visible
-  // until the session and talent status are fully synchronized.
+  // By returning null, we prevent the "small circle" flicker.
+  // The ProtectedRoute's Neural Engine stays visible until context is hydrated.
   if (isLoading) {
     return null;
   }
@@ -29,7 +29,7 @@ const Gigs = () => {
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24 animate-in fade-in duration-700">
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION - Standardized with your 2026 aesthetic */}
       <div className="mb-6 px-2 pt-4">
         <h2 className="text-[10px] font-black text-neon-purple uppercase tracking-[0.4em] mb-1">Performance Engine</h2>
         <h1 className="text-4xl font-display text-white uppercase tracking-tighter italic">Active Gigs</h1>
