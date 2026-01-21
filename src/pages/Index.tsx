@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Loader2, Heart, MessageCircle, Share2, User, Plus, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Share2, User, Plus, Sparkles } from "lucide-react";
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { formatDistanceToNow } from "date-fns";
@@ -28,10 +28,9 @@ const Index = () => {
 
   useEffect(() => {
     const initializeHome = async () => {
+      // Keep the "Neural Engine" visible while we aggregate all data
       setLoading(true);
-      await fetchUserSession();
-      await fetchSpotlight();
-      await fetchFollowerFeed();
+      await Promise.all([fetchUserSession(), fetchSpotlight(), fetchFollowerFeed()]);
       setLoading(false);
     };
     initializeHome();
@@ -74,7 +73,6 @@ const Index = () => {
       if (!user) return;
 
       const { data: follows } = await supabase.from("followers").select("following_id").eq("follower_id", user.id);
-
       const followingIds = follows?.map((f) => f.following_id) || [];
 
       if (followingIds.length > 0) {
@@ -105,16 +103,15 @@ const Index = () => {
     }
   };
 
+  // ✅ UNIFIED LOADING STRATEGY:
+  // Returning null allows the ProtectedRoute's LoadingState (Big Green Circle)
+  // to persist until this component is fully ready to display.
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-neon-green" />
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 animate-in fade-in duration-500">
       {/* HEADER */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 flex justify-between items-center">
         <h1 className="font-display text-xl text-foreground tracking-wide">
@@ -163,7 +160,7 @@ const Index = () => {
           />
         ) : (
           posts.map((post) => (
-            <Card key={post.id} className="bg-card/40 border-border overflow-hidden">
+            <Card key={post.id} className="bg-card/40 border-border overflow-hidden shadow-sm">
               <CardHeader className="p-4 flex flex-row items-center gap-3 space-y-0">
                 <Avatar
                   className="w-10 h-10 border border-border cursor-pointer"
