@@ -383,6 +383,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          commission_earned: number | null
           created_at: string | null
           currency: string | null
           customer_segment: string | null
@@ -402,6 +403,7 @@ export type Database = {
           venue_name: string | null
         }
         Insert: {
+          commission_earned?: number | null
           created_at?: string | null
           currency?: string | null
           customer_segment?: string | null
@@ -421,6 +423,7 @@ export type Database = {
           venue_name?: string | null
         }
         Update: {
+          commission_earned?: number | null
           created_at?: string | null
           currency?: string | null
           customer_segment?: string | null
@@ -603,6 +606,20 @@ export type Database = {
       }
     }
     Functions: {
+      check_in_guest: {
+        Args: { current_venue_id: string; qr_input: string }
+        Returns: Json
+      }
+      get_unpaid_commissions: {
+        Args: { venue_id_input: string }
+        Returns: {
+          full_name: string
+          promoter_id: string
+          ticket_count: number
+          total_unpaid: number
+          username: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
