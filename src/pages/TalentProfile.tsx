@@ -6,11 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, MapPin, Sparkles, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, ArrowLeft, MapPin, Sparkles, UserPlus, CheckCircle2, Clock } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
 import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import LoadingState from "@/components/ui/LoadingState";
+import { z } from "zod";
+
+// Validation schema for venue staff invitations
+const venueStaffInviteSchema = z.object({
+  venue_id: z.string().uuid("Invalid venue ID"),
+  user_id: z.string().uuid("Invalid user ID"),
+  status: z.enum(["pending", "pending_talent_action"]),
+});
 
 const TalentProfile = () => {
   const { id } = useParams();
@@ -19,6 +26,7 @@ const TalentProfile = () => {
 
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("vibe");
   const [schedule, setSchedule] = useState<any[]>([]);
   const [inviting, setInviting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
@@ -27,96 +35,114 @@ const TalentProfile = () => {
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // 1. Fetch Profile
-        const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
-
-        if (profileData) setProfile(profileData);
-
-        // 2. Fetch Active Residencies
-        const { data: staffData } = await supabase
-          .from("venue_staff")
-          .select("venue_id, venues(id, name, location)")
-          .eq("user_id", id)
-          .eq("status", "active");
-
-        if (staffData) {
-          setSchedule(
-            staffData.map((s: any) => ({
-              id: s.venue_id,
-              venue_id: s.venues?.id,
-              venue_name: s.venues?.name,
-              venue_location: s.venues?.location,
-            })),
-          );
-        }
-
-        // 3. Check Connection with Active Venue
-        if (activeVenueId && id) {
-          const { data: existing } = await supabase
-            .from("venue_staff")
-            .select("status")
-            .eq("venue_id", activeVenueId)
-            .eq("user_id", id)
-            .maybeSingle();
-
-          if (existing) setConnectionStatus(existing.status);
-        }
-      } catch (error) {
-        console.error("Data Fetch Error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [id, activeVenueId]);
 
+  const fetchData = async () => {
+    try {
+      // 1. Fetch Profile
+      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+      if (profileData) setProfile(profileData);
+
+      // 2. Fetch Active Residencies
+      const { data: staffData } = await supabase
+        .from("venue_staff")
+        .select("venue_id, venues(id, name, location)")
+        .eq("user_id", id)
+        .eq("status", "active");
+
+      if (staffData) {
+        setSchedule(
+          staffData.map((s: any) => ({
+            id: s.venue_id,
+            venue_id: s.venues?.id,
+            venue_name: s.venues?.name,
+            venue_location: s.venues?.location,
+          })),
+        );
+      }
+
+      // 3. Check Connection Status with the Active Manager's Venue
+      if (activeVenueId && id) {
+        const { data: existing } = await supabase
+          .from("venue_staff")
+          .select("status")
+          .eq("venue_id", activeVenueId)
+          .eq("user_id", id)
+          .maybeSingle();
+
+        if (existing) setConnectionStatus(existing.status);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInvite = async () => {
     if (!activeVenueId || !id) return;
+    
+    // Validate input data before database call
+    const inviteData = {
+      venue_id: activeVenueId,
+      user_id: id,
+      status: "pending_talent_action" as const,
+    };
+    
+    const validation = venueStaffInviteSchema.safeParse(inviteData);
+    if (!validation.success) {
+      toast.error("Invalid invitation data");
+      return;
+    }
+    
     setInviting(true);
     try {
-      const { error } = await supabase.from("venue_staff").insert({
-        venue_id: activeVenueId,
-        user_id: id,
-        status: "pending_talent_action",
-      });
+      // Check for existing relationship first
+      const { data: existing } = await supabase
+        .from("venue_staff")
+        .select("status")
+        .eq("venue_id", activeVenueId)
+        .eq("user_id", id)
+        .maybeSingle();
+      
+      if (existing) {
+        toast.error(`Connection already exists with status: ${existing.status}`);
+        setConnectionStatus(existing.status);
+        return;
+      }
+      
+      const { error } = await supabase.from("venue_staff").insert(inviteData);
       if (error) throw error;
-      toast.success("Invitation dispatched");
+      toast.success("Invitation sent!");
       setConnectionStatus("pending_talent_action");
-    } catch (err) {
-      toast.error("Invitation failed");
+    } catch (err: any) {
+      if (err.code === "23505") {
+        toast.error("You have already invited this talent.");
+      } else {
+        toast.error("Failed to send invitation");
+      }
     } finally {
       setInviting(false);
     }
   };
 
-  if (loading) return <LoadingState />;
-  if (!profile)
+  if (loading)
     return (
-      <div className="h-screen bg-black text-white p-10 font-mono text-[10px] uppercase tracking-widest">
-        Profile_Not_Synchronized
+      <div className="h-screen flex items-center justify-center bg-black">
+        <Loader2 className="animate-spin text-neon-pink w-10 h-10" />
       </div>
     );
+  if (!profile)
+    return <div className="h-screen flex items-center justify-center bg-black text-white">Talent Not Found</div>;
 
   const isSelfView = currentUserId === id;
 
-  // SAFE STYLING: Logic moved outside of JSX to prevent string termination errors
-  let inviteBtnClass = "w-full h-14 font-black uppercase tracking-widest rounded-2xl transition-all ";
-  if (connectionStatus === "active") {
-    inviteBtnClass += "bg-neon-green/20 text-neon-green border border-neon-green/30";
-  } else if (connectionStatus) {
-    inviteBtnClass += "bg-zinc-800 text-zinc-500";
-  } else {
-    inviteBtnClass += "bg-white text-black hover:bg-zinc-200 shadow-xl";
-  }
-
   return (
-    <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-background pb-32">
       <div className="relative w-full overflow-hidden">
         <AspectRatio ratio={3 / 4} className="bg-zinc-900">
-          <img src={profile.avatar_url || ""} className="w-full h-full object-cover" alt="Talent" />
+          <img src={profile.avatar_url || ""} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
           <div className="absolute top-6 left-6 z-20">
             <Button
@@ -125,12 +151,12 @@ const TalentProfile = () => {
               onClick={() => navigate(-1)}
               className="bg-black/40 backdrop-blur-xl rounded-full text-white border border-white/10"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft />
             </Button>
           </div>
           <div className="absolute bottom-12 left-8 right-8 z-10">
             <Badge className="mb-4 bg-neon-pink text-white border-none uppercase tracking-[0.3em] text-[9px] font-bold px-3 py-1">
-              Neural Network Spotlight
+              Talent Spotlight
             </Badge>
             <h1 className="text-6xl font-display text-white uppercase tracking-tighter leading-[0.85]">
               {profile.display_name || profile.username}
@@ -151,22 +177,33 @@ const TalentProfile = () => {
           </Button>
         )}
 
+        {/* Dynamic Action Button for Managers */}
         {mode === "manager" && activeVenue && !isSelfView && (
-          <Button onClick={handleInvite} disabled={inviting || !!connectionStatus} className={inviteBtnClass}>
+          <Button
+            onClick={handleInvite}
+            disabled={inviting || !!connectionStatus}
+            className={`w-full h-14 font-black uppercase tracking-widest rounded-2xl transition-all ${
+              connectionStatus === "active"
+                ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
+                : connectionStatus
+                  ? "bg-zinc-800 text-zinc-500"
+                  : "bg-white text-black"
+            }`}
+          >
             {connectionStatus === "active" ? (
               <>
-                <CheckCircle2 className="mr-2 w-5 h-5" /> Connected
+                <CheckCircle2 className="mr-2" /> Connected
               </>
             ) : connectionStatus === "pending_talent_action" ? (
               <>
-                <Clock className="mr-2 w-5 h-5" /> Invitation Sent
+                <Clock className="mr-2" /> Invitation Sent
               </>
             ) : connectionStatus === "pending" ? (
               <>
-                <Clock className="mr-2 w-5 h-5" /> Applied to You
+                <Clock className="mr-2" /> Applied to You
               </>
             ) : inviting ? (
-              "Syncing..."
+              "Sending..."
             ) : (
               `Invite to ${activeVenue.name}`
             )}
@@ -190,7 +227,6 @@ const TalentProfile = () => {
               Live Dates
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="vibe" className="p-6">
             <div className="grid grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
@@ -203,34 +239,24 @@ const TalentProfile = () => {
               ))}
             </div>
           </TabsContent>
-
           <TabsContent value="schedule" className="p-6 space-y-4">
-            {schedule.length > 0 ? (
-              schedule.map((item) => (
-                <Card
-                  key={item.id}
-                  className="bg-zinc-900/50 border-white/5 p-5 flex justify-between items-center shadow-lg"
+            {schedule.map((item) => (
+              <Card key={item.id} className="bg-zinc-900/50 border-white/5 p-5 flex justify-between items-center">
+                <div>
+                  <p className="text-white font-display text-lg uppercase leading-none">{item.venue_name}</p>
+                  <p className="text-[10px] text-zinc-500 uppercase flex items-center gap-1 mt-1">
+                    <MapPin className="w-3 h-3 text-neon-pink" /> {item.venue_location}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => navigate(`/venue/${item.venue_id}`)}
+                  className="bg-white text-black text-[10px] font-bold uppercase rounded-full px-5"
                 >
-                  <div>
-                    <p className="text-white font-display text-lg uppercase leading-none">{item.venue_name}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase flex items-center gap-1 mt-1">
-                      <MapPin className="w-3 h-3 text-neon-pink" /> {item.venue_location}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(`/venue/${item.venue_id}`)}
-                    className="bg-white text-black text-[10px] font-bold uppercase rounded-full px-5 hover:bg-zinc-200"
-                  >
-                    Get Tickets
-                  </Button>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center py-10 text-zinc-600 italic text-[10px] uppercase tracking-widest">
-                No Active Residencies
-              </div>
-            )}
+                  Get Tickets
+                </Button>
+              </Card>
+            ))}
           </TabsContent>
         </Tabs>
       </div>

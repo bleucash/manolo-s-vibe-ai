@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle, XCircle, Camera, ArrowLeft } from "lucide-react";
+import { CheckCircle, XCircle, Camera, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserMode } from "@/contexts/UserModeContext";
-import LoadingState from "@/components/ui/LoadingState";
 import { toast } from "sonner";
 
 type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
@@ -21,6 +20,7 @@ const Bouncer = () => {
 
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
+  // 1. Hardware Lifecycle Management
   useEffect(() => {
     return () => {
       if (scannerRef.current?.isScanning) {
@@ -29,6 +29,7 @@ const Bouncer = () => {
     };
   }, []);
 
+  // 2. Permission Guard
   useEffect(() => {
     if (contextLoading) return;
     if (isManager && activeVenueId) {
@@ -44,6 +45,7 @@ const Bouncer = () => {
   const onScanSuccess = async (qrCodeValue: string) => {
     if (!activeVenueId) return;
 
+    // Stop scanner immediately to prevent double-reads during processing
     if (scannerRef.current?.isScanning) {
       await scannerRef.current.stop();
       setIsScanning(false);
@@ -52,6 +54,7 @@ const Bouncer = () => {
     const scannedValue = qrCodeValue.trim();
 
     try {
+      // SECURE RPC CALL: All validation happens inside the database transaction
       const { data, error } = await supabase.rpc("check_in_guest", {
         qr_input: scannedValue,
         current_venue_id: activeVenueId,
@@ -66,6 +69,7 @@ const Bouncer = () => {
         setTicketData(data.ticket);
       }
 
+      // Visual and Audio feedback (optional)
       if (result === "success") {
         toast.success("Access Granted");
       } else {
@@ -108,11 +112,15 @@ const Bouncer = () => {
   };
 
   if (contextLoading || !isAuthorized) {
-    return <LoadingState />;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="animate-spin text-neon-green" />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white font-sans animate-in fade-in duration-700">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white font-sans">
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/5 p-4 flex justify-between items-center">
         <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-zinc-400">
           <ArrowLeft className="mr-2 w-4 h-4" /> Exit
@@ -128,7 +136,7 @@ const Bouncer = () => {
         <div className="w-full max-w-sm">
           <div
             id="qr-reader"
-            className="w-full aspect-square rounded-3xl overflow-hidden border border-white/10 bg-zinc-900"
+            className="w-full aspect-square rounded-3xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
           />
           {!isScanning && (
             <Button
@@ -140,7 +148,7 @@ const Bouncer = () => {
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+        <div className="flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className={`p-8 rounded-full mb-6 ${scanResult === "success" ? "bg-neon-green/20" : "bg-red-500/20"}`}>
             {scanResult === "success" ? (
               <CheckCircle className="w-24 h-24 text-neon-green" />
