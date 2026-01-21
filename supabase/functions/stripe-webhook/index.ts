@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
 
   try {
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SIGNING_SECRET");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      
+
       console.log("Processing checkout.session.completed:", session.id);
       console.log("Session metadata:", JSON.stringify(session.metadata));
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       }
 
       console.log("Ticket created successfully:", ticket.id);
-      
+
       return new Response(JSON.stringify({ received: true, ticket_id: ticket.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -131,7 +131,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Webhook error:", errorMessage);
