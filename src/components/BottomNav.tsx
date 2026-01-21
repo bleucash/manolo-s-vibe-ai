@@ -10,14 +10,7 @@ import { ArrowLeft, MapPin, Sparkles, CheckCircle2, Clock } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
 import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { z } from "zod";
 import LoadingState from "@/components/ui/LoadingState";
-
-const venueStaffInviteSchema = z.object({
-  venue_id: z.string().uuid(),
-  user_id: z.string().uuid(),
-  status: z.enum(["pending", "pending_talent_action"]),
-});
 
 const TalentProfile = () => {
   const { id } = useParams();
@@ -37,9 +30,11 @@ const TalentProfile = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        // 1. Fetch Profile
         const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
         if (profileData) setProfile(profileData);
 
+        // 2. Fetch Active Residencies
         const { data: staffData } = await supabase
           .from("venue_staff")
           .select("venue_id, venues(id, name, location)")
@@ -57,6 +52,7 @@ const TalentProfile = () => {
           );
         }
 
+        // 3. Check Connection Status with the Active Manager's Venue
         if (activeVenueId && id) {
           const { data: existing } = await supabase
             .from("venue_staff")
@@ -68,7 +64,7 @@ const TalentProfile = () => {
           if (existing) setConnectionStatus(existing.status);
         }
       } catch (error) {
-        console.error(error);
+        console.error("Fetch Error:", error);
       } finally {
         setLoading(false);
       }
@@ -80,8 +76,11 @@ const TalentProfile = () => {
     if (!activeVenueId || !id) return;
     setInviting(true);
     try {
-      const inviteData = { venue_id: activeVenueId, user_id: id, status: "pending_talent_action" as const };
-      const { error } = await supabase.from("venue_staff").insert(inviteData);
+      const { error } = await supabase.from("venue_staff").insert({
+        venue_id: activeVenueId,
+        user_id: id,
+        status: "pending_talent_action",
+      });
       if (error) throw error;
       toast.success("Invitation sent!");
       setConnectionStatus("pending_talent_action");
@@ -93,11 +92,16 @@ const TalentProfile = () => {
   };
 
   if (loading) return <LoadingState />;
-  if (!profile) return <div className="h-screen bg-black text-white p-10 font-mono text-xs">ERR: TALENT_NOT_FOUND</div>;
+  if (!profile)
+    return (
+      <div className="h-screen bg-black text-white p-10 font-mono text-xs uppercase tracking-widest">
+        Neural_Link_Failure: Profile_Not_Found
+      </div>
+    );
 
   const isSelfView = currentUserId === id;
 
-  // Extracted styles to avoid string termination errors
+  // Resolved styles for the action button
   const inviteButtonStyles =
     connectionStatus === "active"
       ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
@@ -109,7 +113,11 @@ const TalentProfile = () => {
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-700">
       <div className="relative w-full overflow-hidden">
         <AspectRatio ratio={3 / 4} className="bg-zinc-900">
-          <img src={profile.avatar_url || ""} className="w-full h-full object-cover" alt={profile.username} />
+          <img
+            src={profile.avatar_url || ""}
+            className="w-full h-full object-cover"
+            alt={profile.username || "Profile"}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
           <div className="absolute top-6 left-6 z-20">
             <Button
@@ -123,7 +131,7 @@ const TalentProfile = () => {
           </div>
           <div className="absolute bottom-12 left-8 right-8 z-10">
             <Badge className="mb-4 bg-neon-pink text-white border-none uppercase tracking-[0.3em] text-[9px] font-bold px-3 py-1">
-              Talent Spotlight
+              Neural Spotlight
             </Badge>
             <h1 className="text-6xl font-display text-white uppercase tracking-tighter leading-[0.85]">
               {profile.display_name || profile.username}
@@ -204,7 +212,10 @@ const TalentProfile = () => {
           <TabsContent value="schedule" className="p-6 space-y-4">
             {schedule.length > 0 ? (
               schedule.map((item) => (
-                <Card key={item.id} className="bg-zinc-900/50 border-white/5 p-5 flex justify-between items-center">
+                <Card
+                  key={item.id}
+                  className="bg-zinc-900/50 border-white/5 p-5 flex justify-between items-center shadow-lg"
+                >
                   <div>
                     <p className="text-white font-display text-lg uppercase leading-none">{item.venue_name}</p>
                     <p className="text-[10px] text-zinc-500 uppercase flex items-center gap-1 mt-1">
@@ -214,7 +225,7 @@ const TalentProfile = () => {
                   <Button
                     size="sm"
                     onClick={() => navigate(`/venue/${item.venue_id}`)}
-                    className="bg-white text-black text-[10px] font-bold uppercase rounded-full px-5"
+                    className="bg-white text-black text-[10px] font-bold uppercase rounded-full px-5 hover:bg-zinc-100"
                   >
                     Get Tickets
                   </Button>
