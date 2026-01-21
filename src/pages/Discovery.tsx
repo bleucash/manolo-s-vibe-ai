@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Zap, Loader2 } from "lucide-react";
+import { Search, Zap } from "lucide-react"; // Removed Loader2
 import { VibeFeed } from "@/components/VibeFeed";
 import { PostWithVenue } from "@/types/database";
 import { toast } from "sonner";
@@ -40,8 +40,15 @@ const Discovery = () => {
     }
   };
 
+  // ✅ UNIFIED LOADING STRATEGY:
+  // We return null so the parent (ProtectedRoute) keeps the
+  // Neural Engine loader visible until our posts are ready.
+  if (loading) {
+    return null;
+  }
+
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col">
+    <div className="h-screen bg-black overflow-hidden flex flex-col animate-in fade-in duration-500">
       {/* ⚡ THE DISGUISE: Minimal Branding Header */}
       <div className="p-6 pt-12 flex justify-between items-center bg-gradient-to-b from-black to-transparent z-50 fixed top-0 left-0 right-0 pointer-events-none">
         <div>
@@ -50,14 +57,15 @@ const Discovery = () => {
           </h1>
           <p className="text-[8px] font-black text-zinc-500 uppercase tracking-[0.4em]">Live Intelligence</p>
         </div>
-        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md pointer-events-auto cursor-pointer">
+        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md pointer-events-auto cursor-pointer transition-transform active:scale-90">
           <Search className="w-5 h-5 text-white" />
         </div>
       </div>
 
       {/* 🚀 THE ENGINE: High-Intensity Video Feed */}
       <div className="flex-1 h-full">
-        <VibeFeed posts={posts} isLoading={loading} error={error} />
+        {/* We pass false to isLoading because we handle the transition at the page level now */}
+        <VibeFeed posts={posts} isLoading={false} error={error} />
       </div>
 
       {/* 🎚️ BOTTOM DECK OVERLAY */}
@@ -67,7 +75,7 @@ const Discovery = () => {
             {posts.length} Global Vibes Active
           </span>
         </div>
-        <div className="w-10 h-10 rounded-full bg-neon-pink flex items-center justify-center animate-pulse pointer-events-auto cursor-pointer">
+        <div className="w-10 h-10 rounded-full bg-neon-pink flex items-center justify-center animate-pulse pointer-events-auto cursor-pointer shadow-[0_0_15px_rgba(255,16,140,0.3)]">
           <Zap className="w-5 h-5 text-black fill-black" />
         </div>
       </div>
