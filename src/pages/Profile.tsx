@@ -5,7 +5,7 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Grid3X3, User, Loader2, Activity } from "lucide-react";
+import { LogOut, Grid3X3, User, Activity } from "lucide-react"; // Removed Loader2
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -43,14 +43,13 @@ const Profile = () => {
       if (profileData) {
         setProfile(profileData);
       }
-    } catch {
-      // Silently handle errors
+    } catch (error) {
+      console.error("Profile Fetch Error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ UI Logic Update: Swapped "Artist" for "Talent" for platform consistency
   const toggleUserMode = () => {
     if (mode === "guest") {
       if (isTalent) {
@@ -73,15 +72,15 @@ const Profile = () => {
     navigate("/auth");
   };
 
-  if (loading || contextLoading)
-    return (
-      <div className="h-screen bg-black flex items-center justify-center">
-        <Loader2 className="animate-spin text-neon-green" />
-      </div>
-    );
+  // ✅ UNIFIED LOADING STRATEGY
+  // Return null to let the ProtectedRoute's LoadingState (Neural Engine)
+  // persist until both profile data and user context are ready.
+  if (loading || contextLoading) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 animate-in fade-in duration-700">
       {/* Banner */}
       <div className="relative w-full h-48 bg-zinc-900 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
@@ -102,7 +101,6 @@ const Profile = () => {
               }`}
             />
             <span className="absolute w-full text-center text-[10px] font-black uppercase tracking-widest text-white">
-              {/* ✅ Corrected Label: Artist -> Talent */}
               {mode === "guest" ? "Guest" : mode === "talent" ? "Talent" : "Manager"}
             </span>
           </button>
@@ -113,22 +111,26 @@ const Profile = () => {
       <div className="px-6 -mt-12 relative z-10 space-y-4">
         <Avatar className="w-24 h-24 border-4 border-background shadow-2xl">
           <AvatarImage src={profile?.avatar_url} />
-          <AvatarFallback>{profile?.username?.charAt(0)}</AvatarFallback>
+          <AvatarFallback className="bg-zinc-800 text-zinc-500 font-bold">
+            {profile?.username?.charAt(0).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
 
         <div>
-          <h1 className="text-3xl font-display text-white uppercase tracking-tighter">{profile?.username}</h1>
-          <div className="flex gap-2 mt-1">
+          <h1 className="text-3xl font-display text-white uppercase tracking-tighter leading-none">
+            {profile?.username}
+          </h1>
+          <div className="flex gap-2 mt-2">
             <Badge
-              className={
+              className={`uppercase text-[9px] font-black tracking-widest px-2 py-0.5 border-none ${
                 mode === "manager"
                   ? "bg-neon-green text-black"
                   : mode === "talent"
-                    ? "bg-neon-purple text-white" // Updated to match talent color theme
+                    ? "bg-neon-purple text-white shadow-[0_0_10px_rgba(191,0,255,0.3)]"
                     : "bg-zinc-800 text-zinc-400"
-              }
+              }`}
             >
-              {mode.toUpperCase()}
+              {mode} mode active
             </Badge>
           </div>
         </div>
@@ -141,7 +143,7 @@ const Profile = () => {
             {mode === "manager" && (
               <TabsTrigger
                 value="venue"
-                className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-neon-green px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest"
+                className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-neon-green px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest transition-all"
               >
                 <Activity className="w-4 h-4 mr-2" /> My Venue
               </TabsTrigger>
@@ -149,25 +151,25 @@ const Profile = () => {
             {mode === "talent" && (
               <TabsTrigger
                 value="portfolio"
-                className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-neon-purple px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest"
+                className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-neon-purple px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest transition-all"
               >
                 <Grid3X3 className="w-4 h-4 mr-2" /> Gigs
               </TabsTrigger>
             )}
             <TabsTrigger
               value="about"
-              className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/40 px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest"
+              className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/40 px-0 pb-3 text-zinc-500 uppercase text-[10px] font-bold tracking-widest transition-all"
             >
               <User className="w-4 h-4 mr-2" /> Settings
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="venue" className="p-6">
-            <Card className="bg-zinc-900 border-white/5 p-6 space-y-4">
-              <h3 className="text-white font-display text-lg uppercase">Venue Control</h3>
+            <Card className="bg-zinc-900/50 border-white/5 p-6 space-y-4 backdrop-blur-sm">
+              <h3 className="text-white font-display text-lg uppercase leading-none">Venue Control</h3>
               <p className="text-sm text-zinc-500 font-body">Manage your public vibe and live schedule.</p>
               <Button
-                className="w-full h-12 bg-neon-green text-black font-bold uppercase tracking-widest"
+                className="w-full h-12 bg-neon-green text-black font-black uppercase tracking-widest hover:bg-neon-green/90 transition-all shadow-lg shadow-neon-green/10"
                 onClick={() => navigate(`/venue/${activeVenueId}`)}
               >
                 View Public Profile
@@ -176,21 +178,24 @@ const Profile = () => {
           </TabsContent>
 
           <TabsContent value="portfolio" className="p-6">
-            <div className="text-center py-10 border border-dashed border-white/10 rounded-xl">
-              <p className="text-zinc-600 italic text-sm uppercase font-bold tracking-widest">
+            <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl bg-zinc-900/20">
+              <p className="text-zinc-600 italic text-[10px] uppercase font-black tracking-[0.3em]">
                 Performance Data Syncing...
               </p>
             </div>
           </TabsContent>
 
           <TabsContent value="about" className="p-6 space-y-6">
-            <Button
-              variant="outline"
-              className="w-full border-red-500/20 text-red-500 hover:bg-red-500/10"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-4 h-4 mr-2" /> Log Out
-            </Button>
+            <div className="space-y-4">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Account Actions</p>
+              <Button
+                variant="outline"
+                className="w-full h-12 border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors uppercase font-bold text-[10px] tracking-widest"
+                onClick={handleLogout}
+              >
+                <LogOut className="w-4 h-4 mr-2" /> Log Out Neural Link
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
