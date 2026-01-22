@@ -11,6 +11,7 @@ import { ActivitySidebar } from "@/components/ActivitySidebar";
 import { EmptyFeedState } from "@/components/home/EmptyFeedState";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { PostWithVenue } from "@/types/database";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -20,15 +21,16 @@ const Index = () => {
   const [userName, setUserName] = useState("Guest");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
 
   const { mode } = useUserMode();
-
   const isCreator = mode === "manager" || mode === "talent";
 
   useEffect(() => {
     const initializeHome = async () => {
       setLoading(true);
-      await Promise.all([fetchUserSession(), fetchSpotlight(), fetchFollowerFeed()]);
+      const user = await fetchUserSession();
+      await Promise.all([fetchSpotlight(), fetchFollowerFeed(user?.id), fetchUserLikes(user?.id)]);
       setLoading(false);
     };
     initializeHome();
@@ -39,14 +41,27 @@ const Index = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return null;
 
       setCurrentUserId(user.id);
       const { data: profile } = await supabase.from("profiles").select("username").eq("id", user.id).maybeSingle();
-
       if (profile) setUserName(profile.username || "User");
+      return user;
     } catch (error) {
-      // Console logs removed per Phase 3 cleanup
+      return null;
+    }
+  };
+
+  const fetchUserLikes = async (userId?: string) => {
+    if (!userId) return;
+    try {
+      const { data } = await supabase.from("post_likes").select("post_id").eq("user_id", userId);
+
+      if (data) {
+        setLikedPosts(new Set(data.map((l) => l.post_id)));
+      }
+    } catch (error) {
+      // Logic for cleanup
     }
   };
 
@@ -59,18 +74,14 @@ const Index = () => {
         .limit(10);
       if (talent) setSpotlightTalent(talent);
     } catch (error) {
-      // Console logs removed per Phase 3 cleanup
+      // Logic for cleanup
     }
   };
 
-  const fetchFollowerFeed = async () => {
+  const fetchFollowerFeed = async (userId?: string) => {
+    if (!userId) return;
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: follows } = await supabase.from("followers").select("following_id").eq("follower_id", user.id);
+      const { data: follows } = await supabase.from("followers").select("following_id").eq("follower_id", userId);
       const followingIds = follows?.map((f) => f.following_id) || [];
 
       if (followingIds.length > 0) {
@@ -89,7 +100,45 @@ const Index = () => {
         if (postData) setPosts(postData as PostWithVenue[]);
       }
     } catch (error) {
-      // Console logs removed per Phase 3 cleanup
+      // Logic for cleanup
+    }
+  };
+
+  const handleLikeToggle = async (postId: string, currentLikes: number) => {
+    if (!currentUserId) {
+      toast.error("Please sign in to like posts");
+      return;
+    }
+
+    const isLiked = likedPosts.has(postId);
+
+    // Optimistic Update
+    setLikedPosts((prev) => {
+      const next = new Set(prev);
+      if (isLiked) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, likes_count: (p.likes_count || 0) + (isLiked ? -1 : 1) } : p)),
+    );
+
+    try {
+      if (isLiked) {
+        await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+      } else {
+        await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
+      }
+    } catch (error) {
+      // Revert on error
+      setLikedPosts((prev) => {
+        const next = new Set(prev);
+        if (isLiked) next.add(postId);
+        else next.delete(postId);
+        return next;
+      });
+      toast.error("Sync failure");
     }
   };
 
@@ -101,9 +150,7 @@ const Index = () => {
     }
   };
 
-  if (loading) {
-    return null;
-  }
+  if (loading) return null;
 
   return (
     <div className="min-h-screen bg-background pb-24 animate-in fade-in duration-500">
@@ -189,7 +236,10 @@ const Index = () => {
 
               <CardContent className="p-4 pb-2">
                 <div className="flex items-center gap-4 mb-3">
-                  <Heart className="w-6 h-6 text-foreground hover:text-pink-500 cursor-pointer transition-colors" />
+                  <Heart
+                    onClick={() => handleLikeToggle(post.id, post.likes_count || 0)}
+                    className={`w-6 h-6 cursor-pointer transition-colors ${likedPosts.has(post.id) ? "text-pink-500 fill-pink-500" : "text-foreground hover:text-pink-500"}`}
+                  />
                   <MessageCircle className="w-6 h-6 text-foreground hover:text-accent cursor-pointer transition-colors" />
                   <Share2 className="w-6 h-6 text-foreground hover:text-primary cursor-pointer transition-colors" />
                   <span className="ml-auto text-sm text-muted-foreground">
@@ -223,7 +273,11 @@ const Index = () => {
         </button>
       )}
 
-      <CreatePostDialog open={dialogOpen} onOpenChange={setDialogOpen} onPostCreated={fetchFollowerFeed} />
+      <CreatePostDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onPostCreated={() => fetchFollowerFeed(currentUserId || undefined)}
+      />
     </div>
   );
 };
