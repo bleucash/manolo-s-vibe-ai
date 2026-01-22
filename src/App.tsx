@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { UserModeProvider, useUserMode } from "./contexts/UserModeContext";
 import BottomNav from "./components/BottomNav";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import LoadingState from "./components/ui/LoadingState"; // ✅ Import the Master Loader
+import LoadingState from "./components/ui/LoadingState";
 
 // Page Imports
 import Index from "./pages/Index";
@@ -20,11 +20,10 @@ import Wallet from "./pages/Wallet";
 import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
-import VenueDetails from "./pages/VenueDetails"; // ✅ SWAP: Use VenueDetails instead of Venue
+import Venue from "./pages/Venue"; // Consolidated venue page
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
-// ... (ErrorBoundary stays the same)
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -56,7 +55,6 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const { isLoading } = useUserMode();
 
-  // ✅ FIX: Replace the Blue Spinner with the Green LoadingState
   if (isLoading) {
     return <LoadingState />;
   }
@@ -71,15 +69,15 @@ const AppContent = () => {
           <Route path="/auth" element={<Auth />} />
           <Route path="/discovery" element={<Discovery />} />
 
-          {/* ✅ THE COLLISION HUB: Point the ID to the upgraded Workstation page */}
-          <Route path="/venue/:id" element={<VenueDetails />} />
+          {/* Standardized Venue Route */}
+          <Route path="/venue/:id" element={<Venue />} />
 
           {/* Manager Control Center */}
           <Route
             path="/venue/:id/manage"
             element={
               <ProtectedRoute allowedModes={["manager"]}>
-                <VenueDetails /> {/* Use VenueDetails here too if needed */}
+                <Venue />
               </ProtectedRoute>
             }
           />
