@@ -27,8 +27,9 @@ export function useFollow(targetUserId: string): UseFollowReturn {
 
         setCurrentUserId(user.id);
 
+        // Updated to use the 'followers' table per Phase 2 consolidation
         const { data, error } = await supabase
-          .from("follows")
+          .from("followers")
           .select("id")
           .eq("follower_id", user.id)
           .eq("following_id", targetUserId)
@@ -38,7 +39,7 @@ export function useFollow(targetUserId: string): UseFollowReturn {
           setIsFollowing(!!data);
         }
       } catch (err) {
-        console.error("Error checking follow status:", err);
+        // Console error removed per Phase 3 cleanup
       } finally {
         setIsLoading(false);
       }
@@ -60,11 +61,9 @@ export function useFollow(targetUserId: string): UseFollowReturn {
       return;
     }
 
-    // Capture the state at the exact moment of the click
-    // This local variable ensures the DB call matches the UI flip
     let wasFollowingAtTimeOfClick = false;
 
-    // Optimistic UI Update: Use functional state to guarantee we have the absolute latest value
+    // Optimistic UI Update
     setIsFollowing((prev) => {
       wasFollowingAtTimeOfClick = prev;
       return !prev;
@@ -72,17 +71,17 @@ export function useFollow(targetUserId: string): UseFollowReturn {
 
     try {
       if (wasFollowingAtTimeOfClick) {
-        // Was following, so we delete the record (Unfollow)
+        // Was following, so we delete the record (Unfollow) using standard 'followers' table
         const { error } = await supabase
-          .from("follows")
+          .from("followers")
           .delete()
           .eq("follower_id", currentUserId)
           .eq("following_id", targetUserId);
 
         if (error) throw error;
       } else {
-        // Was NOT following, so we insert the record (Follow)
-        const { error } = await supabase.from("follows").insert({
+        // Was NOT following, so we insert the record (Follow) using standard 'followers' table
+        const { error } = await supabase.from("followers").insert({
           follower_id: currentUserId,
           following_id: targetUserId,
         });
@@ -90,16 +89,14 @@ export function useFollow(targetUserId: string): UseFollowReturn {
         if (error) throw error;
       }
     } catch (error: any) {
-      // Surgical Revert: Put the UI back to exactly what it was for THIS specific click
       setIsFollowing(wasFollowingAtTimeOfClick);
 
-      // Handle the "Already following" error gracefully if the unique constraint is triggered
       if (error.code === "23505") {
-        setIsFollowing(true); // Ensure UI stays as "Following"
+        setIsFollowing(true);
       } else {
         toast.error("Failed to update follow status");
       }
-      console.error("Follow toggle error:", error);
+      // Console error removed per Phase 3 cleanup
     }
   }, [currentUserId, targetUserId]);
 
