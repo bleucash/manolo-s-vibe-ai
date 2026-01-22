@@ -3,7 +3,8 @@ import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageSquare, Users, Zap, Sparkles } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, Users, Zap, Sparkles, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Messages() {
@@ -11,6 +12,17 @@ export default function Messages() {
 
   const { conversations, messages, currentUserId, isLoadingConversations, isLoadingMessages, sendMessage } =
     useChat(selectedConversationId);
+
+  // Logic to separate Main vs General
+  // Note: For 'isMutual', your conversation_summary would eventually need a flag
+  // For now, we filter by Manager role and a placeholder for mutual status
+  const mainThreads = conversations.filter(
+    (c) =>
+      c.last_sender_id === currentUserId || // Conversations you started
+      c.display_name?.toLowerCase().includes("manager"), // Mocking manager role detection
+  );
+
+  const generalThreads = conversations.filter((c) => !mainThreads.find((m) => m.conversation_id === c.conversation_id));
 
   const activeConversation = conversations.find((c) => c.conversation_id === selectedConversationId);
 
@@ -22,9 +34,7 @@ export default function Messages() {
       }
     : null;
 
-  const handleBack = () => {
-    setSelectedConversationId(null);
-  };
+  const handleBack = () => setSelectedConversationId(null);
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
@@ -35,100 +45,100 @@ export default function Messages() {
     }
   };
 
-  /** * ✅ UNIVERSAL LOADER STRATEGY
-   * Returning null here allows the ProtectedRoute/App Neural Engine
-   * loader to persist until the conversations are fully loaded.
-   */
-  if (isLoadingConversations) {
-    return null;
-  }
+  if (isLoadingConversations) return null; // Respect Universal Loader
+
+  const ThreadList = ({ threads }: { threads: typeof conversations }) => (
+    <ScrollArea className="h-[calc(100vh-180px)]">
+      {threads.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+          <p className="text-zinc-600 text-[10px] uppercase tracking-widest">No Active Intelligence</p>
+        </div>
+      ) : (
+        <div className="p-2 space-y-1">
+          {threads.map((convo) => {
+            const isUnread = !convo.is_read && convo.last_sender_id !== currentUserId;
+            return (
+              <button
+                key={convo.conversation_id}
+                onClick={() => setSelectedConversationId(convo.conversation_id)}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
+                  convo.conversation_id === selectedConversationId
+                    ? "bg-neon-purple/10 border border-neon-purple/20"
+                    : "bg-transparent hover:bg-white/5 border border-transparent"
+                }`}
+              >
+                <div className="relative shrink-0">
+                  <Avatar className="h-12 w-12 border border-white/10">
+                    <AvatarImage src={convo.avatar_url ?? undefined} className="object-cover" />
+                    <AvatarFallback className="bg-zinc-900 text-zinc-600 font-bold uppercase">
+                      {convo.display_name?.charAt(0) ?? "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {isUnread && (
+                    <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-neon-purple rounded-full border-4 border-black animate-pulse" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p
+                      className={`text-[11px] font-black uppercase tracking-widest truncate ${isUnread ? "text-white" : "text-zinc-500"}`}
+                    >
+                      {convo.display_name ?? "User"}
+                    </p>
+                    <span className="text-[8px] font-bold text-zinc-700 uppercase">
+                      {formatTime(convo.last_message_at)}
+                    </span>
+                  </div>
+                  <p
+                    className={`text-xs truncate leading-none ${isUnread ? "text-zinc-300 font-medium" : "text-zinc-600"}`}
+                  >
+                    {convo.last_message_content ?? "Neural path opened..."}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </ScrollArea>
+  );
 
   return (
     <div className="flex h-screen bg-black animate-in fade-in duration-500 pb-16 md:pb-0">
-      {/* SIDEBAR: CONVERSATION LIST */}
+      {/* SIDEBAR: ORGANIZED LIST */}
       <div
-        className={`${
-          selectedConversationId ? "hidden md:flex" : "flex"
-        } flex-col w-full md:w-80 lg:w-96 border-r border-white/5 bg-zinc-950`}
+        className={`${selectedConversationId ? "hidden md:flex" : "flex"} flex-col w-full md:w-80 lg:w-96 border-r border-white/5 bg-zinc-950`}
       >
-        <div className="flex items-center justify-between p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <MessageSquare className="h-6 w-6 text-neon-purple" />
-            <h1 className="text-2xl font-display uppercase tracking-tighter text-white">Inbox</h1>
+        <div className="p-6 border-b border-white/5">
+          <div className="flex items-center gap-3 mb-6">
+            <MessageSquare className="h-5 w-5 text-neon-purple" />
+            <h1 className="text-xl font-display uppercase tracking-tighter text-white">Communications</h1>
           </div>
-          <Sparkles className="h-4 w-4 text-zinc-700" />
+
+          <Tabs defaultValue="main" className="w-full">
+            <TabsList className="w-full bg-white/5 border border-white/10 p-1 rounded-xl h-10">
+              <TabsTrigger
+                value="main"
+                className="flex-1 text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-neon-purple data-[state=active]:text-black rounded-lg transition-all"
+              >
+                Main
+              </TabsTrigger>
+              <TabsTrigger
+                value="general"
+                className="flex-1 text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg transition-all"
+              >
+                General
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="main" className="mt-4 outline-none">
+              <ThreadList threads={mainThreads} />
+            </TabsContent>
+            <TabsContent value="general" className="mt-4 outline-none">
+              <ThreadList threads={generalThreads} />
+            </TabsContent>
+          </Tabs>
         </div>
-
-        <ScrollArea className="flex-1">
-          {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                <Users className="h-8 w-8 text-zinc-700" />
-              </div>
-              <p className="text-white font-display uppercase tracking-widest text-xs mb-2">No Intel Found</p>
-              <p className="text-zinc-500 text-[10px] uppercase tracking-wider leading-relaxed">
-                Connect with Talent or Managers to start a secure channel.
-              </p>
-            </div>
-          ) : (
-            <div className="p-2 space-y-1">
-              {conversations.map((convo) => {
-                const isActive = convo.conversation_id === selectedConversationId;
-                const isUnread = !convo.is_read && convo.last_sender_id !== currentUserId;
-
-                return (
-                  <button
-                    key={convo.conversation_id}
-                    onClick={() => setSelectedConversationId(convo.conversation_id)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98] ${
-                      isActive
-                        ? "bg-neon-purple/10 border border-neon-purple/20"
-                        : "bg-transparent hover:bg-white/5 border border-transparent"
-                    }`}
-                  >
-                    <div className="relative shrink-0">
-                      <div
-                        className={`p-[2px] rounded-full ${isUnread ? "bg-gradient-to-tr from-neon-purple to-neon-blue" : "bg-zinc-800"}`}
-                      >
-                        <Avatar className="h-12 w-12 border-2 border-black">
-                          <AvatarImage src={convo.avatar_url ?? undefined} className="object-cover" />
-                          <AvatarFallback className="bg-zinc-900 text-zinc-500 font-bold">
-                            {convo.display_name?.charAt(0) ?? "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                      {isUnread && (
-                        <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-neon-purple rounded-full border-4 border-zinc-950 animate-pulse" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <p
-                          className={`text-xs font-black uppercase tracking-widest truncate ${
-                            isUnread ? "text-white" : "text-zinc-400"
-                          }`}
-                        >
-                          {convo.display_name ?? "Unknown Entity"}
-                        </p>
-                        <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
-                          {formatTime(convo.last_message_at)}
-                        </span>
-                      </div>
-                      <p
-                        className={`text-[11px] truncate leading-none ${
-                          isUnread ? "text-zinc-200 font-medium" : "text-zinc-600"
-                        }`}
-                      >
-                        {convo.last_message_content ?? "Channel initialized..."}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
       </div>
 
       {/* CHAT WINDOW */}
@@ -143,13 +153,11 @@ export default function Messages() {
             onSend={sendMessage}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="p-12 text-center">
-              <Zap className="h-12 w-12 text-zinc-900 mx-auto mb-6" />
-              <p className="text-[10px] font-black text-zinc-700 uppercase tracking-[0.4em]">
-                Neural Link Awaiting Selection
-              </p>
-            </div>
+          <div className="flex flex-col items-center justify-center h-full opacity-20">
+            <Zap className="h-12 w-12 text-white mb-4 animate-pulse" />
+            <p className="text-[10px] font-black text-white uppercase tracking-[0.4em]">
+              Neural Link Awaiting Selection
+            </p>
           </div>
         )}
       </div>
