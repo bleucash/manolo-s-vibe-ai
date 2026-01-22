@@ -158,27 +158,6 @@ export type Database = {
           },
         ]
       }
-      follows: {
-        Row: {
-          created_at: string
-          follower_id: string
-          following_id: string
-          id: string
-        }
-        Insert: {
-          created_at?: string
-          follower_id: string
-          following_id: string
-          id?: string
-        }
-        Update: {
-          created_at?: string
-          follower_id?: string
-          following_id?: string
-          id?: string
-        }
-        Relationships: []
-      }
       messages: {
         Row: {
           content: string
@@ -224,6 +203,48 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_history: {
+        Row: {
+          amount: number
+          id: string
+          processed_at: string
+          promoter_id: string | null
+          ticket_count: number
+          venue_id: string | null
+        }
+        Insert: {
+          amount: number
+          id?: string
+          processed_at?: string
+          promoter_id?: string | null
+          ticket_count: number
+          venue_id?: string | null
+        }
+        Update: {
+          amount?: number
+          id?: string
+          processed_at?: string
+          promoter_id?: string | null
+          ticket_count?: number
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_history_promoter_id_fkey"
+            columns: ["promoter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_history_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
