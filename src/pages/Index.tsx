@@ -23,12 +23,10 @@ const Index = () => {
 
   const { mode } = useUserMode();
 
-  // Managers and talent users can create posts
   const isCreator = mode === "manager" || mode === "talent";
 
   useEffect(() => {
     const initializeHome = async () => {
-      // Keep the "Neural Engine" visible while we aggregate all data
       setLoading(true);
       await Promise.all([fetchUserSession(), fetchSpotlight(), fetchFollowerFeed()]);
       setLoading(false);
@@ -48,7 +46,7 @@ const Index = () => {
 
       if (profile) setUserName(profile.username || "User");
     } catch (error) {
-      console.error("Session Error:", error);
+      // Console logs removed per Phase 3 cleanup
     }
   };
 
@@ -61,7 +59,7 @@ const Index = () => {
         .limit(10);
       if (talent) setSpotlightTalent(talent);
     } catch (error) {
-      console.error("Spotlight Error:", error);
+      // Console logs removed per Phase 3 cleanup
     }
   };
 
@@ -91,7 +89,7 @@ const Index = () => {
         if (postData) setPosts(postData as PostWithVenue[]);
       }
     } catch (error) {
-      console.error("Feed Error:", error);
+      // Console logs removed per Phase 3 cleanup
     }
   };
 
@@ -103,16 +101,12 @@ const Index = () => {
     }
   };
 
-  // ✅ UNIFIED LOADING STRATEGY:
-  // Returning null allows the ProtectedRoute's LoadingState (Big Green Circle)
-  // to persist until this component is fully ready to display.
   if (loading) {
     return null;
   }
 
   return (
     <div className="min-h-screen bg-background pb-24 animate-in fade-in duration-500">
-      {/* HEADER */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 flex justify-between items-center">
         <h1 className="font-display text-xl text-foreground tracking-wide">
           Good Evening, <span className="text-accent">{userName}</span>
@@ -120,7 +114,6 @@ const Index = () => {
         <ActivitySidebar />
       </div>
 
-      {/* TALENT SPOTLIGHT */}
       <div className="py-6 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-amber-500" />
@@ -151,7 +144,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* FEED CONTENT */}
       <div className="p-4 space-y-6">
         {posts.length === 0 ? (
           <EmptyFeedState
