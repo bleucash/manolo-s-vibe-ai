@@ -20,7 +20,8 @@ import Wallet from "./pages/Wallet";
 import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
-import Venue from "./pages/Venue"; // Consolidated venue page
+import Venue from "./pages/Venue";
+import Messages from "./pages/Messages"; // New High-Priority Page
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
@@ -69,8 +70,18 @@ const AppContent = () => {
           <Route path="/auth" element={<Auth />} />
           <Route path="/discovery" element={<Discovery />} />
 
-          {/* Standardized Venue Route */}
+          {/* Consolidated Venue Route (Phase 1 Fix) */}
           <Route path="/venue/:id" element={<Venue />} />
+
+          {/* Messaging Route (Phase 4 Implementation) */}
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <Messages />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Manager Control Center */}
           <Route
