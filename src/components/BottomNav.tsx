@@ -1,40 +1,41 @@
 import React, { forwardRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, Compass, LayoutDashboard, User, Wallet, Mic2 } from "lucide-react";
+import { Home, Compass, LayoutDashboard, User, Wallet, Mic2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserMode } from "@/contexts/UserModeContext";
 
 const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // ✅ Pulling 'mode' to ensure UI matches current intent
   const { mode } = useUserMode();
 
   // Hide Nav on full-screen experiences like Auth or the Bouncer scanner
   const hiddenRoutes = ["/auth", "/bouncer"];
   if (hiddenRoutes.includes(location.pathname)) return null;
 
-  // 1. Guest Mode
+  // 1. Guest Mode Navigation
   const guestItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
+    { path: "/messages", icon: MessageSquare, label: "Messages", color: "text-neon-purple" },
     { path: "/wallet", icon: Wallet, label: "Wallet", color: "text-neon-pink" },
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
 
-  // 2. Talent Mode
+  // 2. Talent Mode Navigation
   const talentItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
+    { path: "/messages", icon: MessageSquare, label: "Messages", color: "text-neon-purple" },
     { path: "/gigs", icon: Mic2, label: "Gigs", color: "text-neon-purple" },
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
 
-  // 3. Manager Mode
+  // 3. Manager Mode Navigation
   const managerItems = [
     { path: "/", icon: Home, label: "Home", color: "text-neon-green" },
     { path: "/discovery", icon: Compass, label: "Discovery", color: "text-neon-blue" },
+    { path: "/messages", icon: MessageSquare, label: "Messages", color: "text-neon-purple" },
     { path: "/dashboard", icon: LayoutDashboard, label: "Manager", color: "text-neon-green" },
     { path: "/profile", icon: User, label: "Profile", color: "text-neon-cyan" },
   ];
@@ -54,23 +55,17 @@ const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
               key={item.label}
               onClick={() => navigate(item.path)}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 transition-all duration-300 min-w-[64px] active:scale-90",
+                "flex flex-col items-center justify-center p-2 transition-all duration-300 min-w-[50px] active:scale-90",
                 isActive ? `${item.color} scale-110` : "text-zinc-500 hover:text-zinc-300",
               )}
+              aria-label={item.label}
             >
               <item.icon
-                size={22}
+                size={24}
                 strokeWidth={isActive ? 2.5 : 2}
-                className={cn(isActive && "drop-shadow-[0_0_8px_rgba(57,255,20,0.3)]")}
+                className={cn(isActive && "drop-shadow-[0_0_8px_currentColor]")}
               />
-              <span
-                className={cn(
-                  "text-[9px] uppercase font-black tracking-[0.2em]",
-                  isActive ? "opacity-100" : "opacity-60",
-                )}
-              >
-                {item.label}
-              </span>
+              {/* Labels removed for a cleaner, less cluttered interface per user request */}
             </button>
           );
         })}
@@ -81,5 +76,4 @@ const BottomNav = forwardRef<HTMLDivElement>((_, ref) => {
 
 BottomNav.displayName = "BottomNav";
 
-// ✅ CRITICAL: Using default export to match App.tsx import style
 export default BottomNav;
