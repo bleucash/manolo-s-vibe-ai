@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
-import { Home, Search, MessageSquare, Wallet, LayoutDashboard, Briefcase } from "lucide-react";
+import { Home, Search, MessageSquare, Wallet, LayoutDashboard, Briefcase, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BottomNav = () => {
@@ -8,29 +8,29 @@ const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ✅ UNIFIED COLOR LOGIC
-  // Professional modes (Talent/Manager) get Orange. Guest gets Pink.
-  const isProfessional = mode === "talent" || mode === "manager";
-  const themeColor = isProfessional ? "text-[#FF5F1F]" : "text-neon-pink";
-  const themeBg = isProfessional ? "bg-[#FF5F1F]" : "bg-neon-pink";
+  // 1. Hide on Auth Page
+  if (location.pathname === "/auth") return null;
 
-  // ✅ DYNAMIC ITEM LOGIC
-  // The structure stays the same (preventing the blink), only the data changes.
+  // 2. Define Theme Mappings
+  const isProfessional = mode === "talent" || mode === "manager";
+
   const navItems = [
-    { icon: Home, path: "/", label: "Home" },
-    { icon: Search, path: "/discovery", label: "Discovery" },
-    { icon: MessageSquare, path: "/messages", label: "Chat" },
+    { icon: Home, path: "/", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
+    { icon: Search, path: "/discovery", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
+    { icon: MessageSquare, path: "/messages", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
     {
-      // Icon and Path change, but the "Slot" remains stable
       icon: mode === "manager" ? LayoutDashboard : mode === "talent" ? Briefcase : Wallet,
       path: mode === "manager" ? "/dashboard" : mode === "talent" ? "/gigs" : "/wallet",
-      label: mode === "manager" ? "Dashboard" : mode === "talent" ? "Gigs" : "Wallet",
+      // Only Gigs/Dashboard get Orange. Wallet remains Pink.
+      color: isProfessional ? "text-[#FF5F1F]" : "text-neon-pink",
+      glow: isProfessional ? "shadow-[0_0_15px_#FF5F1F]" : "shadow-[0_0_15px_#FF007F]",
     },
+    { icon: User, path: "/profile", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-2xl border-t border-white/5 pb-8 pt-3 px-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-      <div className="flex justify-between items-center max-w-lg mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-[100] bg-black/90 backdrop-blur-2xl border-t border-white/5 pb-8 pt-5 px-6">
+      <div className="flex justify-between items-center max-w-md mx-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
@@ -39,20 +39,21 @@ const BottomNav = () => {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className="relative flex flex-col items-center gap-1 p-2 transition-all active:scale-90"
+              className="relative p-2 transition-transform active:scale-90"
             >
-              <Icon className={cn("w-6 h-6 transition-colors duration-300", isActive ? themeColor : "text-zinc-600")} />
-              <span
+              <Icon
                 className={cn(
-                  "text-[8px] font-black uppercase tracking-widest transition-colors",
-                  isActive ? "text-white" : "text-zinc-700",
+                  "w-7 h-7 transition-all duration-300",
+                  isActive ? `${item.color} ${item.glow}` : "text-zinc-700",
                 )}
-              >
-                {item.label}
-              </span>
-
+              />
               {isActive && (
-                <div className={cn("absolute -bottom-1 w-1 h-1 rounded-full shadow-[0_0_8px_currentColor]", themeBg)} />
+                <div
+                  className={cn(
+                    "absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full",
+                    isProfessional && item.path.match(/dashboard|gigs/) ? "bg-[#FF5F1F]" : "bg-neon-pink",
+                  )}
+                />
               )}
             </button>
           );
