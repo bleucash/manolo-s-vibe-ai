@@ -1,25 +1,23 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // Added for exit navigation
 import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Zap, Sparkles, ShieldCheck } from "lucide-react";
+import { MessageSquare, Users, Zap, Sparkles, X } from "lucide-react"; // Added X icon
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 export default function Messages() {
+  const navigate = useNavigate();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
   const { conversations, messages, currentUserId, isLoadingConversations, isLoadingMessages, sendMessage } =
     useChat(selectedConversationId);
 
-  // Logic to separate Main vs General
-  // Note: For 'isMutual', your conversation_summary would eventually need a flag
-  // For now, we filter by Manager role and a placeholder for mutual status
   const mainThreads = conversations.filter(
-    (c) =>
-      c.last_sender_id === currentUserId || // Conversations you started
-      c.display_name?.toLowerCase().includes("manager"), // Mocking manager role detection
+    (c) => c.last_sender_id === currentUserId || c.display_name?.toLowerCase().includes("manager"),
   );
 
   const generalThreads = conversations.filter((c) => !mainThreads.find((m) => m.conversation_id === c.conversation_id));
@@ -36,6 +34,19 @@ export default function Messages() {
 
   const handleBack = () => setSelectedConversationId(null);
 
+  /**
+   * ✅ EXIT LOGIC
+   * If a chat is open on mobile, go back to the list.
+   * If on the list (or desktop), exit back to Home.
+   */
+  const handleExit = () => {
+    if (selectedConversationId && window.innerWidth < 768) {
+      handleBack();
+    } else {
+      navigate("/");
+    }
+  };
+
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
     try {
@@ -45,13 +56,13 @@ export default function Messages() {
     }
   };
 
-  if (isLoadingConversations) return null; // Respect Universal Loader
+  if (isLoadingConversations) return null;
 
   const ThreadList = ({ threads }: { threads: typeof conversations }) => (
     <ScrollArea className="h-[calc(100vh-180px)]">
       {threads.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-          <p className="text-zinc-600 text-[10px] uppercase tracking-widest">No Active Intelligence</p>
+          <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest">No Intelligence Found</p>
         </div>
       ) : (
         <div className="p-2 space-y-1">
@@ -110,9 +121,21 @@ export default function Messages() {
         className={`${selectedConversationId ? "hidden md:flex" : "flex"} flex-col w-full md:w-80 lg:w-96 border-r border-white/5 bg-zinc-950`}
       >
         <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-3 mb-6">
-            <MessageSquare className="h-5 w-5 text-neon-purple" />
-            <h1 className="text-xl font-display uppercase tracking-tighter text-white">Communications</h1>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="h-5 w-5 text-neon-purple" />
+              <h1 className="text-xl font-display uppercase tracking-tighter text-white">Comms</h1>
+            </div>
+
+            {/* ✅ NEW EXIT BUTTON */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleExit}
+              className="h-8 w-8 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           <Tabs defaultValue="main" className="w-full">
@@ -149,15 +172,13 @@ export default function Messages() {
             currentUserId={currentUserId}
             otherParticipant={otherParticipant}
             isLoading={isLoadingMessages}
-            onBack={handleBack}
+            onBack={handleBack} // This handles mobile sub-navigation
             onSend={sendMessage}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full opacity-20">
             <Zap className="h-12 w-12 text-white mb-4 animate-pulse" />
-            <p className="text-[10px] font-black text-white uppercase tracking-[0.4em]">
-              Neural Link Awaiting Selection
-            </p>
+            <p className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Awaiting Selection</p>
           </div>
         )}
       </div>
