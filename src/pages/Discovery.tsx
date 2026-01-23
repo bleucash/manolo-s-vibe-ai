@@ -66,9 +66,10 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
+  // ✅ HARDWARE-LOCKED SNAP ANCHOR
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
     }
   }, [activeCategory]);
 
@@ -104,9 +105,9 @@ const Discovery = () => {
   if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
-      {/* 🛠 FIXED HUD HEADER (Glow Safe + Deep Fade) */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-black pt-4 overflow-visible">
+    <div className="h-screen bg-black overflow-hidden flex flex-col">
+      {/* 🛠 HUD HEADER (Hardware Locked Layer) */}
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-black pt-4 pb-6 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16 mb-2">
           <div className="flex items-center gap-3">
             <Target className="w-4 h-4 text-neon-blue" />
@@ -117,20 +118,20 @@ const Discovery = () => {
           <ActivitySidebar />
         </div>
 
-        <div className="max-w-2xl mx-auto px-8 mb-4 overflow-visible">
+        <div className="max-w-2xl mx-auto px-8 mb-6 overflow-visible">
           <div className="relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="SEARCH SECTOR..."
-              className="w-full bg-zinc-900 border border-white/5 pl-12 h-11 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/10 focus:outline-none focus:border-neon-blue/40 transition-all"
+              className="w-full bg-zinc-950 border border-white/5 pl-12 h-11 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/5 focus:outline-none focus:border-neon-blue/40"
             />
           </div>
         </div>
 
-        {/* PILLS: Increased top padding for Ignite bleed */}
-        <div className="flex overflow-x-auto gap-2.5 hide-scrollbar px-8 pt-2 pb-6 overflow-visible relative z-[70]">
+        {/* PILLS: Safety Zone for Ignite Bleed */}
+        <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-2 overflow-visible relative z-[110]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
             return (
@@ -138,13 +139,13 @@ const Discovery = () => {
                 key={cat.name}
                 onClick={() => setActiveCategory(cat.name)}
                 className={cn(
-                  "whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all duration-300 border relative",
+                  "whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all duration-500 border relative",
                   isActive
                     ? `${cat.color} ${cat.text} border-transparent scale-105`
-                    : "bg-zinc-900 text-white/40 border-white/5 hover:text-white",
+                    : "bg-zinc-900 text-white/30 border-white/5 hover:text-white",
                 )}
                 style={{
-                  boxShadow: isActive ? `0 0 25px ${cat.glow}95` : "none",
+                  boxShadow: isActive ? `0 0 30px ${cat.glow}99` : "none",
                 }}
               >
                 {cat.name}
@@ -153,17 +154,17 @@ const Discovery = () => {
           })}
         </div>
 
-        {/* ATMOSPHERIC SCRIM: Smooth fade-out for scrolling content */}
-        <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none" />
+        {/* ATMOSPHERIC DEPTH: Scrim starts lower to clear pills */}
+        <div className="absolute -bottom-24 left-0 right-0 h-24 bg-gradient-to-b from-black via-black/90 to-transparent pointer-events-none" />
       </div>
 
-      {/* 📱 IMMERSIVE SNAP STREAM (PT clears header + scrim) */}
+      {/* 📱 IMMERSIVE SNAP STREAM */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[18rem]"
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[21rem]"
       >
-        {/* SLIDE 1: ELITE SPOTLIGHT (Min-Height Lock for Jumps) */}
-        <div className="min-h-[85vh] w-full snap-start relative flex flex-col justify-start bg-black pt-4">
+        {/* SLIDE 1: SPOTLIGHT NODES (Scroll Anchor Lock) */}
+        <div className="min-h-[75vh] w-full snap-start scroll-mt-[22rem] relative flex flex-col justify-start bg-black pt-4 mb-20">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-10">
             {featuredTalent.map((talent) => (
               <div
@@ -171,36 +172,36 @@ const Discovery = () => {
                 onClick={() => navigate(`/talent/${talent.id}`)}
                 className="flex flex-col gap-4 shrink-0 group cursor-pointer"
               >
-                <div className="relative w-[75vw] md:w-80 h-[58vh] rounded-[2.5rem] bg-zinc-900 border border-white/5 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+                <div className="relative w-[78vw] md:w-80 h-[56vh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
                   <img
                     src={talent.avatar_url || "/placeholder.svg"}
-                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-105"
+                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-110"
                     alt=""
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
-                  <div className="absolute bottom-8 left-8">
-                    <p className="font-display text-3xl text-white uppercase tracking-tighter leading-none mb-1 italic">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-95" />
+                  <div className="absolute bottom-10 left-10">
+                    <p className="font-display text-4xl text-white uppercase tracking-tighter leading-none mb-1 italic">
                       {talent.display_name}
                     </p>
-                    <span className="text-[8px] font-black text-neon-blue uppercase tracking-widest italic opacity-60">
-                      Uplink Profile
+                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-40">
+                      Uplink Session
                     </span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-8 w-full flex justify-center animate-bounce opacity-20">
-            <div className="w-1 h-8 bg-gradient-to-b from-white to-transparent rounded-full" />
+          <div className="flex justify-center w-full pb-10">
+            <div className="h-12 w-[1px] bg-gradient-to-b from-white/20 to-transparent animate-pulse" />
           </div>
         </div>
 
-        {/* FEED SLIDES (Venues & Posts) */}
+        {/* DATA FEED SLIDES */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="h-screen w-full snap-start relative flex flex-col justify-end overflow-hidden"
+            className="h-screen w-full snap-start scroll-mt-[22rem] relative flex flex-col justify-end overflow-hidden"
           >
             <img
               src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
@@ -208,11 +209,10 @@ const Discovery = () => {
               alt=""
             />
 
-            {/* DEEP SCRIM: Heavily weighted to bottom for text pop */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-95" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
-            <div className="relative p-10 pb-24 z-10 max-w-4xl">
-              <div className="flex items-center gap-3 mb-6">
+            <div className="relative p-10 pb-32 z-10 max-w-4xl">
+              <div className="flex items-center gap-3 mb-8">
                 <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full shadow-lg flex items-center gap-2">
                   <MapPin className="w-3 h-3" />
                   {item.type === "venue" ? item.data.location || "Sector Alpha" : "Transmission"}
@@ -230,8 +230,8 @@ const Discovery = () => {
                 </div>
               </div>
 
-              {/* WORD-SAFE TITLES: Prevents MACDINTON'S from splitting */}
-              <h3 className="font-display text-[clamp(2.5rem,13vw,6.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal hyphens-none line-clamp-3">
+              {/* ✅ DYNAMIC CLAMP: Shrinks so 'S' never crops */}
+              <h3 className="font-display text-[clamp(2.5rem,11vw,5.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal hyphens-none line-clamp-3 pr-4">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
             </div>
