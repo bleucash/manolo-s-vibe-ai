@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import LoadingState from "@/components/ui/LoadingState";
 
 type UserMode = "guest" | "talent" | "manager";
 
@@ -41,12 +40,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem("userMode", newMode);
   };
 
-  const setActiveVenueId = (id: string | null) => {
-    setActiveVenueIdState(id);
-    if (id) localStorage.setItem("activeVenueId", id);
-    else localStorage.removeItem("activeVenueId");
-  };
-
   const syncProfileAndVenues = async (userId: string) => {
     if (isVerifying.current) return;
     isVerifying.current = true;
@@ -54,7 +47,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       const { data: profile } = await supabase.from("profiles").select("role_type").eq("id", userId).maybeSingle();
-
       if (profile) {
         const role = profile.role_type || "guest";
         const isMgr = role === "manager" || role === "venue_manager";
@@ -62,27 +54,17 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         setIsManager(isMgr);
         setIsTalent(isTal);
-
-        let correctMode: UserMode = "guest";
-        if (isMgr) correctMode = "manager";
-        else if (isTal) correctMode = "talent";
-
-        setModeState(correctMode);
+        setModeState(isMgr ? "manager" : isTal ? "talent" : "guest");
 
         if (isMgr) {
           const { data: venues } = await supabase.from("venues").select("id, name, image_url").eq("owner_id", userId);
-
-          if (venues && venues.length > 0) {
+          if (venues?.length) {
             setUserVenues(venues);
-            const storedVenueId = localStorage.getItem("activeVenueId");
-            const isValid = venues.find((v) => v.id === storedVenueId);
-            const finalId = isValid ? storedVenueId : venues[0].id;
-            setActiveVenueIdState(finalId);
+            const storedId = localStorage.getItem("activeVenueId");
+            setActiveVenueIdState(venues.find((v) => v.id === storedId)?.id || venues[0].id);
           }
         }
       }
-    } catch (err) {
-      console.error("Context Sync Error:", err);
     } finally {
       setIsLoading(false);
       isVerifying.current = false;
@@ -90,13 +72,10 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session: initSession } }) => {
-      if (!mounted) return;
-      if (initSession) {
-        setSession(initSession);
-        syncProfileAndVenues(initSession.user.id);
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (s) {
+        setSession(s);
+        syncProfileAndVenues(s.user.id);
       } else {
         setIsLoading(false);
       }
@@ -104,33 +83,19 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (!mounted) return;
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        setSession(newSession);
-        if (newSession) syncProfileAndVenues(newSession.user.id);
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === "SIGNED_IN") {
+        setSession(s);
+        if (s) syncProfileAndVenues(s.user.id);
       } else if (event === "SIGNED_OUT") {
-        localStorage.clear();
         setSession(null);
-        setIsManager(false);
-        setIsTalent(false);
-        setUserVenues([]);
-        setActiveVenueIdState(null);
         setModeState("guest");
         setIsLoading(false);
       }
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
-
-  // ✅ The "Neural Engine" guard - placed AFTER all functions are defined
-  if (isLoading) {
-    return <LoadingState />;
-  }
 
   return (
     <UserModeContext.Provider
@@ -141,7 +106,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isTalent,
         userVenues,
         activeVenueId,
-        setActiveVenueId,
+        setActiveVenueId: setActiveVenueIdState,
         isLoading,
         session,
       }}
@@ -153,6 +118,6 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useUserMode = () => {
   const context = useContext(UserModeContext);
-  if (context === undefined) throw new Error("useUserMode must be used within UserModeProvider");
+  if (context === undefined) throw new Error("useUserMode context failure");
   return context;
 };
