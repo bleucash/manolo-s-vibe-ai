@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Target, Plus, Minus, Sparkles, Zap } from "lucide-react";
+import { MapPin, Search, Target, Plus, Minus, Zap } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -104,9 +104,9 @@ const Discovery = () => {
   if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col">
-      {/* 🛠 HUD HEADER (Fixed Ceiling) */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-black pt-4 pb-4 overflow-visible">
+    <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
+      {/* 🛠 FIXED HUD HEADER (Glow Safe + Deep Fade) */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-black pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16 mb-2">
           <div className="flex items-center gap-3">
             <Target className="w-4 h-4 text-neon-blue" />
@@ -117,21 +117,20 @@ const Discovery = () => {
           <ActivitySidebar />
         </div>
 
-        {/* Search Bar Container */}
-        <div className="max-w-2xl mx-auto px-8 mb-6 overflow-visible">
+        <div className="max-w-2xl mx-auto px-8 mb-4 overflow-visible">
           <div className="relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30 group-focus-within:text-neon-blue transition-colors" />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="SEARCH SECTOR..."
-              className="w-full bg-zinc-900/80 border border-white/5 pl-12 h-11 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/10 focus:outline-none focus:border-neon-blue/40 transition-all"
+              className="w-full bg-zinc-900 border border-white/5 pl-12 h-11 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/10 focus:outline-none focus:border-neon-blue/40 transition-all"
             />
           </div>
         </div>
 
-        {/* CATEGORY PILLS (Fixed Glow Logic) */}
-        <div className="flex overflow-x-auto gap-2.5 hide-scrollbar px-8 pb-4 overflow-visible relative z-[70]">
+        {/* PILLS: Increased top padding for Ignite bleed */}
+        <div className="flex overflow-x-auto gap-2.5 hide-scrollbar px-8 pt-2 pb-6 overflow-visible relative z-[70]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
             return (
@@ -145,7 +144,7 @@ const Discovery = () => {
                     : "bg-zinc-900 text-white/40 border-white/5 hover:text-white",
                 )}
                 style={{
-                  boxShadow: isActive ? `0 0 25px ${cat.glow}80` : "none",
+                  boxShadow: isActive ? `0 0 25px ${cat.glow}95` : "none",
                 }}
               >
                 {cat.name}
@@ -154,22 +153,17 @@ const Discovery = () => {
           })}
         </div>
 
-        {/* ATMOSPHERIC SCRIM: Deepens the fade below the pills */}
-        <div className="absolute -bottom-12 left-0 right-0 h-12 bg-gradient-to-b from-black to-transparent pointer-events-none" />
+        {/* ATMOSPHERIC SCRIM: Smooth fade-out for scrolling content */}
+        <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none" />
       </div>
 
-      {/* 📱 IMMERSIVE SNAP STREAM (Increased PT to clear header) */}
+      {/* 📱 IMMERSIVE SNAP STREAM (PT clears header + scrim) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[19rem]"
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[18rem]"
       >
-        {/* SLIDE 1: ELITE SPOTLIGHT (Upscaled Cards) */}
-        <div className="h-[80vh] w-full snap-start relative flex flex-col justify-start bg-black pt-4">
-          <div className="px-8 mb-6 flex items-center gap-2 opacity-30">
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            <h2 className="text-[9px] font-black text-white uppercase tracking-[0.3em]">Featured Spotlight</h2>
-          </div>
-
+        {/* SLIDE 1: ELITE SPOTLIGHT (Min-Height Lock for Jumps) */}
+        <div className="min-h-[85vh] w-full snap-start relative flex flex-col justify-start bg-black pt-4">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-10">
             {featuredTalent.map((talent) => (
               <div
@@ -177,7 +171,7 @@ const Discovery = () => {
                 onClick={() => navigate(`/talent/${talent.id}`)}
                 className="flex flex-col gap-4 shrink-0 group cursor-pointer"
               >
-                <div className="relative w-[72vw] md:w-80 h-[55vh] rounded-[2rem] bg-zinc-900 border border-white/5 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+                <div className="relative w-[75vw] md:w-80 h-[58vh] rounded-[2.5rem] bg-zinc-900 border border-white/5 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
                   <img
                     src={talent.avatar_url || "/placeholder.svg"}
                     className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-105"
@@ -196,6 +190,9 @@ const Discovery = () => {
               </div>
             ))}
           </div>
+          <div className="mt-8 w-full flex justify-center animate-bounce opacity-20">
+            <div className="w-1 h-8 bg-gradient-to-b from-white to-transparent rounded-full" />
+          </div>
         </div>
 
         {/* FEED SLIDES (Venues & Posts) */}
@@ -211,9 +208,10 @@ const Discovery = () => {
               alt=""
             />
 
+            {/* DEEP SCRIM: Heavily weighted to bottom for text pop */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-95" />
 
-            <div className="relative p-10 pb-28 z-10 max-w-4xl">
+            <div className="relative p-10 pb-24 z-10 max-w-4xl">
               <div className="flex items-center gap-3 mb-6">
                 <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full shadow-lg flex items-center gap-2">
                   <MapPin className="w-3 h-3" />
@@ -232,15 +230,10 @@ const Discovery = () => {
                 </div>
               </div>
 
-              <h3 className="font-display text-[clamp(2.5rem,13vw,7rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-words hyphens-none line-clamp-3">
+              {/* WORD-SAFE TITLES: Prevents MACDINTON'S from splitting */}
+              <h3 className="font-display text-[clamp(2.5rem,13vw,6.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal hyphens-none line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
-
-              {item.type === "talent" && (
-                <p className="text-[10px] text-neon-purple font-black uppercase tracking-[0.3em] mt-4 flex items-center gap-2">
-                  <Zap className="w-3 h-3 fill-neon-purple animate-pulse" /> High Energy Signal
-                </p>
-              )}
             </div>
           </div>
         ))}
