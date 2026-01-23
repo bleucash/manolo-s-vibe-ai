@@ -66,10 +66,9 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
-  // ✅ Force instant reset on iPad to prevent jerky offset
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
     }
   }, [activeCategory]);
 
@@ -105,9 +104,9 @@ const Discovery = () => {
   if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col">
-      {/* 🛠 FIXED HUD (Z-Index Safety Zone) */}
-      <div className="fixed top-0 left-0 right-0 z-[100] bg-black pt-4 overflow-visible border-b border-white/5 pb-4">
+    <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
+      {/* 🛠 FIXED HUD (The Solid Shell) */}
+      <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16 mb-2">
           <div className="flex items-center gap-3">
             <Target className="w-4 h-4 text-neon-blue" />
@@ -130,8 +129,8 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: Highest Z and explicit airspace */}
-        <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-2 overflow-visible relative z-[120]">
+        {/* PILLS: Ignite Bleed Protected by py-4 */}
+        <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
             return (
@@ -153,16 +152,22 @@ const Discovery = () => {
             );
           })}
         </div>
+
+        {/* THE GRIZZ (Atmospheric Scrim) - Solid to Transparent transition */}
+        <div className="absolute -bottom-24 left-0 right-0 h-24 bg-gradient-to-b from-black via-black/90 to-transparent pointer-events-none z-[140]" />
       </div>
 
-      {/* 📱 IMMERSIVE FEED (Dynamic Viewport Logic) */}
+      {/* 📱 IMMERSIVE FEED (Universal Snap Logic) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[18rem]"
-        style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar"
+        style={{ WebkitOverflowScrolling: "touch" }}
       >
-        {/* SLIDE 1: SPOTLIGHT (Hardware Anchor) */}
-        <div className="min-h-[70dvh] w-full snap-start scroll-mt-[18rem] relative flex flex-col justify-start bg-black pt-4 pb-12">
+        {/* Invisible Spacer Slide: Prevents the "Confusion" on Chrome */}
+        <div className="h-[22rem] w-full shrink-0 snap-start pointer-events-none" />
+
+        {/* SLIDE 1: SPOTLIGHT */}
+        <div className="min-h-[75dvh] w-full snap-center relative flex flex-col justify-start bg-black pt-4 pb-12">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-10">
             {featuredTalent.map((talent) => (
               <div
@@ -181,7 +186,7 @@ const Discovery = () => {
                     <p className="font-display text-4xl text-white uppercase tracking-tighter italic">
                       {talent.display_name}
                     </p>
-                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-40">
+                    <span className="text-[8px] font-black text-neon-blue uppercase tracking-widest italic opacity-40">
                       Uplink Session
                     </span>
                   </div>
@@ -191,13 +196,13 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* FEED SLIDES (Using dvh for iPad Safety) */}
+        {/* FEED SLIDES (Snap Center logic for Universal Sync) */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="min-h-[75dvh] w-full snap-start scroll-mt-[18rem] relative flex flex-col justify-end overflow-hidden mb-12"
-            style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
+            className="min-h-[78dvh] w-full snap-center relative flex flex-col justify-end overflow-hidden mb-20"
+            style={{ scrollSnapStop: "always" }}
           >
             <img
               src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
@@ -209,17 +214,17 @@ const Discovery = () => {
 
             <div className="relative p-10 pb-28 z-10 max-w-4xl">
               <div className="flex items-center gap-3 mb-6">
-                <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full flex items-center gap-2">
+                <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(0,229,255,0.4)]">
                   <MapPin className="w-3 h-3" />
                   {item.type === "venue" ? item.data.location || "Sector Alpha" : "Transmission"}
                 </Badge>
 
                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
+                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
                   <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
                   <button
                     onClick={(e) => toggleFollow(item.data.id, e)}
-                    className="w-6 h-6 flex items-center justify-center bg-white text-black rounded-full"
+                    className="w-6 h-6 flex items-center justify-center bg-white text-black rounded-full shadow-lg"
                   >
                     {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                   </button>
