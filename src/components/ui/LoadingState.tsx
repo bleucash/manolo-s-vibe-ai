@@ -1,8 +1,17 @@
 import { Loader2 } from "lucide-react";
 
-export const LoadingState = () => {
+interface LoadingStateProps {
+  fullPage?: boolean;
+}
+
+export const LoadingState = ({ fullPage = false }: LoadingStateProps) => {
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black transition-opacity duration-300">
+    <div
+      className={`
+      flex flex-col items-center justify-center transition-opacity duration-300
+      ${fullPage ? "fixed inset-0 z-[9999] bg-black" : "h-[60vh] w-full bg-transparent"}
+    `}
+    >
       <div className="relative">
         {/* Glow Effect */}
         <div className="absolute inset-0 blur-xl bg-neon-green/20 rounded-full animate-pulse" />
@@ -19,4 +28,5 @@ export const LoadingState = () => {
     </div>
   );
 };
+
 export default LoadingState;
