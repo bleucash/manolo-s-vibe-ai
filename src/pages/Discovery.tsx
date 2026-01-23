@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Target, Radio, Zap, UserPlus } from "lucide-react";
+import { MapPin, Search, Target, Radio, Zap, Plus, Minus, Sparkles } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -28,13 +28,13 @@ const Discovery = () => {
   const [featuredTalent, setFeaturedTalent] = useState<any[]>([]);
   const [talentPosts, setTalentPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true); // Prevents the Blink
+  const [initialLoad, setInitialLoad] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All Vibes");
   const [searchQuery, setSearchQuery] = useState("");
+  const [followedNodes, setFollowedNodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchDiscoveryData = async () => {
-      // If it's not the first time, we don't trigger the hard loading screen
       try {
         let venueQuery = supabase.from("venues").select("*");
         if (activeCategory !== "All Vibes") {
@@ -65,6 +65,16 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
+  const toggleFollow = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger the card click
+    setFollowedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const combinedFeed = useMemo(() => {
     const filtered = venues.filter(
       (v) =>
@@ -84,13 +94,12 @@ const Discovery = () => {
     return feed;
   }, [venues, searchQuery, talentPosts]);
 
-  // ✅ Only "Hard Blink" on the very first visit
   if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col">
-      {/* 🛠 FIXED HUD HEADER & FILTERS */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/90 to-transparent pt-4 pb-12 px-8">
+    <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
+      {/* 🛠 HUD & SEARCH: THE "SOLID" ZONE */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black pt-4 pb-8 px-8 border-b border-white/5">
         <div className="flex justify-between items-center h-20 mb-4">
           <div className="flex items-center gap-3">
             <Target className="w-4 h-4 text-neon-blue" />
@@ -99,15 +108,14 @@ const Discovery = () => {
           <ActivitySidebar />
         </div>
 
-        {/* SEARCH & FILTERS (Floating over content) */}
         <div className="space-y-4 max-w-2xl mx-auto">
           <div className="relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3 w-3 text-white/40" />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="SEARCH SECTOR..."
-              className="w-full bg-white/10 backdrop-blur-md border border-white/5 pl-12 h-12 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/20 focus:outline-none focus:border-neon-blue/40"
+              className="w-full bg-white/10 backdrop-blur-xl border border-white/10 pl-12 h-12 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/20 focus:outline-none focus:border-neon-blue/40"
             />
           </div>
 
@@ -117,10 +125,10 @@ const Discovery = () => {
                 key={cat.name}
                 onClick={() => setActiveCategory(cat.name)}
                 className={cn(
-                  "whitespace-nowrap px-3 py-1.5 rounded-full text-[7px] font-black uppercase tracking-widest transition-all border",
+                  "whitespace-nowrap px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border",
                   activeCategory === cat.name
-                    ? `${cat.color} ${cat.border} scale-105`
-                    : "bg-black/40 text-white/40 border-white/5",
+                    ? `${cat.color} ${cat.border} scale-105 shadow-neon`
+                    : "bg-white/5 text-white/50 border-white/5 hover:bg-white/10",
                 )}
               >
                 {cat.name}
@@ -130,50 +138,91 @@ const Discovery = () => {
         </div>
       </div>
 
-      {/* 📱 SNAP-SCROLL FEED (Full Screen TikTok Style) */}
-      <div className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar">
+      {/* 📱 IMMERSIVE SNAP STREAM */}
+      <div className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-40">
+        {/* SLIDE 1: ELITE SPOTLIGHT (Featured Nodes) */}
+        <div className="h-[90vh] w-full snap-start relative flex flex-col justify-center bg-black">
+          <div className="px-8 mb-8 flex items-center gap-3">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <h2 className="font-display text-4xl text-white uppercase italic tracking-tighter">Featured Spotlight</h2>
+          </div>
+
+          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth">
+            {featuredTalent.map((talent) => (
+              <div
+                key={talent.id}
+                onClick={() => navigate(`/talent/${talent.id}`)}
+                className="flex flex-col gap-4 shrink-0 group cursor-pointer"
+              >
+                <div className="relative w-64 h-80 rounded-[2.5rem] bg-zinc-900 border border-white/5 overflow-hidden">
+                  <img
+                    src={talent.avatar_url || "/placeholder.svg"}
+                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-700"
+                    alt=""
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                  <div className="absolute bottom-8 left-8">
+                    <p className="font-display text-3xl text-white uppercase tracking-tighter leading-none mb-1">
+                      {talent.display_name}
+                    </p>
+                    <span className="text-[8px] font-black text-neon-blue uppercase tracking-widest italic">
+                      View Transmission
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-4 w-full flex justify-center animate-bounce">
+            <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.4em]">
+              Initialize Sector Exploration
+            </p>
+          </div>
+        </div>
+
+        {/* DATA FEED */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
             className="h-screen w-full snap-start relative flex flex-col justify-end overflow-hidden"
           >
-            {/* Background Image */}
             <img
               src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
               className="absolute inset-0 w-full h-full object-cover"
               alt=""
             />
 
-            {/* THE NEURAL SCRIM (Ensures Legibility) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
-            {/* INTERACTION OVERLAY (Follow Icon) */}
-            <div className="absolute top-1/2 right-6 -translate-y-1/2 z-20 flex flex-col gap-8 items-center">
-              <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-neon-blue transition-all group">
-                <UserPlus className="w-5 h-5 text-white group-active:scale-90 transition-transform" />
-              </button>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-1 h-1 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
-                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest">Live</span>
+            {/* 📍 METADATA ZONE (The Unified Pill Row) */}
+            <div className="relative p-10 pb-36 z-10 max-w-4xl">
+              <div className="flex items-center gap-3 mb-6">
+                <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full shadow-lg flex items-center gap-2">
+                  <MapPin className="w-3 h-3" />
+                  {item.type === "venue" ? item.data.location || "Sector Alpha" : "Live Intelligence"}
+                </Badge>
+
+                {/* THE LIVE PULSE & FOLLOW (+) TOGGLE */}
+                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
+                  <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
+                  <button
+                    onClick={(e) => toggleFollow(item.data.id, e)}
+                    className="w-5 h-5 flex items-center justify-center bg-white text-black rounded-full hover:bg-neon-blue transition-colors"
+                  >
+                    {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* CONTENT OVERLAY */}
-            <div className="relative p-10 pb-32 z-10 max-w-4xl">
-              <Badge className="bg-neon-blue text-white border-none text-[8px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-4 inline-flex items-center shadow-lg">
-                <MapPin className="w-3 h-3 mr-2" />
-                {item.type === "venue" ? item.data.location || "Sector Alpha" : "Live Transmission"}
-              </Badge>
-
-              {/* Word Safe Title (Max 3 lines, No word splitting) */}
-              <h3 className="font-display text-[clamp(2.5rem,10vw,5.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal hyphens-none line-clamp-3 mb-2">
+              <h3 className="font-display text-[clamp(2.5rem,12vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] whitespace-normal break-words hyphens-none line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
 
               {item.type === "talent" && (
-                <p className="text-[10px] text-neon-purple font-black uppercase tracking-[0.3em] flex items-center gap-2">
-                  <Zap className="w-3 h-3 fill-neon-purple" /> Dynamic Intelligence
+                <p className="text-[10px] text-neon-purple font-black uppercase tracking-[0.3em] mt-4 flex items-center gap-2">
+                  <Zap className="w-3 h-3 fill-neon-purple" /> Dynamic Uplink Active
                 </p>
               )}
             </div>
