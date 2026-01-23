@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Target, Radio, Sparkles, Zap, UserPlus } from "lucide-react";
+import { MapPin, Search, Target, Radio, Zap, UserPlus } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -28,12 +28,13 @@ const Discovery = () => {
   const [featuredTalent, setFeaturedTalent] = useState<any[]>([]);
   const [talentPosts, setTalentPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true); // Prevents the Blink
   const [activeCategory, setActiveCategory] = useState("All Vibes");
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const fetchDiscoveryData = async () => {
-      setLoading(true);
+      // If it's not the first time, we don't trigger the hard loading screen
       try {
         let venueQuery = supabase.from("venues").select("*");
         if (activeCategory !== "All Vibes") {
@@ -47,7 +48,7 @@ const Discovery = () => {
             .from("posts")
             .select(`*, profiles:user_id (display_name, username, avatar_url)`)
             .not("media_url", "is", null)
-            .limit(5),
+            .limit(10),
         ]);
 
         if (vRes.data) setVenues(vRes.data as Venue[]);
@@ -57,6 +58,7 @@ const Discovery = () => {
         console.error("Discovery Sync Error", err);
       } finally {
         setLoading(false);
+        setInitialLoad(false);
       }
     };
 
@@ -74,7 +76,7 @@ const Discovery = () => {
     let postIndex = 0;
     for (let i = 0; i < filtered.length; i++) {
       feed.push({ type: "venue", data: filtered[i] });
-      if ((i + 1) % 3 === 0 && talentPosts[postIndex]) {
+      if ((i + 1) % 2 === 0 && talentPosts[postIndex]) {
         feed.push({ type: "talent", data: talentPosts[postIndex] });
         postIndex++;
       }
@@ -82,147 +84,101 @@ const Discovery = () => {
     return feed;
   }, [venues, searchQuery, talentPosts]);
 
-  if (loading || contextLoading) return <LoadingState />;
+  // ✅ Only "Hard Blink" on the very first visit
+  if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-700 hide-scrollbar overflow-x-hidden">
-      {/* HUD HEADER */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
-        <div className="flex items-center gap-3">
-          <Target className="w-4 h-4 text-neon-blue" />
-          <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1">Sector Search</h1>
+    <div className="h-screen bg-black overflow-hidden flex flex-col">
+      {/* 🛠 FIXED HUD HEADER & FILTERS */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/90 to-transparent pt-4 pb-12 px-8">
+        <div className="flex justify-between items-center h-20 mb-4">
+          <div className="flex items-center gap-3">
+            <Target className="w-4 h-4 text-neon-blue" />
+            <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1">Discovery</h1>
+          </div>
+          <ActivitySidebar />
         </div>
-        <ActivitySidebar />
+
+        {/* SEARCH & FILTERS (Floating over content) */}
+        <div className="space-y-4 max-w-2xl mx-auto">
+          <div className="relative">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3 w-3 text-white/40" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="SEARCH SECTOR..."
+              className="w-full bg-white/10 backdrop-blur-md border border-white/5 pl-12 h-12 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/20 focus:outline-none focus:border-neon-blue/40"
+            />
+          </div>
+
+          <div className="flex overflow-x-auto gap-2 hide-scrollbar">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => setActiveCategory(cat.name)}
+                className={cn(
+                  "whitespace-nowrap px-3 py-1.5 rounded-full text-[7px] font-black uppercase tracking-widest transition-all border",
+                  activeCategory === cat.name
+                    ? `${cat.color} ${cat.border} scale-105`
+                    : "bg-black/40 text-white/40 border-white/5",
+                )}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* SEARCH & SLIM FILTERS */}
-      <div className="pt-24 px-8 space-y-5">
-        <div className="relative group max-w-2xl mx-auto">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-neon-blue transition-colors" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="INPUT SECTOR COORDINATES..."
-            className="w-full bg-card/40 border border-white/5 pl-14 h-14 rounded-2xl text-[10px] font-black tracking-[0.2em] uppercase text-white placeholder:text-zinc-800 focus:outline-none focus:border-neon-blue/40 transition-all"
-          />
-        </div>
+      {/* 📱 SNAP-SCROLL FEED (Full Screen TikTok Style) */}
+      <div className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar">
+        {combinedFeed.map((item, idx) => (
+          <div
+            key={`${item.type}-${idx}`}
+            onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
+            className="h-screen w-full snap-start relative flex flex-col justify-end overflow-hidden"
+          >
+            {/* Background Image */}
+            <img
+              src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
+              className="absolute inset-0 w-full h-full object-cover"
+              alt=""
+            />
 
-        {/* TIGHTER CATEGORY PILLS */}
-        <div className="flex overflow-x-auto gap-2 hide-scrollbar pb-2 max-w-2xl mx-auto">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.name}
-              onClick={() => setActiveCategory(cat.name)}
-              className={cn(
-                "whitespace-nowrap px-3 py-1.5 rounded-full text-[7px] font-black uppercase tracking-widest transition-all border",
-                activeCategory === cat.name
-                  ? `${cat.color} ${cat.border} scale-105`
-                  : "bg-card/20 text-muted-foreground border-white/5",
-              )}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-      </div>
+            {/* THE NEURAL SCRIM (Ensures Legibility) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90" />
 
-      {/* FEATURED TALENT NODES */}
-      <div className="pt-12 pb-8">
-        <div
-          className={cn(
-            "flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth",
-            featuredTalent.length <= 2 ? "justify-center" : "justify-start",
-          )}
-        >
-          {featuredTalent.map((talent) => (
-            <div
-              key={talent.id}
-              onClick={() => navigate(`/talent/${talent.id}`)}
-              className="flex flex-col gap-3 shrink-0 group cursor-pointer"
-            >
-              <div className="relative w-44 h-44 rounded-[2rem] bg-card border border-white/5 group-hover:border-neon-blue/50 transition-all duration-700 overflow-hidden shadow-2xl">
-                <img
-                  src={talent.avatar_url || "/placeholder.svg"}
-                  className="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
-                  alt=""
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6">
-                  <p className="font-display text-xl text-white uppercase tracking-wide truncate mb-1">
-                    {talent.display_name}
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_8px_#39FF14]" />
-                    <span className="text-[8px] font-black text-neon-green uppercase tracking-widest">Active</span>
-                  </div>
-                </div>
+            {/* INTERACTION OVERLAY (Follow Icon) */}
+            <div className="absolute top-1/2 right-6 -translate-y-1/2 z-20 flex flex-col gap-8 items-center">
+              <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-neon-blue transition-all group">
+                <UserPlus className="w-5 h-5 text-white group-active:scale-90 transition-transform" />
+              </button>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-1 h-1 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
+                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest">Live</span>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* COMBINED SECTOR FEED (No Entry Button) */}
-      <div className="px-8 space-y-12 max-w-3xl mx-auto pb-20">
-        {combinedFeed.map((item, idx) =>
-          item.type === "venue" ? (
-            <div
-              key={`v-${item.data.id}-${idx}`}
-              onClick={() => navigate(`/venue/${item.data.id}`)}
-              className="group relative w-full bg-card/10 rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-neon-blue/20 transition-all duration-1000 shadow-2xl cursor-pointer"
-            >
-              <div className="relative min-h-[26rem] w-full overflow-hidden flex flex-col justify-end">
-                <img
-                  src={item.data.image_url || "/placeholder.svg"}
-                  alt={item.data.name}
-                  className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-all duration-1000 group-hover:scale-105"
-                />
+            {/* CONTENT OVERLAY */}
+            <div className="relative p-10 pb-32 z-10 max-w-4xl">
+              <Badge className="bg-neon-blue text-white border-none text-[8px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-4 inline-flex items-center shadow-lg">
+                <MapPin className="w-3 h-3 mr-2" />
+                {item.type === "venue" ? item.data.location || "Sector Alpha" : "Live Transmission"}
+              </Badge>
 
-                {/* FOLLOW ICON OVERLAY (Top Right) */}
-                <div className="absolute top-8 right-8 z-20">
-                  <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-neon-blue hover:text-white transition-all">
-                    <UserPlus className="w-4 h-4" />
-                  </div>
-                </div>
+              {/* Word Safe Title (Max 3 lines, No word splitting) */}
+              <h3 className="font-display text-[clamp(2.5rem,10vw,5.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal hyphens-none line-clamp-3 mb-2">
+                {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
+              </h3>
 
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent opacity-95" />
-
-                <div className="relative p-10 z-10">
-                  <Badge className="bg-neon-blue text-white border-none text-[8px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-4 inline-flex items-center">
-                    <MapPin className="w-3 h-3 mr-2" />
-                    {item.data.location || "SECTOR UNKNOWN"}
-                  </Badge>
-
-                  {/* Word Wrap + Break Protection */}
-                  <h3 className="font-display text-6xl md:text-8xl text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-words hyphens-none">
-                    {item.data.name}
-                  </h3>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div
-              key={`p-${item.data.id}-${idx}`}
-              onClick={() => navigate(`/talent/${item.data.user_id}`)}
-              className="relative h-96 w-full rounded-[2.5rem] overflow-hidden border border-neon-purple/20 bg-zinc-900/50 shadow-2xl cursor-pointer group"
-            >
-              <img
-                src={item.data.media_url}
-                className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
-                alt=""
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              <div className="absolute bottom-10 left-10">
-                <h4 className="text-5xl font-display text-white uppercase italic leading-none tracking-tighter">
-                  {item.data.profiles?.display_name}
-                </h4>
-                <p className="text-[9px] text-neon-purple font-black uppercase tracking-widest mt-3 flex items-center gap-2">
-                  <Zap className="w-3 h-3 fill-neon-purple animate-pulse" /> Live Transmission
+              {item.type === "talent" && (
+                <p className="text-[10px] text-neon-purple font-black uppercase tracking-[0.3em] flex items-center gap-2">
+                  <Zap className="w-3 h-3 fill-neon-purple" /> Dynamic Intelligence
                 </p>
-              </div>
+              )}
             </div>
-          ),
-        )}
+          </div>
+        ))}
       </div>
     </div>
   );
