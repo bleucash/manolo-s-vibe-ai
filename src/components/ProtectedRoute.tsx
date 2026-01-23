@@ -3,27 +3,30 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { useWorkerPermissions } from "@/hooks/useWorkerPermissions";
 import LoadingState from "@/components/ui/LoadingState";
 
-export const ProtectedRoute = ({
-  children,
-  allowedModes,
-}: {
+type UserMode = "guest" | "talent" | "manager";
+
+interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedModes?: ("guest" | "talent" | "manager")[];
-}) => {
+  allowedModes?: UserMode[];
+}
+
+export const ProtectedRoute = ({ children, allowedModes }: ProtectedRouteProps) => {
   const { isLoading: contextLoading, session, mode } = useUserMode();
   const location = useLocation();
   const { isTalentRole, isStaffRole, loading: permissionsLoading } = useWorkerPermissions(session?.user?.id || null);
 
-  // ✅ FIX: Do not show LoadingState if we already have a session.
-  // This stops the "Neural Engine" from popping up when switching tabs.
+  // ✅ THE SILENT CHECK:
+  // If we have a session, we stay invisible during loading to prevent the flicker.
   if ((contextLoading || permissionsLoading) && !session) {
     return <LoadingState />;
   }
 
+  // Auth Check
   if (!session) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // Permission & Mode Check
   if (allowedModes) {
     if (mode === "manager" && !isStaffRole) return <Navigate to="/" replace />;
     if (mode === "talent" && !isTalentRole) return <Navigate to="/" replace />;
