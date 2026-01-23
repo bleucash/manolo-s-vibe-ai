@@ -5,16 +5,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { UserModeProvider, useUserMode } from "./contexts/UserModeContext";
-import BottomNaimport React, { Component, ReactNode } from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { UserModeProvider, useUserMode } from "./contexts/UserModeContext";
 import BottomNav from "./components/BottomNav";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import LoadingState from "./components/ui/LoadingState";
+import LoadingState from "./components/ui/LoadingState"; // ✅ Verified Import
 
 // Page Imports
 import Index from "./pages/Index";
@@ -66,8 +59,7 @@ const AppContent = () => {
   const { isLoading, session } = useUserMode();
   const hasCachedMode = !!localStorage.getItem("userMode");
 
-  // ✅ INITIAL BOOT: Only use the Full Page blanket on the very first load
-  // if no session or mode is found in local memory.
+  // ✅ Persists the BottomNav by only showing full-page loader on initial zero-state boot
   if (isLoading && !session && !hasCachedMode) {
     return <LoadingState fullPage />;
   }
@@ -78,146 +70,13 @@ const AppContent = () => {
       <Sonner position="top-center" expand={false} richColors />
 
       <div className="relative min-h-screen bg-black">
-        {/* ✅ CONTENT WRAPPER: pb-32 prevents the BottomNav from hiding content */}
         <div className="pb-32">
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/discovery" element={<Discovery />} />
             <Route path="/venue/:id" element={<Venue />} />
-            
-            <Route path="/messages" element={
-              <ProtectedRoute><Messages /></ProtectedRoute>
-            } />
-            
-            <Route path="/venue/:id/manage" element={
-              <ProtectedRoute allowedModes={["manager"]}><Venue /></ProtectedRoute>
-            } />
 
-            <Route path="/talent-directory" element={<TalentDirectory />} />
-            <Route path="/talent/:id" element={<TalentProfile />} />
-            <Route path="/users/:id" element={<TalentProfile />} />
-
-            <Route path="/profile" element={
-              <ProtectedRoute><Profile /></ProtectedRoute>
-            } />
-            
-            <Route path="/wallet" element={
-              <ProtectedRoute><Wallet /></ProtectedRoute>
-            } />
-
-            <Route path="/notifications" element={
-              <ProtectedRoute><Notifications /></ProtectedRoute>
-            } />
-
-            <Route path="/gigs" element={
-              <ProtectedRoute allowedModes={["talent"]}><Gigs /></ProtectedRoute>
-            } />
-
-            <Route path="/dashboard" element={
-              <ProtectedRoute allowedModes={["manager"]}><Dashboard /></ProtectedRoute>
-            } />
-
-            <Route path="/bouncer" element={
-              <ProtectedRoute allowedModes={["manager"]}><Bouncer /></ProtectedRoute>
-            } />
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-
-        {/* ✅ PERSISTENT SHELL: BottomNav stays mounted during all content transitions */}
-        <BottomNav />
-      </div>
-    </TooltipProvider>
-  );
-};
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <UserModeProvider>
-            <AppContent />
-          </UserModeProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ErrorBoundary>
-  );
-}v from "./components/BottomNav";
-import { ProtectedRoute } from "./components/ProtectedRoute";
-import LoadingState from "./components/ui/LoadingState";
-
-// Page Imports
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Discovery from "./pages/Discovery";
-import TalentDirectory from "./pages/TalentDirectory";
-import TalentProfile from "./pages/TalentProfile";
-import Profile from "./pages/Profile";
-import Wallet from "./pages/Wallet";
-import Gigs from "./pages/Gigs";
-import Dashboard from "./pages/Dashboard";
-import Bouncer from "./pages/Bouncer";
-import Venue from "./pages/Venue";
-import Messages from "./pages/Messages";
-import Notifications from "./pages/Notifications";
-import NotFound from "./pages/NotFound";
-
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-6 text-center">
-          <h2 className="text-2xl font-display uppercase text-red-500 mb-4 tracking-tighter italic">
-            Neural Engine Failure
-          </h2>
-          <button
-            onClick={() => window.location.assign("/")}
-            className="bg-white text-black px-8 py-3 rounded-full font-bold uppercase text-[10px] tracking-widest"
-          >
-            Reboot System
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-const queryClient = new QueryClient();
-
-const AppContent = () => {
-  const { isLoading, session } = useUserMode();
-
-  // ✅ ONLY block the entire app if we have NO session and NO mode cached.
-  // This allows the BottomNav to stay mounted during internal Discovery/Home navigations.
-  const hasCachedMode = !!localStorage.getItem("userMode");
-
-  if (isLoading && !session && !hasCachedMode) {
-    return <LoadingState />;
-  }
-
-  return (
-    <TooltipProvider>
-      <Toaster />
-      <Sonner position="top-center" expand={false} richColors />
-
-      <div className="relative min-h-screen bg-black">
-        <div className="pb-0">
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/discovery" element={<Discovery />} />
-            <Route path="/venue/:id" element={<Venue />} />
             <Route
               path="/messages"
               element={
@@ -226,6 +85,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/venue/:id/manage"
               element={
@@ -234,9 +94,11 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route path="/talent-directory" element={<TalentDirectory />} />
             <Route path="/talent/:id" element={<TalentProfile />} />
             <Route path="/users/:id" element={<TalentProfile />} />
+
             <Route
               path="/profile"
               element={
@@ -245,6 +107,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/wallet"
               element={
@@ -253,6 +116,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/notifications"
               element={
@@ -261,6 +125,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/gigs"
               element={
@@ -269,6 +134,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/dashboard"
               element={
@@ -277,6 +143,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/bouncer"
               element={
@@ -285,17 +152,18 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
 
-        {/* ✅ Navigation is sibling to Routes, locked into the Shell */}
         <BottomNav />
       </div>
     </TooltipProvider>
   );
 };
 
+// ✅ Cleaned up the export structure to resolve line 148 errors
 export default function App() {
   return (
     <ErrorBoundary>
