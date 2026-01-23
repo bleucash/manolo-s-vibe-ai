@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import React, { Component, ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,14 +25,44 @@ import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-6 text-center">
+          <h2 className="text-2xl font-display uppercase text-red-500 mb-4 tracking-tighter italic">
+            Neural Engine Failure
+          </h2>
+          <button
+            onClick={() => window.location.assign("/")}
+            className="bg-white text-black px-8 py-3 rounded-full font-bold uppercase text-[10px] tracking-widest"
+          >
+            Reboot System
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { isLoading, session } = useUserMode();
 
-  // ✅ ONLY show the full-screen loader on the VERY FIRST boot.
-  // Once we have a session or have confirmed there isn't one, we never show this again.
-  if (isLoading && !session) {
+  // ✅ ONLY block the entire app if we have NO session and NO mode cached.
+  // This allows the BottomNav to stay mounted during internal Discovery/Home navigations.
+  const hasCachedMode = !!localStorage.getItem("userMode");
+
+  if (isLoading && !session && !hasCachedMode) {
     return <LoadingState />;
   }
 
@@ -41,7 +71,6 @@ const AppContent = () => {
       <Toaster />
       <Sonner position="top-center" expand={false} richColors />
 
-      {/* ✅ STABLE SHELL: BottomNav is now a sibling to the content, not a child. */}
       <div className="relative min-h-screen bg-black">
         <div className="pb-0">
           <Routes>
@@ -120,22 +149,23 @@ const AppContent = () => {
           </Routes>
         </div>
 
-        {/* ✅ Navigation stays mounted during route transitions */}
+        {/* ✅ Navigation is sibling to Routes, locked into the Shell */}
         <BottomNav />
       </div>
     </TooltipProvider>
   );
 };
 
-// ... ErrorBoundary stays same ...
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <UserModeProvider>
-          <AppContent />
-        </UserModeProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <UserModeProvider>
+            <AppContent />
+          </UserModeProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
