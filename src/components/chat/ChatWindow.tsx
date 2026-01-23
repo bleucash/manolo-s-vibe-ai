@@ -2,54 +2,32 @@ import { useState, useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, ShieldCheck, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
-
-interface Message {
-  id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  is_read: boolean;
-}
-
-interface Participant {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-}
+import { cn } from "@/lib/utils";
 
 interface ChatWindowProps {
-  messages: Message[];
+  messages: any[];
   currentUserId: string | null;
-  otherParticipant: Participant | null;
+  otherParticipant: any;
   isLoading: boolean;
   onBack: () => void;
   onSend: (content: string) => void;
 }
 
-export function ChatWindow({
-  messages,
-  currentUserId,
-  otherParticipant,
-  isLoading,
-  onBack,
-  onSend,
-}: ChatWindowProps) {
+export function ChatWindow({ messages, currentUserId, otherParticipant, isLoading, onBack, onSend }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll logic targeting the Radix viewport
   useEffect(() => {
     if (scrollRef.current) {
-      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      const scrollContainer = scrollRef.current.querySelector("[data-radix-scroll-area-viewport]");
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSend = () => {
     if (inputValue.trim()) {
@@ -58,73 +36,67 @@ export function ChatWindow({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return format(date, "h:mm a");
-    if (diffDays === 1) return "Yesterday " + format(date, "h:mm a");
-    return format(date, "MMM d, h:mm a");
+    return format(date, "h:mm a");
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-white/10 bg-zinc-900/50">
-        <Button variant="ghost" size="icon" onClick={onBack}>
+    <div className="flex flex-col h-full bg-black">
+      {/* HEADER */}
+      <div className="flex items-center gap-4 p-5 border-b border-white/5 bg-black/95 backdrop-blur-xl">
+        <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden text-white">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={otherParticipant?.avatar_url ?? undefined} />
-          <AvatarFallback className="bg-primary/20 text-primary">
-            {otherParticipant?.display_name?.charAt(0) ?? "?"}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-10 w-10 border border-white/10">
+            <AvatarImage src={otherParticipant?.avatar_url} />
+            <AvatarFallback className="bg-zinc-900 text-zinc-500">
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-neon-green rounded-full border-2 border-black" />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-white truncate">
-            {otherParticipant?.display_name ?? "User"}
+          <p className="text-sm font-bold text-white uppercase italic tracking-tight truncate">
+            {otherParticipant?.display_name || "Neural User"}
           </p>
-          <p className="text-xs text-muted-foreground">Active Chat</p>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-3 w-3 text-neon-pink" />
+            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Encrypted Channel</p>
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      {/* MESSAGES AREA */}
+      <ScrollArea className="flex-1 px-6" ref={scrollRef}>
         {isLoading ? (
-          <div className="flex items-center justify-center h-full py-8">
-            <span className="text-muted-foreground">Syncing history...</span>
+          <div className="flex flex-col items-center justify-center h-64 gap-3">
+            <div className="w-8 h-[1px] bg-neon-pink animate-pulse" />
+            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest animate-pulse">
+              Syncing Ledger
+            </span>
           </div>
         ) : (
-          <div className="py-4 space-y-3">
-            {messages.map((message) => {
+          <div className="py-8 space-y-6">
+            {messages.map((message, idx) => {
               const isMe = message.sender_id === currentUserId;
               return (
-                <div
-                  key={message.id}
-                  className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                >
+                <div key={message.id || idx} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
                   <div
-                    className={`max-w-[75%] px-4 py-2 rounded-2xl ${
+                    className={cn(
+                      "max-w-[85%] p-4 rounded-3xl transition-all duration-500",
                       isMe
-                        ? "bg-primary text-primary-foreground rounded-br-md"
-                        : "bg-zinc-800 text-white rounded-bl-md"
-                    }`}
+                        ? "bg-neon-pink text-black font-medium rounded-br-none shadow-[0_10px_20px_rgba(255,0,127,0.2)]"
+                        : "bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5",
+                    )}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
+                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
                     <p
-                      className={`text-[10px] mt-1 ${
-                        isMe ? "text-primary-foreground/70" : "text-muted-foreground"
-                      }`}
+                      className={cn(
+                        "text-[8px] mt-2 font-black uppercase tracking-widest",
+                        isMe ? "text-black/50" : "text-zinc-600",
+                      )}
                     >
                       {formatTime(message.created_at)}
                     </p>
@@ -136,23 +108,23 @@ export function ChatWindow({
         )}
       </ScrollArea>
 
-      {/* Input */}
-      <div className="p-4 border-t border-white/10 bg-zinc-900/50">
-        <div className="flex items-center gap-2">
+      {/* INPUT AREA: Extra padding-bottom for BottomNav spacing */}
+      <div className="p-6 pb-32 border-t border-white/5 bg-black/95 backdrop-blur-xl">
+        <div className="flex items-center gap-3 bg-zinc-900 rounded-[2rem] p-1.5 border border-white/5 focus-within:border-neon-pink/50 transition-all">
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Send a message..."
-            className="flex-1 h-12 bg-zinc-900 border-white/10 text-white rounded-xl"
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder="Type your transmission..."
+            className="flex-1 bg-transparent border-none text-white focus-visible:ring-0 text-sm placeholder:text-zinc-700 h-10 px-4"
           />
           <Button
             size="icon"
             onClick={handleSend}
             disabled={!inputValue.trim()}
-            className="h-12 w-12 rounded-xl"
+            className="h-10 w-10 rounded-full bg-white text-black hover:bg-neon-pink hover:text-white transition-all active:scale-90"
           >
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </div>
