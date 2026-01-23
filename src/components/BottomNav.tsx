@@ -8,24 +8,23 @@ const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 1. Hide on Auth Page
+  // 1. Logic: Hide on Auth page to prevent overlap
   if (location.pathname === "/auth") return null;
 
-  // 2. Define Theme Mappings
-  const isProfessional = mode === "talent" || mode === "manager";
-
+  // 2. The Color & Glow Definition
+  // Mapping each slot to its specific Neon ID
   const navItems = [
-    { icon: Home, path: "/", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
-    { icon: Search, path: "/discovery", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
-    { icon: MessageSquare, path: "/messages", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
+    { icon: Home, path: "/", color: "text-[#FF5F1F]", glow: "shadow-[0_0_15px_#FF5F1F]" },
+    { icon: Search, path: "/discovery", color: "text-[#00B7FF]", glow: "shadow-[0_0_15px_#00B7FF]" },
+    { icon: MessageSquare, path: "/messages", color: "text-[#FF007F]", glow: "shadow-[0_0_15px_#FF007F]" },
     {
+      // This slot transforms but stays Neon Green across all modes
       icon: mode === "manager" ? LayoutDashboard : mode === "talent" ? Briefcase : Wallet,
       path: mode === "manager" ? "/dashboard" : mode === "talent" ? "/gigs" : "/wallet",
-      // Only Gigs/Dashboard get Orange. Wallet remains Pink.
-      color: isProfessional ? "text-[#FF5F1F]" : "text-neon-pink",
-      glow: isProfessional ? "shadow-[0_0_15px_#FF5F1F]" : "shadow-[0_0_15px_#FF007F]",
+      color: "text-[#39FF14]",
+      glow: "shadow-[0_0_15px_#39FF14]",
     },
-    { icon: User, path: "/profile", color: "text-neon-pink", glow: "shadow-[0_0_15px_#FF007F]" },
+    { icon: User, path: "/profile", color: "text-[#00FFFF]", glow: "shadow-[0_0_15px_#00FFFF]" },
   ];
 
   return (
@@ -44,17 +43,9 @@ const BottomNav = () => {
               <Icon
                 className={cn(
                   "w-7 h-7 transition-all duration-300",
-                  isActive ? `${item.color} ${item.glow}` : "text-zinc-700",
+                  isActive ? `${item.color} ${item.glow}` : "text-zinc-800",
                 )}
               />
-              {isActive && (
-                <div
-                  className={cn(
-                    "absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full",
-                    isProfessional && item.path.match(/dashboard|gigs/) ? "bg-[#FF5F1F]" : "bg-neon-pink",
-                  )}
-                />
-              )}
             </button>
           );
         })}
