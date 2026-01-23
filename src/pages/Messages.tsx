@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // Added for exit navigation
+import { useNavigate } from "react-router-dom";
 import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Zap, Sparkles, X } from "lucide-react"; // Added X icon
+import { MessageSquare, Zap, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 
@@ -34,11 +34,6 @@ export default function Messages() {
 
   const handleBack = () => setSelectedConversationId(null);
 
-  /**
-   * ✅ EXIT LOGIC
-   * If a chat is open on mobile, go back to the list.
-   * If on the list (or desktop), exit back to Home.
-   */
   const handleExit = () => {
     if (selectedConversationId && window.innerWidth < 768) {
       handleBack();
@@ -59,7 +54,8 @@ export default function Messages() {
   if (isLoadingConversations) return null;
 
   const ThreadList = ({ threads }: { threads: typeof conversations }) => (
-    <ScrollArea className="h-[calc(100vh-180px)]">
+    // ✅ Use a height that accounts for the fixed header and the BottomNav
+    <ScrollArea className="h-[calc(100vh-240px)]">
       {threads.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
           <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest">No Intelligence Found</p>
@@ -74,7 +70,7 @@ export default function Messages() {
                 onClick={() => setSelectedConversationId(convo.conversation_id)}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
                   convo.conversation_id === selectedConversationId
-                    ? "bg-neon-purple/10 border border-neon-purple/20"
+                    ? "bg-neon-pink/10 border border-neon-pink/20"
                     : "bg-transparent hover:bg-white/5 border border-transparent"
                 }`}
               >
@@ -86,7 +82,7 @@ export default function Messages() {
                     </AvatarFallback>
                   </Avatar>
                   {isUnread && (
-                    <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-neon-purple rounded-full border-4 border-black animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-neon-pink rounded-full border-4 border-black animate-pulse shadow-[0_0_10px_#FF007F]" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
@@ -115,19 +111,21 @@ export default function Messages() {
   );
 
   return (
-    <div className="flex h-screen bg-black animate-in fade-in duration-500 pb-16 md:pb-0">
-      {/* SIDEBAR: ORGANIZED LIST */}
+    // ✅ min-h-screen + SAME pb-32 as Discovery/Home to lock the Nav position
+    <div className="flex min-h-screen bg-black animate-in fade-in duration-500 pb-32 overflow-hidden">
+      {/* SIDEBAR */}
       <div
-        className={`${selectedConversationId ? "hidden md:flex" : "flex"} flex-col w-full md:w-80 lg:w-96 border-r border-white/5 bg-zinc-950`}
+        className={`${selectedConversationId ? "hidden md:flex" : "flex"} flex-col w-full md:w-80 lg:w-96 border-r border-white/5 bg-black`}
       >
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center justify-between mb-6">
+        <div className="p-6 pt-16 border-b border-white/5">
+          {" "}
+          {/* Added pt-16 to match Discovery header start */}
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <MessageSquare className="h-5 w-5 text-neon-purple" />
-              <h1 className="text-xl font-display uppercase tracking-tighter text-white">Comms</h1>
+              <MessageSquare className="h-5 w-5 text-neon-pink" />
+              <h1 className="text-3xl font-display uppercase tracking-tighter text-white italic">Comms</h1>
             </div>
 
-            {/* ✅ NEW EXIT BUTTON */}
             <Button
               variant="ghost"
               size="icon"
@@ -137,12 +135,11 @@ export default function Messages() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-
           <Tabs defaultValue="main" className="w-full">
             <TabsList className="w-full bg-white/5 border border-white/10 p-1 rounded-xl h-10">
               <TabsTrigger
                 value="main"
-                className="flex-1 text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-neon-purple data-[state=active]:text-black rounded-lg transition-all"
+                className="flex-1 text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-neon-pink data-[state=active]:text-black rounded-lg transition-all"
               >
                 Main
               </TabsTrigger>
@@ -165,18 +162,18 @@ export default function Messages() {
       </div>
 
       {/* CHAT WINDOW */}
-      <div className={`${selectedConversationId ? "flex" : "hidden md:flex"} flex-1 flex-col bg-zinc-950`}>
+      <div className={`${selectedConversationId ? "flex" : "hidden md:flex"} flex-1 flex-col bg-black relative`}>
         {selectedConversationId ? (
           <ChatWindow
             messages={messages}
             currentUserId={currentUserId}
             otherParticipant={otherParticipant}
             isLoading={isLoadingMessages}
-            onBack={handleBack} // This handles mobile sub-navigation
+            onBack={handleBack}
             onSend={sendMessage}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full opacity-20">
+          <div className="flex flex-col items-center justify-center h-full opacity-10">
             <Zap className="h-12 w-12 text-white mb-4 animate-pulse" />
             <p className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Awaiting Selection</p>
           </div>
