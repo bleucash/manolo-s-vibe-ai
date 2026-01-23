@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { User, Plus, Sparkles, Zap, Share2, MapPin, Radio, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button"; // ✅ FIXED: Added missing import
+import { Badge } from "@/components/ui/badge"; // ✅ FIXED: Added missing import
+import { User, Plus, Zap, Share2, MapPin, Radio, Target } from "lucide-react";
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { formatDistanceToNow } from "date-fns";
@@ -14,8 +16,6 @@ import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
 import { cn } from "@/lib/utils";
 
-const ECHO_SIGNALS = ["ENERGY HIGH", "SECTOR CLEARED", "SOUND SYNCED", "ELITE VIBE"];
-
 const Index = () => {
   const navigate = useNavigate();
   const { mode, session, isLoading: contextLoading } = useUserMode();
@@ -23,7 +23,6 @@ const Index = () => {
   const [posts, setPosts] = useState<PostWithVenue[]>([]);
   const [activeNodes, setActiveNodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState("GUEST");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [chargedPosts, setChargedPosts] = useState<Set<string>>(new Set());
 
@@ -35,12 +34,6 @@ const Index = () => {
       if (contextLoading) return;
       setLoading(true);
       if (currentUserId) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("username")
-          .eq("id", currentUserId)
-          .maybeSingle();
-        if (profile) setUserName(profile.username?.toUpperCase() || "USER");
         await Promise.all([fetchActiveNodes(), fetchFollowerFeed(currentUserId), fetchUserCharges(currentUserId)]);
       } else {
         await fetchActiveNodes();
@@ -60,7 +53,7 @@ const Index = () => {
       .from("profiles")
       .select("id, display_name, avatar_url, sub_role")
       .eq("role_type", "talent")
-      .limit(8);
+      .limit(6);
     if (talent) setActiveNodes(talent);
   };
 
@@ -80,7 +73,7 @@ const Index = () => {
   };
 
   const handleChargeToggle = async (postId: string) => {
-    if (!currentUserId) return toast.error("Log in to charge the system.");
+    if (!currentUserId) return toast.error("Handshake required for charging.");
     const isCharged = chargedPosts.has(postId);
     setChargedPosts((prev) => {
       const next = new Set(prev);
@@ -91,7 +84,7 @@ const Index = () => {
       if (isCharged) await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       else await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
     } catch {
-      toast.error("Neural Sync Error");
+      toast.error("Sync Failure");
     }
   };
 
@@ -99,41 +92,42 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
-      {/* HEADER: NEURAL STATUS */}
-      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-8 py-6 pt-16 flex justify-between items-center">
-        <div>
-          <p className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em] mb-1">System Greeting</p>
-          <h1 className="font-display text-3xl text-white uppercase tracking-tighter italic leading-none">
-            Welcome, <span className="text-neon-pink">{userName}</span>
-          </h1>
+      {/* HUD HEADER: SLIM & UNIFORM */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-black/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-8">
+        <div className="flex items-center gap-3">
+          <Target className="w-4 h-4 text-neon-blue" />
+          <h1 className="font-display text-xl text-white uppercase tracking-[0.2em] italic">Intel Feed</h1>
         </div>
         <ActivitySidebar />
       </div>
 
-      {/* ACTIVE NODES (Formerly Stories) */}
-      <div className="py-10 border-b border-white/5">
-        <div className="px-8 flex items-center gap-2 mb-6">
-          <Radio className="w-3 h-3 text-neon-blue animate-pulse" />
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Live Intelligence Nodes</h2>
+      {/* EXPANDED ACTIVE NODES (LARGE SQUIRCLES) */}
+      <div className="pt-28 pb-10 border-b border-white/5">
+        <div className="px-8 flex items-center gap-2 mb-8">
+          <Radio className="w-3 h-3 text-neon-green animate-pulse" />
+          <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.4em]">Active Nodes</h2>
         </div>
-        <div className="flex overflow-x-auto gap-8 px-8 no-scrollbar">
+        <div className="flex overflow-x-auto gap-6 px-8 no-scrollbar">
           {activeNodes.map((node) => (
             <div
               key={node.id}
               onClick={() => navigate(`/talent/${node.id}`)}
-              className="flex flex-col items-center gap-3 shrink-0 group cursor-pointer"
+              className="flex flex-col gap-3 shrink-0 group cursor-pointer"
             >
-              <div className="relative p-[1px] rounded-2xl bg-zinc-800 group-hover:bg-neon-blue transition-all">
-                <Avatar className="w-14 h-14 rounded-[14px] border-2 border-black overflow-hidden">
-                  <AvatarImage src={node.avatar_url} className="object-cover" />
-                  <AvatarFallback className="bg-zinc-900">
-                    <User className="w-4 h-4 text-zinc-700" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-neon-green rounded-full border-2 border-black" />
+              <div className="relative w-28 h-28 rounded-[2rem] bg-zinc-900 border border-white/5 group-hover:border-neon-blue/50 transition-all overflow-hidden">
+                <img
+                  src={node.avatar_url || "/placeholder.svg"}
+                  className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                  alt=""
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_8px_#39FF14]" />
+                  <span className="text-[7px] font-black text-white uppercase tracking-widest">Live</span>
+                </div>
               </div>
-              <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                {node.display_name?.split(" ")[0]}
+              <span className="text-[9px] font-black text-white uppercase tracking-widest italic truncate w-28 px-1">
+                {node.display_name || "Unknown"}
               </span>
             </div>
           ))}
@@ -141,7 +135,7 @@ const Index = () => {
       </div>
 
       {/* INTELLIGENCE STREAM */}
-      <div className="p-8 space-y-12 max-w-2xl mx-auto">
+      <div className="p-8 space-y-16 max-w-2xl mx-auto">
         {posts.length === 0 ? (
           <EmptyFeedState
             isCreator={isCreator}
@@ -149,108 +143,112 @@ const Index = () => {
           />
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="group animate-in slide-in-from-bottom-4 duration-700">
-              {/* POST HEADER */}
-              <div className="flex items-center gap-4 mb-5">
-                <Avatar className="w-10 h-10 border border-white/5" onClick={() => navigate(`/users/${post.user_id}`)}>
+            <div key={post.id} className="group">
+              <div className="flex items-center gap-4 mb-6">
+                <Avatar className="w-11 h-11 border border-white/5" onClick={() => navigate(`/users/${post.user_id}`)}>
                   <AvatarImage src={post.profiles?.avatar_url || undefined} />
-                  <AvatarFallback>
-                    <User className="w-4 h-4" />
-                  </AvatarFallback>
+                  <AvatarFallback className="bg-zinc-900 text-zinc-700">?</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-white uppercase italic tracking-tight leading-none">
-                    {post.profiles?.display_name || "UNKNOWN NODE"}
+                  <h3 className="text-sm font-bold text-white uppercase italic tracking-tight">
+                    {post.profiles?.display_name || "NODE"}
                   </h3>
-                  <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mt-1">
-                    {formatDistanceToNow(new Date(post.created_at))} AGO • {post.profiles?.sub_role || "SYSTEM"}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">
+                      {formatDistanceToNow(new Date(post.created_at))} ago
+                    </span>
+                    <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest">
+                      {post.profiles?.sub_role || "NEURAL"}
+                    </span>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-zinc-700 hover:text-white">
+                <Button variant="ghost" size="icon" className="text-zinc-800 hover:text-white">
                   <Share2 className="w-4 h-4" />
                 </Button>
               </div>
 
-              {/* MEDIA CARD */}
-              <Card className="bg-zinc-900/10 border-white/5 overflow-hidden rounded-[2.5rem] relative group/card">
+              <div
+                className={cn(
+                  "relative rounded-[3rem] overflow-hidden bg-zinc-900/10 border transition-all duration-700",
+                  chargedPosts.has(post.id)
+                    ? "border-neon-blue shadow-[0_0_40px_rgba(0,229,255,0.1)]"
+                    : "border-white/5",
+                )}
+              >
                 {post.media_url && (
-                  <div className="w-full aspect-square relative">
+                  <div className="w-full aspect-square bg-black overflow-hidden relative">
                     <img
                       src={post.media_url}
-                      className="w-full h-full object-cover opacity-80 group-hover/card:opacity-100 transition-opacity duration-700"
-                      alt="Transmission"
+                      className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-1000"
+                      alt=""
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+
+                    {post.venues && (
+                      <button
+                        onClick={() => navigate(`/venue/${post.venues?.id}`)}
+                        className="absolute top-6 right-6 flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full hover:bg-neon-blue hover:text-black transition-all"
+                      >
+                        <MapPin className="w-3 h-3" />
+                        <span className="text-[8px] font-black uppercase tracking-widest">{post.venues.name}</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {/* TETHERED GATEWAY (UTILITY) */}
-                {post.venues && (
-                  <div className="absolute top-6 right-6">
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/venue/${post.venues?.id}`)}
-                      className="bg-black/60 backdrop-blur-xl border border-white/10 text-white rounded-full text-[8px] font-black uppercase tracking-widest h-8 px-4"
-                    >
-                      <MapPin className="w-3 h-3 mr-2 text-neon-blue" /> Sector: {post.venues.name}
-                    </Button>
-                  </div>
-                )}
-
-                <CardContent className="p-8">
+                <div className="p-8">
                   {post.content && (
-                    <p className="text-zinc-400 text-sm leading-relaxed font-medium mb-8">{post.content}</p>
+                    <p className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium">{post.content}</p>
                   )}
 
-                  {/* NEURAL INTERACTIONS */}
-                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                    <div className="flex items-center gap-6">
-                      {/* THE CHARGE BUTTON */}
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          onClick={() => handleChargeToggle(post.id)}
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col items-center gap-2">
+                      <button
+                        onClick={() => handleChargeToggle(post.id)}
+                        className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all active:scale-90 border",
+                          chargedPosts.has(post.id)
+                            ? "bg-neon-blue/10 border-neon-blue shadow-[0_0_20px_rgba(0,229,255,0.4)]"
+                            : "bg-white/5 border-white/5 text-white hover:border-white/20",
+                        )}
+                      >
+                        <Zap
                           className={cn(
-                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-90 border",
-                            chargedPosts.has(post.id)
-                              ? "bg-neon-pink/10 border-neon-pink/40 shadow-[0_0_15px_rgba(255,0,127,0.2)]"
-                              : "bg-white/5 border-white/5 text-white hover:border-white/20",
+                            "w-6 h-6 transition-all",
+                            chargedPosts.has(post.id) ? "text-neon-blue fill-neon-blue" : "text-white",
                           )}
-                        >
-                          <Zap
-                            className={cn(
-                              "w-5 h-5 transition-all",
-                              chargedPosts.has(post.id) ? "text-neon-pink fill-neon-pink" : "text-white",
-                            )}
-                          />
-                        </button>
-                        <span className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">Charge</span>
-                      </div>
+                        />
+                      </button>
+                      <span className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.2em]">VOLTS</span>
+                    </div>
 
-                      {/* ECHO SIGNALS (ANTI-COMMENT) */}
-                      <div className="flex gap-2">
-                        {ECHO_SIGNALS.map((signal) => (
-                          <button
-                            key={signal}
-                            className="h-8 px-3 rounded-full border border-white/5 bg-white/5 text-[7px] font-black text-zinc-500 uppercase tracking-widest hover:border-white/20 hover:text-white transition-all"
-                          >
-                            {signal}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="flex gap-2">
+                      <Badge
+                        variant="outline"
+                        className="h-8 border-white/5 text-zinc-600 text-[8px] font-black uppercase tracking-widest px-4 rounded-full"
+                      >
+                        ENERGY HIGH
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="h-8 border-white/5 text-zinc-600 text-[8px] font-black uppercase tracking-widest px-4 rounded-full"
+                      >
+                        SECTOR CLEARED
+                      </Badge>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
           ))
         )}
       </div>
 
-      {/* NEURAL CREATION HUB */}
       {isCreator && (
         <button
           onClick={() => setDialogOpen(true)}
-          className="fixed bottom-28 right-8 z-40 w-16 h-16 rounded-2xl bg-white text-black shadow-2xl flex items-center justify-center transition-all hover:bg-neon-pink hover:scale-110 active:scale-90 group"
+          className="fixed bottom-28 right-8 z-40 w-16 h-16 rounded-2xl bg-white text-black shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all group"
         >
           <Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-500" />
         </button>
