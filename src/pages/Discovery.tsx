@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Target, Plus, Minus, Zap } from "lucide-react";
+import { MapPin, Search, Target, Plus, Minus, Zap, UserPlus } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -66,9 +66,10 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
+  // ✅ INSTANT RESET: Prevents iPad "Jerking" during transitions
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [activeCategory]);
 
@@ -129,7 +130,7 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: py-4 creates the safety airspace for Ignite glow */}
+        {/* PILLS: Ignite Bleed Protected */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[110]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -138,7 +139,7 @@ const Discovery = () => {
                 key={cat.name}
                 onClick={() => setActiveCategory(cat.name)}
                 className={cn(
-                  "whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all duration-500 border relative",
+                  "whitespace-nowrap px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-500 border relative",
                   isActive
                     ? `${cat.color} ${cat.text} border-transparent scale-105`
                     : "bg-zinc-900 text-white/30 border-white/5 hover:text-white",
@@ -153,16 +154,17 @@ const Discovery = () => {
           })}
         </div>
 
-        {/* ATMOSPHERIC DEPTH: Tightened gradient to stop mudiness */}
+        {/* ATMOSPHERIC DEPTH */}
         <div className="absolute -bottom-10 left-0 right-0 h-10 bg-gradient-to-b from-black to-transparent pointer-events-none" />
       </div>
 
-      {/* 📱 IMMERSIVE SNAP STREAM (Tightened PT) */}
+      {/* 📱 IMMERSIVE SNAP STREAM (Hardware-Locked Snapping) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[17rem]"
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem] scroll-smooth"
+        style={{ scrollSnapStop: "always", WebkitOverflowScrolling: "touch" }}
       >
-        {/* SLIDE 1: SPOTLIGHT NODES (Zero-Gap Squeeze) */}
+        {/* SLIDE 1: SPOTLIGHT NODES */}
         <div className="w-full snap-start scroll-mt-[17rem] relative flex flex-col justify-start bg-black pt-2 pb-10">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-4">
             {featuredTalent.map((talent) => (
@@ -195,12 +197,13 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* DATA FEED SLIDES */}
+        {/* FEED SLIDES (Venues & Posts) */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="h-screen w-full snap-start scroll-mt-[17rem] relative flex flex-col justify-end overflow-hidden"
+            className="h-[80vh] md:h-screen w-full snap-start scroll-mt-[17rem] relative flex flex-col justify-end overflow-hidden mb-4"
+            style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
           >
             <img
               src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
@@ -229,7 +232,6 @@ const Discovery = () => {
                 </div>
               </div>
 
-              {/* ✅ DYNAMIC CLAMP + PR-6: Keeps words intact and prevents 'S' crop */}
               <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-normal pr-6 line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
