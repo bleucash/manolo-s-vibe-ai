@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, Search, Sparkles, ArrowRight, Zap } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { MapPin, Search, Sparkles, ArrowRight, Radio, Target, Filter } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
+import LoadingState from "@/components/ui/LoadingState";
+import { ActivitySidebar } from "@/components/ActivitySidebar";
+import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
   { name: "All Vibes", color: "bg-white text-black", border: "border-white" },
@@ -20,20 +22,19 @@ const CATEGORIES = [
 
 const Discovery = () => {
   const navigate = useNavigate();
-  const { isLoading: contextLoading } = useUserMode(); // ✅ Check context state
+  const { isLoading: contextLoading } = useUserMode();
 
   const [venues, setVenues] = useState<Venue[]>([]);
   const [featuredTalent, setFeaturedTalent] = useState<any[]>([]);
-  const [talentPosts, setTalentPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All Vibes");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
   const fetchDiscoveryData = async () => {
-    // Only set page-level loading, don't block the shell
     setLoading(true);
     try {
       let venueQuery = supabase.from("venues").select("*");
@@ -41,19 +42,13 @@ const Discovery = () => {
         venueQuery = venueQuery.ilike("category", `%${activeCategory}%`);
       }
 
-      const [vRes, tRes, pRes] = await Promise.all([
+      const [vRes, tRes] = await Promise.all([
         venueQuery,
         supabase.from("profiles").select("id, display_name, username, avatar_url").eq("role_type", "talent").limit(8),
-        supabase
-          .from("posts")
-          .select(`*, profiles:user_id (display_name, username, avatar_url)`)
-          .not("media_url", "is", null)
-          .limit(10),
       ]);
 
       if (vRes.data) setVenues(vRes.data as Venue[]);
       if (tRes.data) setFeaturedTalent(tRes.data);
-      if (pRes.data) setTalentPosts(pRes.data);
     } catch (err) {
       console.error("Discovery Sync Error", err);
     } finally {
@@ -61,42 +56,57 @@ const Discovery = () => {
     }
   };
 
-  const combinedFeed = [];
-  let talentIndex = 0;
-  for (let i = 0; i < (venues?.length || 0); i++) {
-    combinedFeed.push({ type: "venue", data: venues[i] });
-    if ((i + 1) % 4 === 0 && talentPosts[talentIndex]) {
-      combinedFeed.push({ type: "talent", data: talentPosts[talentIndex] });
-      talentIndex++;
-    }
-  }
+  const filteredVenues = venues.filter(
+    (v) =>
+      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.location?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  if (loading || contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
-      {/* HEADER */}
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl pt-16 pb-6 px-6 border-b border-white/5">
-        <h1 className="text-5xl md:text-7xl font-display text-white uppercase tracking-tighter leading-[0.8] italic mb-8">
-          What's <br />{" "}
-          <span className="text-neon-pink flex items-center gap-4">
-            The VIBES <div className="w-3 h-3 bg-neon-pink rounded-full animate-ping mt-2" />
-          </span>
-        </h1>
+    <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-700 hide-scrollbar">
+      {/* 🛠 HUD HEADER */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
+        <div className="flex items-center gap-3">
+          <Target className="w-4 h-4 text-neon-blue" />
+          <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1">Sector Search</h1>
+        </div>
+        <ActivitySidebar />
+      </div>
 
-        <div className="relative group mb-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-white transition-colors" />
-          <input
-            type="text"
-            placeholder="SEARCH..."
-            className="w-full bg-zinc-900/60 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-[10px] text-white focus:outline-none font-black uppercase tracking-[0.2em]"
-          />
+      {/* 🔍 SEARCH & FILTERS (Integrated Container) */}
+      <div className="pt-24 px-8 space-y-6">
+        <div className="relative group max-w-2xl mx-auto flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-neon-blue transition-colors" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="INPUT SECTOR COORDINATES..."
+              className="w-full bg-card/40 border border-white/5 pl-14 h-14 rounded-[1.5rem] text-[10px] font-black tracking-[0.2em] uppercase text-white placeholder:text-zinc-800 focus:outline-none focus:border-neon-blue/40 transition-all"
+            />
+          </div>
+          <Button
+            variant="ghost"
+            className="h-14 w-14 rounded-[1.5rem] border border-white/5 bg-card/40 text-muted-foreground hover:text-white"
+          >
+            <Filter className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="flex overflow-x-auto gap-2 no-scrollbar py-1">
+        {/* CATEGORY CHIPS */}
+        <div className="flex overflow-x-auto gap-3 no-scrollbar pb-2 max-w-2xl mx-auto">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border ${activeCategory === cat.name ? cat.color : "bg-transparent text-zinc-600 border-white/5"}`}
+              className={cn(
+                "whitespace-nowrap px-6 py-2 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border",
+                activeCategory === cat.name
+                  ? `${cat.color} ${cat.border}`
+                  : "bg-card/20 text-muted-foreground border-white/5 hover:border-white/20",
+              )}
             >
               {cat.name}
             </button>
@@ -104,97 +114,115 @@ const Discovery = () => {
         </div>
       </div>
 
-      {/* TALENT SPOTLIGHT */}
-      <div className="mt-12 mb-16">
-        <div className="px-6 flex items-center justify-between mb-8">
+      {/* 🔘 FEATURED NODES (Talent - Large Squircles) */}
+      <div className="pt-8 pb-12">
+        <div className="px-8 flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Featured Talent</h2>
+            <Radio className="w-3 h-3 text-neon-green animate-pulse" />
+            <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">Primary Talent</h2>
           </div>
           <button
             onClick={() => navigate("/talent-directory")}
-            className="text-[9px] font-black text-neon-blue uppercase tracking-widest flex items-center gap-1"
+            className="text-[9px] font-black text-neon-blue uppercase tracking-widest flex items-center gap-2 group"
           >
-            Directory <ArrowRight className="w-3 h-3" />
+            Directory <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
-        <div className="flex overflow-x-auto gap-6 px-6 no-scrollbar snap-x">
-          {loading
-            ? [1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-64 shrink-0 rounded-[2.5rem] bg-zinc-900" />)
-            : featuredTalent.map((talent) => (
-                <div
-                  key={talent.id}
-                  onClick={() => navigate(`/talent/${talent.id}`)}
-                  className="group relative h-80 w-64 shrink-0 rounded-[2.5rem] overflow-hidden snap-center border border-white/5 bg-zinc-900"
-                >
-                  <img
-                    src={talent.avatar_url || ""}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-                  <div className="absolute bottom-8 left-8">
-                    <h3 className="text-3xl font-display text-white uppercase tracking-tighter leading-none mb-1">
-                      {talent.display_name}
-                    </h3>
-                    <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">@{talent.username}</p>
+        <div
+          className={cn(
+            "flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth",
+            featuredTalent.length <= 2 ? "justify-center" : "justify-start",
+          )}
+        >
+          {featuredTalent.map((talent) => (
+            <div
+              key={talent.id}
+              onClick={() => navigate(`/talent/${talent.id}`)}
+              className="flex flex-col gap-3 shrink-0 group cursor-pointer"
+            >
+              <div className="relative w-48 h-48 rounded-[3rem] bg-card border border-white/5 group-hover:border-neon-blue/50 transition-all duration-700 overflow-hidden shadow-2xl">
+                <img
+                  src={talent.avatar_url || "/placeholder.svg"}
+                  className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-110"
+                  alt=""
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-8 right-8">
+                  <p className="font-display text-2xl text-white uppercase tracking-wide truncate mb-1">
+                    {talent.display_name}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[var(--shadow-green)]" />
+                    <span className="text-[8px] font-black text-neon-green uppercase tracking-widest">Linked Node</span>
                   </div>
                 </div>
-              ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* INTEGRATED FEED */}
-      <div className="px-6 space-y-16">
-        {loading ? (
-          <Skeleton className="h-[28rem] w-full rounded-[3.5rem] bg-zinc-900" />
-        ) : (
-          combinedFeed.map((item, idx) =>
-            item.type === "venue" ? (
-              <div
-                key={`v-${idx}`}
-                onClick={() => navigate(`/venue/${item.data.id}`)}
-                className="relative h-[30rem] w-full rounded-[3.5rem] overflow-hidden border border-white/10 group shadow-2xl bg-zinc-900"
-              >
-                <img
-                  src={item.data.image_url || "/placeholder.svg"}
-                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                <div className="absolute bottom-12 left-10 right-10">
-                  <h3 className="text-[clamp(2.5rem,10vw,5rem)] font-display text-white uppercase tracking-tighter leading-[0.9] italic line-clamp-2">
-                    {item.data.name}
-                  </h3>
-                  <div className="flex items-center gap-4 mt-4">
-                    <p className="text-[10px] text-zinc-400 font-black uppercase tracking-[0.2em]">
-                      {item.data.location}
-                    </p>
-                    <Badge className="bg-white/5 border-white/10 text-white text-[7px] font-black uppercase px-3 py-1">
-                      {item.data.category}
-                    </Badge>
+      {/* 🌐 SECTOR FEED (Venues - Modular Cards) */}
+      <div className="px-8 space-y-12 max-w-3xl mx-auto pb-20">
+        <div className="flex items-center gap-2 mb-2 px-4">
+          <Sparkles className="w-3 h-3 text-amber-500" />
+          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">Available Sectors</h2>
+        </div>
+
+        {filteredVenues.map((venue) => (
+          <div
+            key={venue.id}
+            onClick={() => navigate(`/venue/${venue.id}`)}
+            className="group relative w-full bg-card/10 rounded-[4rem] overflow-hidden border border-white/5 hover:border-neon-blue/20 transition-all duration-1000 shadow-[var(--shadow-glow)] cursor-pointer"
+          >
+            <div className="relative h-96 w-full overflow-hidden">
+              <img
+                src={venue.image_url || "/placeholder.svg"}
+                alt={venue.name}
+                className="w-full h-full object-cover opacity-40 group-hover:opacity-80 transition-all duration-1000 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+
+              <div className="absolute bottom-12 left-12 right-12">
+                <Badge className="bg-background/80 backdrop-blur-md border-white/10 text-[9px] font-black uppercase tracking-[0.2em] px-6 py-2 rounded-full mb-6">
+                  {venue.location || "SECTOR UNKNOWN"}
+                </Badge>
+                <h3 className="font-display text-6xl text-white uppercase italic tracking-tighter leading-none line-clamp-2">
+                  {venue.name}
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-12 flex items-center justify-between">
+              <div className="flex items-center gap-12">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                    Vibe Type
+                  </span>
+                  <span className="font-display text-2xl text-white uppercase italic">
+                    {venue.category || "General"}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                    Occupancy
+                  </span>
+                  <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-neon-blue w-[60%] shadow-[var(--shadow-neon)]" />
                   </div>
                 </div>
               </div>
-            ) : (
-              <div
-                key={`t-${idx}`}
-                onClick={() => navigate(`/talent/${item.data.user_id}`)}
-                className="relative h-96 w-full rounded-[3rem] overflow-hidden border border-neon-purple/20 bg-zinc-900 shadow-2xl"
+
+              <Button
+                variant="ghost"
+                className="rounded-2xl border border-white/5 bg-white text-black hover:bg-neon-blue hover:text-white transition-all text-[11px] font-black uppercase tracking-widest px-10 h-16"
               >
-                <img src={item.data.media_url} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                <div className="absolute bottom-10 left-10">
-                  <h4 className="text-5xl font-display text-white uppercase italic leading-none tracking-tighter">
-                    {item.data.profiles?.display_name}
-                  </h4>
-                  <p className="text-[9px] text-neon-purple font-black uppercase tracking-widest mt-3 flex items-center gap-2">
-                    <Zap className="w-3 h-3 fill-neon-purple animate-pulse" /> Vibe Pulse
-                  </p>
-                </div>
-              </div>
-            ),
-          )
-        )}
+                Enter Sector
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
