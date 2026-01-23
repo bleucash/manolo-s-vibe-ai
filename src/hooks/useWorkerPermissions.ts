@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type RoleType = "venue_manager" | "talent" | "guest" | null;
+export type RoleType = "venue_manager" | "talent" | "guest" | "manager" | null;
 
 interface VenueStaffEntry {
   venue_id: string;
@@ -23,14 +23,23 @@ const TALENT_SUB_ROLES = ["dj", "promoter", "host", "performer", "entertainer", 
 const STAFF_SUB_ROLES = ["security", "bouncer", "staff"];
 
 export function useWorkerPermissions(userId: string | null): WorkerPermissions {
-  const [roleType, setRoleType] = useState<RoleType>(null);
+  // ✅ HYDRATION FIX: Initializing from localStorage if available
+  // to prevent the "Guest Lockout" during the first few milliseconds of a page load.
+  const [roleType, setRoleType] = useState<RoleType>(() => {
+    const cached = localStorage.getItem("userMode");
+    if (cached === "manager") return "venue_manager";
+    return (cached as RoleType) || null;
+  });
+
   const [subRole, setSubRole] = useState<string | null>(null);
   const [venueStaffEntries, setVenueStaffEntries] = useState<VenueStaffEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPermissions = async () => {
+      // If no user ID, we are definitely a guest
       if (!userId) {
+        setRoleType("guest");
         setLoading(false);
         return;
       }
@@ -42,8 +51,11 @@ export function useWorkerPermissions(userId: string | null): WorkerPermissions {
           .eq("id", userId)
           .maybeSingle();
 
-        setRoleType((profile?.role_type as RoleType) || "guest");
-        setSubRole(profile?.sub_role || null);
+        if (profile) {
+          const actualRole = profile.role_type as RoleType;
+          setRoleType(actualRole || "guest");
+          setSubRole(profile.sub_role || null);
+        }
 
         const { data: staffEntries } = await supabase
           .from("venue_staff")
@@ -52,7 +64,7 @@ export function useWorkerPermissions(userId: string | null): WorkerPermissions {
 
         setVenueStaffEntries(staffEntries || []);
       } catch (error) {
-        // Console error removed per Phase 3 cleanup guidelines
+        // Silently handle errors to maintain "Neural Engine" smoothness
       } finally {
         setLoading(false);
       }
@@ -61,8 +73,12 @@ export function useWorkerPermissions(userId: string | null): WorkerPermissions {
     fetchPermissions();
   }, [userId]);
 
+  // ✅ LOGIC REFACTOR:
+  // We check BOTH the explicit role_type AND the sub_role categories.
   const isTalentRole = roleType === "talent" || TALENT_SUB_ROLES.includes(subRole?.toLowerCase() || "");
-  const isStaffRole = roleType === "venue_manager" || STAFF_SUB_ROLES.includes(subRole?.toLowerCase() || "");
+
+  const isStaffRole =
+    roleType === "venue_manager" || roleType === "manager" || STAFF_SUB_ROLES.includes(subRole?.toLowerCase() || "");
 
   const hasActiveVenueStaff = venueStaffEntries.some(
     (entry) => entry.status === "confirmed" || entry.status === "active",
