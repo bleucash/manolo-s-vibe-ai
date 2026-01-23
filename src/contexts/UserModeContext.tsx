@@ -26,7 +26,13 @@ const UserModeContext = createContext<UserModeContextType | undefined>(undefined
 
 export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [mode, setModeState] = useState<UserMode>("guest");
+
+  // ✅ HYDRATION: Reads from local storage instantly to prevent the "Guest Mode" lockout
+  const [mode, setModeState] = useState<UserMode>(() => {
+    const savedMode = localStorage.getItem("userMode");
+    return (savedMode as UserMode) || "guest";
+  });
+
   const [isManager, setIsManager] = useState(false);
   const [isTalent, setIsTalent] = useState(false);
   const [userVenues, setUserVenues] = useState<Venue[]>([]);
@@ -40,13 +46,19 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem("userMode", newMode);
   };
 
+  const setActiveVenueId = (id: string | null) => {
+    setActiveVenueIdState(id);
+    if (id) localStorage.setItem("activeVenueId", id);
+    else localStorage.removeItem("activeVenueId");
+  };
+
   const syncProfileAndVenues = async (userId: string) => {
     if (isVerifying.current) return;
     isVerifying.current = true;
-    setIsLoading(true);
 
     try {
       const { data: profile } = await supabase.from("profiles").select("role_type").eq("id", userId).maybeSingle();
+
       if (profile) {
         const role = profile.role_type || "guest";
         const isMgr = role === "manager" || role === "venue_manager";
@@ -54,17 +66,26 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         setIsManager(isMgr);
         setIsTalent(isTal);
-        setModeState(isMgr ? "manager" : isTal ? "talent" : "guest");
+
+        // ✅ AUTO-ALIGN: Ensures the UI mode matches the actual database role
+        const actualRole: UserMode = isMgr ? "manager" : isTal ? "talent" : "guest";
+        setModeState(actualRole);
+        localStorage.setItem("userMode", actualRole);
 
         if (isMgr) {
           const { data: venues } = await supabase.from("venues").select("id, name, image_url").eq("owner_id", userId);
-          if (venues?.length) {
+
+          if (venues && venues.length > 0) {
             setUserVenues(venues);
-            const storedId = localStorage.getItem("activeVenueId");
-            setActiveVenueIdState(venues.find((v) => v.id === storedId)?.id || venues[0].id);
+            const storedVenueId = localStorage.getItem("activeVenueId");
+            const isValid = venues.find((v) => v.id === storedVenueId);
+            const finalId = isValid ? storedVenueId : venues[0].id;
+            setActiveVenueIdState(finalId);
           }
         }
       }
+    } catch (err) {
+      console.error("Context Neural Sync Error:", err);
     } finally {
       setIsLoading(false);
       isVerifying.current = false;
@@ -72,29 +93,44 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (s) {
-        setSession(s);
-        syncProfileAndVenues(s.user.id);
+    let mounted = true;
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session: initSession } }) => {
+      if (!mounted) return;
+      if (initSession) {
+        setSession(initSession);
+        syncProfileAndVenues(initSession.user.id);
       } else {
         setIsLoading(false);
       }
     });
 
+    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event === "SIGNED_IN") {
-        setSession(s);
-        if (s) syncProfileAndVenues(s.user.id);
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        setSession(newSession);
+        if (newSession) syncProfileAndVenues(newSession.user.id);
       } else if (event === "SIGNED_OUT") {
+        localStorage.removeItem("userMode");
+        localStorage.removeItem("activeVenueId");
         setSession(null);
+        setIsManager(false);
+        setIsTalent(false);
+        setUserVenues([]);
+        setActiveVenueIdState(null);
         setModeState("guest");
         setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -106,7 +142,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isTalent,
         userVenues,
         activeVenueId,
-        setActiveVenueId: setActiveVenueIdState,
+        setActiveVenueId,
         isLoading,
         session,
       }}
@@ -118,6 +154,8 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useUserMode = () => {
   const context = useContext(UserModeContext);
-  if (context === undefined) throw new Error("useUserMode context failure");
+  if (context === undefined) {
+    throw new Error("useUserMode must be used within UserModeProvider");
+  }
   return context;
 };
