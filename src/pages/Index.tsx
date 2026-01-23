@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button"; // ✅ FIXED: Added missing import
-import { Badge } from "@/components/ui/badge"; // ✅ FIXED: Added missing import
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { User, Plus, Zap, Share2, MapPin, Radio, Target } from "lucide-react";
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
@@ -74,14 +74,14 @@ const Index = () => {
 
   const handleChargeToggle = async (postId: string) => {
     if (!currentUserId) return toast.error("Handshake required for charging.");
-    const isCharged = chargedPosts.has(postId);
+    const isLiked = chargedPosts.has(postId);
     setChargedPosts((prev) => {
       const next = new Set(prev);
-      isCharged ? next.delete(postId) : next.add(postId);
+      isLiked ? next.delete(postId) : next.add(postId);
       return next;
     });
     try {
-      if (isCharged) await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+      if (isLiked) await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       else await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
     } catch {
       toast.error("Sync Failure");
@@ -91,44 +91,49 @@ const Index = () => {
   if (loading || contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
-      {/* HUD HEADER: SLIM & UNIFORM */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-black/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-8">
+    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
+      {/* HUD HEADER */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <Target className="w-4 h-4 text-neon-blue" />
-          <h1 className="font-display text-xl text-white uppercase tracking-[0.2em] italic">Intel Feed</h1>
+          <h1 className="font-display text-xl text-white uppercase tracking-[0.2em] italic pt-1">Intel Feed</h1>
         </div>
         <ActivitySidebar />
       </div>
 
-      {/* EXPANDED ACTIVE NODES (LARGE SQUIRCLES) */}
-      <div className="pt-28 pb-10 border-b border-white/5">
+      {/* ENLARGED ACTIVE NODES (NO TEXT BELOW, NO SCROLLBAR) */}
+      <div className="pt-24 pb-10 border-b border-white/5">
         <div className="px-8 flex items-center gap-2 mb-8">
           <Radio className="w-3 h-3 text-neon-green animate-pulse" />
-          <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.4em]">Active Nodes</h2>
+          <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.4em]">Live Intelligence</h2>
         </div>
-        <div className="flex overflow-x-auto gap-6 px-8 no-scrollbar">
+        <div className="flex overflow-x-auto gap-6 px-8 no-scrollbar scroll-smooth">
           {activeNodes.map((node) => (
             <div
               key={node.id}
               onClick={() => navigate(`/talent/${node.id}`)}
               className="flex flex-col gap-3 shrink-0 group cursor-pointer"
             >
-              <div className="relative w-28 h-28 rounded-[2rem] bg-zinc-900 border border-white/5 group-hover:border-neon-blue/50 transition-all overflow-hidden">
+              {/* BIGGER SQUIRCLE: w-40 h-40 */}
+              <div className="relative w-40 h-40 rounded-[2.5rem] bg-zinc-900 border border-white/5 group-hover:border-neon-blue/50 transition-all overflow-hidden shadow-2xl">
                 <img
                   src={node.avatar_url || "/placeholder.svg"}
-                  className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                  className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
                   alt=""
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-                <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_8px_#39FF14]" />
-                  <span className="text-[7px] font-black text-white uppercase tracking-widest">Live</span>
+
+                {/* NAME INSIDE NODE */}
+                <div className="absolute bottom-4 left-5 right-5">
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest italic truncate mb-1">
+                    {node.display_name}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_8px_#39FF14]" />
+                    <span className="text-[7px] font-black text-neon-green uppercase tracking-widest">Active Node</span>
+                  </div>
                 </div>
               </div>
-              <span className="text-[9px] font-black text-white uppercase tracking-widest italic truncate w-28 px-1">
-                {node.display_name || "Unknown"}
-              </span>
             </div>
           ))}
         </div>
@@ -143,9 +148,13 @@ const Index = () => {
           />
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="group">
-              <div className="flex items-center gap-4 mb-6">
-                <Avatar className="w-11 h-11 border border-white/5" onClick={() => navigate(`/users/${post.user_id}`)}>
+            <div key={post.id} className="group animate-in slide-in-from-bottom-6 duration-700">
+              {/* POST HEADER */}
+              <div className="flex items-center gap-4 mb-6 px-2">
+                <Avatar
+                  className="w-11 h-11 border border-white/5 shadow-lg"
+                  onClick={() => navigate(`/users/${post.user_id}`)}
+                >
                   <AvatarImage src={post.profiles?.avatar_url || undefined} />
                   <AvatarFallback className="bg-zinc-900 text-zinc-700">?</AvatarFallback>
                 </Avatar>
@@ -163,16 +172,17 @@ const Index = () => {
                     </span>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-zinc-800 hover:text-white">
+                <Button variant="ghost" size="icon" className="text-zinc-800 hover:text-white transition-colors">
                   <Share2 className="w-4 h-4" />
                 </Button>
               </div>
 
+              {/* POST CONTENT CARD */}
               <div
                 className={cn(
-                  "relative rounded-[3rem] overflow-hidden bg-zinc-900/10 border transition-all duration-700",
+                  "relative rounded-[3.5rem] overflow-hidden bg-zinc-900/10 border transition-all duration-1000",
                   chargedPosts.has(post.id)
-                    ? "border-neon-blue shadow-[0_0_40px_rgba(0,229,255,0.1)]"
+                    ? "border-neon-blue shadow-[0_0_60px_rgba(0,229,255,0.15)]"
                     : "border-white/5",
                 )}
               >
@@ -185,56 +195,61 @@ const Index = () => {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
 
+                    {/* TETHERED VENUE LINK */}
                     {post.venues && (
                       <button
                         onClick={() => navigate(`/venue/${post.venues?.id}`)}
-                        className="absolute top-6 right-6 flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full hover:bg-neon-blue hover:text-black transition-all"
+                        className="absolute top-8 right-8 flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/10 px-5 py-2.5 rounded-full hover:bg-neon-blue hover:text-black transition-all shadow-xl group/venue"
                       >
-                        <MapPin className="w-3 h-3" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">{post.venues.name}</span>
+                        <MapPin className="w-3 h-3 group-hover:animate-bounce" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">{post.venues.name}</span>
                       </button>
                     )}
                   </div>
                 )}
 
-                <div className="p-8">
+                <div className="p-10">
                   {post.content && (
-                    <p className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium">{post.content}</p>
+                    <p className="text-zinc-400 text-sm leading-relaxed mb-10 font-medium">{post.content}</p>
                   )}
 
+                  {/* NEURAL CHARGE INTERACTION */}
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col items-center gap-2">
                       <button
                         onClick={() => handleChargeToggle(post.id)}
                         className={cn(
-                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all active:scale-90 border",
+                          "w-16 h-16 rounded-[1.5rem] flex items-center justify-center transition-all active:scale-90 border duration-500",
                           chargedPosts.has(post.id)
-                            ? "bg-neon-blue/10 border-neon-blue shadow-[0_0_20px_rgba(0,229,255,0.4)]"
+                            ? "bg-neon-blue/10 border-neon-blue shadow-[0_0_30px_rgba(0,229,255,0.4)]"
                             : "bg-white/5 border-white/5 text-white hover:border-white/20",
                         )}
                       >
                         <Zap
                           className={cn(
-                            "w-6 h-6 transition-all",
+                            "w-7 h-7 transition-all duration-500",
                             chargedPosts.has(post.id) ? "text-neon-blue fill-neon-blue" : "text-white",
                           )}
                         />
                       </button>
-                      <span className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.2em]">VOLTS</span>
+                      <span className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.3em]">
+                        Neural Charge
+                      </span>
                     </div>
 
-                    <div className="flex gap-2">
+                    {/* DYNAMIC SIGNALS */}
+                    <div className="flex gap-3">
                       <Badge
                         variant="outline"
-                        className="h-8 border-white/5 text-zinc-600 text-[8px] font-black uppercase tracking-widest px-4 rounded-full"
+                        className="h-9 border-white/5 bg-zinc-900/50 text-zinc-600 text-[9px] font-black uppercase tracking-widest px-5 rounded-xl hover:text-white transition-colors cursor-default"
                       >
                         ENERGY HIGH
                       </Badge>
                       <Badge
                         variant="outline"
-                        className="h-8 border-white/5 text-zinc-600 text-[8px] font-black uppercase tracking-widest px-4 rounded-full"
+                        className="h-9 border-white/5 bg-zinc-900/50 text-zinc-600 text-[9px] font-black uppercase tracking-widest px-5 rounded-xl hover:text-white transition-colors cursor-default"
                       >
-                        SECTOR CLEARED
+                        PEAK VIBE
                       </Badge>
                     </div>
                   </div>
@@ -245,10 +260,11 @@ const Index = () => {
         )}
       </div>
 
+      {/* CREATION HUB */}
       {isCreator && (
         <button
           onClick={() => setDialogOpen(true)}
-          className="fixed bottom-28 right-8 z-40 w-16 h-16 rounded-2xl bg-white text-black shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all group"
+          className="fixed bottom-28 right-8 z-40 w-16 h-16 rounded-3xl bg-white text-black shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all group hover:bg-neon-blue"
         >
           <Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-500" />
         </button>
