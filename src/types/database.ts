@@ -1,15 +1,17 @@
+// src/types/database.ts
+
 export interface Venue {
   id: string;
   name: string;
   location: string;
   category: string | null;
-  image_url?: string;
+  image_url: string | null; // Use string | null for Supabase compatibility
   is_active: boolean;
-  description?: string | null;
-  capacity?: number | null;
-  entry_price?: number | null;
-  // ✅ ADDED FOR CLAIMING LOGIC
-  owner_id: string | null;
+  description: string | null;
+  capacity: number | null;
+  entry_price: number | null;
+  owner_id: string | null; // ✅ The fix for your Venue.tsx errors
+  created_at?: string;
 }
 
 export interface Profile {
@@ -18,7 +20,7 @@ export interface Profile {
   username: string | null;
   avatar_url: string | null;
   sub_role: string | null;
-  role_type: "guest" | "talent" | "manager"; // Added for mode switching logic
+  role_type: "guest" | "talent" | "manager";
 }
 
 export interface Post {
