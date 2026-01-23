@@ -2,8 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { MapPin, Search, Target, Radio, Sparkles, Zap } from "lucide-react";
+import { MapPin, Search, Target, Radio, Sparkles, Zap, UserPlus } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -14,7 +13,7 @@ const CATEGORIES = [
   { name: "All Vibes", color: "bg-white text-black", border: "border-white" },
   { name: "Nightclubs", color: "bg-[#00B7FF] text-black", border: "border-[#00B7FF]" },
   { name: "Bars", color: "bg-[#39FF14] text-black", border: "border-[#39FF14]" },
-  { name: "Live Music", color: "bg-[#39FF14] text-black", border: "border-[#39FF14]" },
+  { name: "Live Music", color: "bg-[#FFD700] text-black", border: "border-[#FFD700]" },
   { name: "Lounges", color: "bg-[#BF00FF] text-white", border: "border-[#BF00FF]" },
   { name: "Hookah", color: "bg-[#00FFFF] text-black", border: "border-[#00FFFF]" },
   { name: "Strip Clubs", color: "bg-[#FF007F] text-white", border: "border-[#FF007F]" },
@@ -64,7 +63,6 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
-  // Integrated Feed Logic: Mixes Venues and Talent Posts
   const combinedFeed = useMemo(() => {
     const filtered = venues.filter(
       (v) =>
@@ -76,7 +74,6 @@ const Discovery = () => {
     let postIndex = 0;
     for (let i = 0; i < filtered.length; i++) {
       feed.push({ type: "venue", data: filtered[i] });
-      // Inject a talent post every 3 venues
       if ((i + 1) % 3 === 0 && talentPosts[postIndex]) {
         feed.push({ type: "talent", data: talentPosts[postIndex] });
         postIndex++;
@@ -98,8 +95,8 @@ const Discovery = () => {
         <ActivitySidebar />
       </div>
 
-      {/* SEARCH & FILTERS */}
-      <div className="pt-24 px-8 space-y-6">
+      {/* SEARCH & SLIM FILTERS */}
+      <div className="pt-24 px-8 space-y-5">
         <div className="relative group max-w-2xl mx-auto">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-neon-blue transition-colors" />
           <input
@@ -110,15 +107,16 @@ const Discovery = () => {
           />
         </div>
 
+        {/* TIGHTER CATEGORY PILLS */}
         <div className="flex overflow-x-auto gap-2 hide-scrollbar pb-2 max-w-2xl mx-auto">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
               className={cn(
-                "whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border",
+                "whitespace-nowrap px-3 py-1.5 rounded-full text-[7px] font-black uppercase tracking-widest transition-all border",
                 activeCategory === cat.name
-                  ? `${cat.color} ${cat.border}`
+                  ? `${cat.color} ${cat.border} scale-105`
                   : "bg-card/20 text-muted-foreground border-white/5",
               )}
             >
@@ -129,7 +127,7 @@ const Discovery = () => {
       </div>
 
       {/* FEATURED TALENT NODES */}
-      <div className="pt-16 pb-8">
+      <div className="pt-12 pb-8">
         <div
           className={cn(
             "flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth",
@@ -164,45 +162,49 @@ const Discovery = () => {
         </div>
       </div>
 
-      {/* COMBINED SECTOR FEED */}
+      {/* COMBINED SECTOR FEED (No Entry Button) */}
       <div className="px-8 space-y-12 max-w-3xl mx-auto pb-20">
         {combinedFeed.map((item, idx) =>
           item.type === "venue" ? (
             <div
               key={`v-${item.data.id}-${idx}`}
               onClick={() => navigate(`/venue/${item.data.id}`)}
-              className="group relative w-full bg-card/10 rounded-[2rem] overflow-hidden border border-white/5 hover:border-neon-blue/20 transition-all duration-1000 shadow-2xl cursor-pointer"
+              className="group relative w-full bg-card/10 rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-neon-blue/20 transition-all duration-1000 shadow-2xl cursor-pointer"
             >
-              <div className="relative min-h-[24rem] w-full overflow-hidden flex flex-col justify-end">
+              <div className="relative min-h-[26rem] w-full overflow-hidden flex flex-col justify-end">
                 <img
                   src={item.data.image_url || "/placeholder.svg"}
                   alt={item.data.name}
                   className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-all duration-1000 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent opacity-90" />
+
+                {/* FOLLOW ICON OVERLAY (Top Right) */}
+                <div className="absolute top-8 right-8 z-20">
+                  <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-neon-blue hover:text-white transition-all">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent opacity-95" />
 
                 <div className="relative p-10 z-10">
-                  <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-4 inline-flex items-center">
+                  <Badge className="bg-neon-blue text-white border-none text-[8px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-4 inline-flex items-center">
                     <MapPin className="w-3 h-3 mr-2" />
                     {item.data.location || "SECTOR UNKNOWN"}
                   </Badge>
-                  <h3 className="font-display text-5xl md:text-7xl text-white uppercase italic tracking-tighter leading-[0.85] whitespace-normal break-words hyphens-none">
+
+                  {/* Word Wrap + Break Protection */}
+                  <h3 className="font-display text-6xl md:text-8xl text-white uppercase italic tracking-tighter leading-[0.8] whitespace-normal break-words hyphens-none">
                     {item.data.name}
                   </h3>
                 </div>
               </div>
-              <div className="p-8 flex items-center justify-end bg-background/20 backdrop-blur-md">
-                <Button className="rounded-2xl bg-white text-black hover:bg-neon-blue hover:text-white transition-all text-[11px] font-black uppercase tracking-widest px-10 h-14 w-full md:w-auto">
-                  Enter Sector
-                </Button>
-              </div>
             </div>
           ) : (
-            /* TALENT POST INSERTION */
             <div
               key={`p-${item.data.id}-${idx}`}
               onClick={() => navigate(`/talent/${item.data.user_id}`)}
-              className="relative h-96 w-full rounded-[2rem] overflow-hidden border border-neon-purple/20 bg-zinc-900/50 shadow-2xl cursor-pointer group"
+              className="relative h-96 w-full rounded-[2.5rem] overflow-hidden border border-neon-purple/20 bg-zinc-900/50 shadow-2xl cursor-pointer group"
             >
               <img
                 src={item.data.media_url}
