@@ -1,19 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, CheckCircle, XCircle, Clock, UserPlus, Building2, Send, UserCheck } from "lucide-react";
+import { CheckCircle2, XCircle, UserPlus, Send, UserCheck } from "lucide-react";
 import { toast } from "sonner";
-
-interface VenueStaffRequest {
-  id: string;
-  venue_id: string;
-  user_id: string;
-  status: string;
-  created_at: string;
-}
+import LoadingState from "@/components/ui/LoadingState";
 
 interface ProfileInfo {
   id: string;
@@ -25,31 +17,18 @@ interface ProfileInfo {
 const ManagerApprovalPanel = () => {
   const { activeVenueId } = useUserMode();
   const [isLoading, setIsLoading] = useState(true);
-  const [requests, setRequests] = useState<VenueStaffRequest[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [profileDetails, setProfileDetails] = useState<Map<string, ProfileInfo>>(new Map());
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (activeVenueId) {
-      fetchRequests();
-    } else {
-      setIsLoading(false);
-      setRequests([]);
-    }
+    if (activeVenueId) fetchRequests();
 
     const channel = supabase
       .channel("venue_staff_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "venue_staff",
-        },
-        () => {
-          if (activeVenueId) fetchRequests();
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "venue_staff" }, () => {
+        if (activeVenueId) fetchRequests();
+      })
       .subscribe();
 
     return () => {
@@ -59,34 +38,28 @@ const ManagerApprovalPanel = () => {
 
   const fetchRequests = async () => {
     if (!activeVenueId) return;
-
     try {
-      const { data: staffRecords, error: staffError } = await supabase
+      const { data: records } = await supabase
         .from("venue_staff")
         .select("*")
         .eq("venue_id", activeVenueId)
         .order("created_at", { ascending: false });
 
-      if (staffError) throw staffError;
-
-      const records = (staffRecords || []) as VenueStaffRequest[];
-      setRequests(records);
-
-      const userIds = [...new Set(records.map((r) => r.user_id))];
-      if (userIds.length > 0) {
-        const { data: profiles, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, display_name, username, avatar_url")
-          .in("id", userIds);
-
-        if (!profileError && profiles) {
-          const profileMap = new Map<string, ProfileInfo>();
-          profiles.forEach((p: ProfileInfo) => profileMap.set(p.id, p));
-          setProfileDetails(profileMap);
+      if (records) {
+        setRequests(records);
+        const userIds = [...new Set(records.map((r: any) => r.user_id))];
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, display_name, username, avatar_url")
+            .in("id", userIds);
+          if (profiles) {
+            const profileMap = new Map();
+            profiles.forEach((p) => profileMap.set(p.id, p));
+            setProfileDetails(profileMap);
+          }
         }
       }
-    } catch (err) {
-      console.error("Error fetching requests:", err);
     } finally {
       setIsLoading(false);
     }
@@ -94,28 +67,16 @@ const ManagerApprovalPanel = () => {
 
   const handleUpdateStatus = async (requestId: string, newStatus: "active" | "rejected") => {
     setProcessingIds((prev) => new Set(prev).add(requestId));
-
     try {
-      let error;
       if (newStatus === "rejected") {
-        // If rejecting or canceling an invite, we delete the record to keep DB clean
-        const { error: delError } = await supabase.from("venue_staff").delete().eq("id", requestId);
-        error = delError;
+        await supabase.from("venue_staff").delete().eq("id", requestId);
       } else {
-        const { error: updError } = await supabase
-          .from("venue_staff")
-          .update({ status: newStatus })
-          .eq("id", requestId);
-        error = updError;
+        await supabase.from("venue_staff").update({ status: newStatus }).eq("id", requestId);
       }
-
-      if (error) throw error;
-
-      toast.success(newStatus === "active" ? "Affiliation Approved" : "Request Removed");
+      toast.success(newStatus === "active" ? "Neural Link Confirmed" : "Request Dismissed");
       fetchRequests();
-    } catch (err) {
-      console.error("Update error:", err);
-      toast.error("Operation failed");
+    } catch {
+      toast.error("Sync Failed");
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
@@ -125,87 +86,75 @@ const ManagerApprovalPanel = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-neon-green" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingState />;
 
-  // CATEGORIES
   const incomingApps = requests.filter((r) => r.status === "pending");
   const outgoingInvites = requests.filter((r) => r.status === "pending_talent_action");
   const activePerformers = requests.filter((r) => r.status === "active");
 
-  const renderUserRow = (req: VenueStaffRequest, type: "incoming" | "outgoing" | "active") => {
+  const renderUserRow = (req: any, type: "incoming" | "outgoing" | "active") => {
     const profile = profileDetails.get(req.user_id);
     const isProcessing = processingIds.has(req.id);
 
     return (
-      <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+      <div
+        key={req.id}
+        className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900/40 border border-white/5 group hover:border-white/10 transition-all"
+      >
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-black border border-white/10 shrink-0">
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-zinc-500">
-              {profile?.display_name?.charAt(0) || "?"}
+            <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-zinc-600 uppercase">
+              {profile?.display_name?.charAt(0) || "U"}
             </div>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white truncate">
-            {profile?.display_name || profile?.username || "Unknown"}
+          <p className="text-sm font-bold text-white uppercase italic tracking-tight truncate">
+            {profile?.display_name || profile?.username || "Neural ID Unknown"}
           </p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-            {type === "incoming" ? "Applied for Gig" : type === "outgoing" ? "Awaiting Talent" : "Active Connection"}
+          <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mt-0.5">
+            {type === "incoming"
+              ? "Requesting Entry"
+              : type === "outgoing"
+                ? "Awaiting Response"
+                : "Verified Connection"}
           </p>
         </div>
 
         <div className="flex gap-1">
-          {type === "incoming" && (
+          {type === "incoming" ? (
             <>
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-neon-green hover:bg-neon-green/10"
+                className="h-9 w-9 text-neon-green hover:bg-neon-green/10"
                 onClick={() => handleUpdateStatus(req.id, "active")}
                 disabled={isProcessing}
               >
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle2 className="w-5 h-5" />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-red-500 hover:bg-red-500/10"
+                className="h-9 w-9 text-red-500 hover:bg-red-500/10"
                 onClick={() => handleUpdateStatus(req.id, "rejected")}
                 disabled={isProcessing}
               >
                 <XCircle className="w-5 h-5" />
               </Button>
             </>
-          )}
-          {type === "outgoing" && (
+          ) : (
             <Button
               size="sm"
               variant="ghost"
-              className="text-[10px] text-zinc-500 hover:text-red-500 uppercase font-bold"
+              className="text-[9px] font-black text-zinc-600 hover:text-white uppercase tracking-widest"
               onClick={() => handleUpdateStatus(req.id, "rejected")}
               disabled={isProcessing}
             >
-              Cancel
-            </Button>
-          )}
-          {type === "active" && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-zinc-600 hover:text-red-500"
-              onClick={() => handleUpdateStatus(req.id, "rejected")}
-              disabled={isProcessing}
-            >
-              <XCircle className="w-4 h-4" />
+              {type === "active" ? "Sever" : "Cancel"}
             </Button>
           )}
         </div>
@@ -214,49 +163,43 @@ const ManagerApprovalPanel = () => {
   };
 
   return (
-    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-      {/* 1. INCOMING */}
-      <div className="space-y-3">
+    <div className="space-y-8 max-h-[60vh] overflow-y-auto no-scrollbar pr-2">
+      <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
-          <UserPlus className="w-4 h-4 text-neon-purple" />
-          <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Incoming Applications</h3>
+          <UserPlus className="w-3 h-3 text-neon-purple" />
+          <h3 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em]">Incoming Streams</h3>
           {incomingApps.length > 0 && (
-            <Badge className="bg-neon-purple h-4 px-1.5 text-[9px]">{incomingApps.length}</Badge>
+            <Badge className="bg-neon-purple text-white text-[8px] h-4 rounded-full">{incomingApps.length}</Badge>
           )}
         </div>
         {incomingApps.length > 0 ? (
           incomingApps.map((r) => renderUserRow(r, "incoming"))
         ) : (
-          <p className="text-[10px] text-zinc-600 italic px-1">No pending applications from talent.</p>
+          <p className="text-[9px] text-zinc-700 italic px-1 uppercase tracking-widest">Zero active applications</p>
         )}
       </div>
 
-      {/* 2. OUTGOING */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
-          <Send className="w-4 h-4 text-amber-500" />
-          <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Sent Invitations</h3>
-          {outgoingInvites.length > 0 && (
-            <Badge className="bg-amber-500 h-4 px-1.5 text-[9px] text-black">{outgoingInvites.length}</Badge>
-          )}
+          <Send className="w-3 h-3 text-amber-500" />
+          <h3 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em]">Neural Invites</h3>
         </div>
         {outgoingInvites.length > 0 ? (
           outgoingInvites.map((r) => renderUserRow(r, "outgoing"))
         ) : (
-          <p className="text-[10px] text-zinc-600 italic px-1">No pending invites sent by you.</p>
+          <p className="text-[9px] text-zinc-700 italic px-1 uppercase tracking-widest">No pending handshakes</p>
         )}
       </div>
 
-      {/* 3. ACTIVE */}
-      <div className="space-y-3 pt-2 border-t border-white/5">
+      <div className="space-y-4 border-t border-white/5 pt-6">
         <div className="flex items-center gap-2 px-1">
-          <UserCheck className="w-4 h-4 text-neon-green" />
-          <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Venue Performers</h3>
+          <UserCheck className="w-3 h-3 text-neon-green" />
+          <h3 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em]">Verified Staff</h3>
         </div>
         {activePerformers.length > 0 ? (
           activePerformers.map((r) => renderUserRow(r, "active"))
         ) : (
-          <p className="text-[10px] text-zinc-600 italic px-1">No active connections yet.</p>
+          <p className="text-[9px] text-zinc-700 italic px-1 uppercase tracking-widest">Ledger empty</p>
         )}
       </div>
     </div>
