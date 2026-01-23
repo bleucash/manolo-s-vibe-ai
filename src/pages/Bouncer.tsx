@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
-
+import { Card } from "@/components/ui/card";
 type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
 
 const Bouncer = () => {
