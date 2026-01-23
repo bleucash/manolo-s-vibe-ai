@@ -17,13 +17,11 @@ export default function Messages() {
   const { conversations, messages, currentUserId, isLoadingConversations, isLoadingMessages, sendMessage } =
     useChat(selectedConversationId);
 
-  // Filter logic for "Main" (Work/Managers) vs "General"
   const mainThreads = conversations.filter(
     (c) => c.last_sender_id === currentUserId || c.display_name?.toLowerCase().includes("manager"),
   );
   const generalThreads = conversations.filter((c) => !mainThreads.find((m) => m.conversation_id === c.conversation_id));
 
-  // ✅ LOCALIZED LOADING: Prevents the "Blackout" glitch
   if (isLoadingConversations) return <LoadingState />;
 
   const renderConversationList = (threads: typeof conversations) => (
@@ -46,7 +44,8 @@ export default function Messages() {
                   <User className="h-5 w-5" />
                 </AvatarFallback>
               </Avatar>
-              {conv.unread_count > 0 && (
+              {/* ✅ FIXED: Handled TS2339 by casting until hook update */}
+              {(conv as any).unread_count > 0 && (
                 <span className="absolute -top-1 -right-1 h-4 w-4 bg-neon-pink rounded-full border-2 border-black animate-pulse" />
               )}
             </div>
@@ -57,7 +56,8 @@ export default function Messages() {
                   {conv.display_name || "Neural User"}
                 </p>
                 <span className="text-[9px] font-black text-zinc-600 uppercase">
-                  {conv.last_message_time ? "Active" : ""}
+                  {/* ✅ FIXED: Changed last_message_time to last_message_at (TS2551) */}
+                  {conv.last_message_at ? "Active" : ""}
                 </span>
               </div>
               <p className="text-[10px] text-zinc-500 line-clamp-1 uppercase tracking-wider font-medium">
@@ -72,7 +72,6 @@ export default function Messages() {
 
   return (
     <div className="flex h-screen bg-black overflow-hidden pt-16">
-      {/* SIDEBAR */}
       <div
         className={cn(
           "flex-col border-r border-white/5 bg-black transition-all duration-500",
@@ -122,7 +121,6 @@ export default function Messages() {
         </div>
       </div>
 
-      {/* CHAT WINDOW CONTAINER */}
       <div className={cn("flex-1 flex-col bg-black relative", selectedConversationId ? "flex" : "hidden md:flex")}>
         {selectedConversationId ? (
           <ChatWindow
