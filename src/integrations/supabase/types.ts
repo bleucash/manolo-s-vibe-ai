@@ -516,6 +516,57 @@ export type Database = {
           },
         ]
       }
+      venue_claims: {
+        Row: {
+          business_email: string
+          business_phone: string | null
+          created_at: string | null
+          id: string
+          legal_name: string
+          position_title: string | null
+          status: string | null
+          user_id: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          business_email: string
+          business_phone?: string | null
+          created_at?: string | null
+          id?: string
+          legal_name: string
+          position_title?: string | null
+          status?: string | null
+          user_id?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          business_email?: string
+          business_phone?: string | null
+          created_at?: string | null
+          id?: string
+          legal_name?: string
+          position_title?: string | null
+          status?: string | null
+          user_id?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_claims_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_staff: {
         Row: {
           commission_rate: number | null
