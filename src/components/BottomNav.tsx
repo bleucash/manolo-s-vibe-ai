@@ -4,48 +4,49 @@ import { Home, Compass, MessageSquare, Wallet, LayoutDashboard, Star, User } fro
 import { cn } from "@/lib/utils";
 
 const BottomNav = () => {
-  const { mode, isLoading, session } = useUserMode(); // ✅ Added isLoading and session
+  const { mode, isLoading, session } = useUserMode();
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Hide on Auth page
   if (location.pathname === "/auth") return null;
 
-  // ✅ THE PERSISTENCE FIX:
-  // If we are still loading but WE KNOW there is a session,
-  // don't revert to guest mode. Keep the professional icons visible.
-  const effectiveMode = isLoading && session ? (localStorage.getItem("userMode") as any) || mode : mode;
-
+  /**
+   * ✅ CLEAN ICON MAPPING
+   * We no longer need 'effectiveMode' here because the UserModeContext
+   * now initializes 'mode' from localStorage immediately on boot.
+   */
   const navItems = [
     {
       icon: Home,
       path: "/",
       color: "text-[#FF5F1F]",
-      glow: "drop-shadow([0_0_10px_rgba(255,95,31,0.5)])",
+      glow: "drop-shadow-[0_0_10px_rgba(255,95,31,0.5)]",
     },
     {
       icon: Compass,
       path: "/discovery",
       color: "text-[#00B7FF]",
-      glow: "drop-shadow([0_0_10px_rgba(0,183,255,0.5)])",
+      glow: "drop-shadow-[0_0_10px_rgba(0,183,255,0.5)]",
     },
     {
       icon: MessageSquare,
       path: "/messages",
       color: "text-[#FF007F]",
-      glow: "drop-shadow([0_0_10px_rgba(255,0,127,0.5)])",
+      glow: "drop-shadow-[0_0_10px_rgba(255,0,127,0.5)]",
     },
     {
-      // ✅ Dynamic Icon based on the 'effectiveMode' to prevent the flicker/lockout
-      icon: effectiveMode === "manager" ? LayoutDashboard : effectiveMode === "talent" ? Star : Wallet,
-      path: effectiveMode === "manager" ? "/dashboard" : effectiveMode === "talent" ? "/gigs" : "/wallet",
-      color: "text-[#39FF14]",
-      glow: "drop-shadow([0_0_10px_rgba(57,255,20,0.5)])",
+      // ✅ STAR replacing Briefcase for Talent mode
+      icon: mode === "manager" ? LayoutDashboard : mode === "talent" ? Star : Wallet,
+      path: mode === "manager" ? "/dashboard" : mode === "talent" ? "/gigs" : "/wallet",
+      color: "text-[#39FF14]", // Neon Green
+      glow: "drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]",
     },
     {
       icon: User,
       path: "/profile",
-      color: "text-[#BF00FF]",
-      glow: "drop-shadow([0_0_10px_rgba(191,0,255,0.5)])",
+      color: "text-[#BF00FF]", // Neon Purple
+      glow: "drop-shadow-[0_0_10px_rgba(191,0,255,0.5)]",
     },
   ];
 
@@ -60,7 +61,8 @@ const BottomNav = () => {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              disabled={isLoading && !session} // Only disable if we truly don't know who the user is
+              // Disable interaction ONLY if we have no session and are still fetching
+              disabled={isLoading && !session}
               className="group relative p-2 transition-all duration-300 active:scale-90"
             >
               <Icon
