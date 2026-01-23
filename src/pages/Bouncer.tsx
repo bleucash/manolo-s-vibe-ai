@@ -4,10 +4,11 @@ import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle, XCircle, Camera, ArrowLeft, Zap, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
-import { Card } from "@/components/ui/card";
+
 type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
 
 const Bouncer = () => {
@@ -20,7 +21,6 @@ const Bouncer = () => {
 
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
-  // Stop scanner on unmount
   useEffect(() => {
     return () => {
       if (scannerRef.current?.isScanning) {
@@ -29,8 +29,6 @@ const Bouncer = () => {
     };
   }, []);
 
-  // ✅ REDIRECT LOGIC:
-  // If we finish loading and find no active venue, we send them back.
   useEffect(() => {
     if (!contextLoading && !activeVenueId) {
       toast.error("Sector Selection Required");
@@ -100,12 +98,10 @@ const Bouncer = () => {
     startScanner();
   };
 
-  // ✅ LOCALIZED LOADING
   if (contextLoading) return <LoadingState />;
 
   return (
     <div className="min-h-screen bg-black flex flex-col p-6 animate-in fade-in duration-700">
-      {/* HEADER SECTION */}
       <div className="w-full flex justify-between items-center mb-12 pt-12">
         <Button
           variant="ghost"
@@ -123,7 +119,6 @@ const Bouncer = () => {
         </div>
       </div>
 
-      {/* SCANNING INTERFACE */}
       <div className="flex-1 flex flex-col items-center justify-center">
         {scanResult === null ? (
           <div className="w-full max-w-sm">
