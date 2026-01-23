@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Search, Sparkles, ArrowRight, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Venue, PostWithVenue } from "@/types/database";
+import { useUserMode } from "@/contexts/UserModeContext";
+import { Venue } from "@/types/database";
 
 const CATEGORIES = [
   { name: "All Vibes", color: "bg-white text-black", border: "border-white" },
@@ -12,45 +13,47 @@ const CATEGORIES = [
   { name: "Bars", color: "bg-[#39FF14] text-black shadow-[0_0_15px_#39FF14]", border: "border-[#39FF14]" },
   { name: "Live Music", color: "bg-[#39FF14] text-black shadow-[0_0_15px_#39FF14]", border: "border-[#39FF14]" },
   { name: "Lounges", color: "bg-[#BF00FF] text-white shadow-[0_0_15px_#BF00FF]", border: "border-[#BF00FF]" },
-  { name: "Hookah", color: "bg-[#00FFFF] text-black shadow-[0_0_15px_#00FFFF]", border: "border-[#00FFFF]" },
+  { name: "Hookah", color: "bg-[#00FFFF] text-black shadow-[0_0_15_#00FFFF]", border: "border-[#00FFFF]" },
   { name: "Strip Clubs", color: "bg-[#FF007F] text-white shadow-[0_0_15px_#FF007F]", border: "border-[#FF007F]" },
   { name: "LGBQT+", color: "bg-[#FF5F1F] text-white shadow-[0_0_15px_#FF5F1F]", border: "border-[#FF5F1F]" },
 ];
 
 const Discovery = () => {
+  const navigate = useNavigate();
+  const { isLoading: contextLoading } = useUserMode(); // ✅ Check context state
+
   const [venues, setVenues] = useState<Venue[]>([]);
   const [featuredTalent, setFeaturedTalent] = useState<any[]>([]);
   const [talentPosts, setTalentPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All Vibes");
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
   const fetchDiscoveryData = async () => {
+    // Only set page-level loading, don't block the shell
     setLoading(true);
     try {
       let venueQuery = supabase.from("venues").select("*");
       if (activeCategory !== "All Vibes") {
         venueQuery = venueQuery.ilike("category", `%${activeCategory}%`);
       }
-      const { data: vData } = await venueQuery;
-      const { data: tData } = await supabase
-        .from("profiles")
-        .select("id, display_name, username, avatar_url")
-        .eq("role_type", "talent")
-        .limit(8);
-      const { data: pData } = await supabase
-        .from("posts")
-        .select(`*, profiles:user_id (display_name, username, avatar_url)`)
-        .not("media_url", "is", null)
-        .limit(10);
 
-      if (vData) setVenues(vData as Venue[]);
-      if (tData) setFeaturedTalent(tData);
-      if (pData) setTalentPosts(pData);
+      const [vRes, tRes, pRes] = await Promise.all([
+        venueQuery,
+        supabase.from("profiles").select("id, display_name, username, avatar_url").eq("role_type", "talent").limit(8),
+        supabase
+          .from("posts")
+          .select(`*, profiles:user_id (display_name, username, avatar_url)`)
+          .not("media_url", "is", null)
+          .limit(10),
+      ]);
+
+      if (vRes.data) setVenues(vRes.data as Venue[]);
+      if (tRes.data) setFeaturedTalent(tRes.data);
+      if (pRes.data) setTalentPosts(pRes.data);
     } catch (err) {
       console.error("Discovery Sync Error", err);
     } finally {
@@ -70,18 +73,12 @@ const Discovery = () => {
 
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
-      <style>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
-
       {/* HEADER */}
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl pt-16 pb-4 px-6 border-b border-white/5">
+      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl pt-16 pb-6 px-6 border-b border-white/5">
         <h1 className="text-5xl md:text-7xl font-display text-white uppercase tracking-tighter leading-[0.8] italic mb-8">
           What's <br />{" "}
           <span className="text-neon-pink flex items-center gap-4">
-            The VIBES
-            <div className="w-3 h-3 bg-neon-pink rounded-full animate-ping mt-2 shadow-[0_0_15px_#FF007F]" />
+            The VIBES <div className="w-3 h-3 bg-neon-pink rounded-full animate-ping mt-2" />
           </span>
         </h1>
 
@@ -99,9 +96,7 @@ const Discovery = () => {
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border ${
-                activeCategory === cat.name ? cat.color : "bg-transparent text-zinc-600 border-white/5"
-              }`}
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border ${activeCategory === cat.name ? cat.color : "bg-transparent text-zinc-600 border-white/5"}`}
             >
               {cat.name}
             </button>
@@ -110,7 +105,7 @@ const Discovery = () => {
       </div>
 
       {/* TALENT SPOTLIGHT */}
-      <div className="mt-12 mb-20 min-h-[160px]">
+      <div className="mt-12 mb-16">
         <div className="px-6 flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500" />
@@ -118,9 +113,9 @@ const Discovery = () => {
           </div>
           <button
             onClick={() => navigate("/talent-directory")}
-            className="text-[9px] font-black text-neon-blue uppercase tracking-widest flex items-center gap-1 group"
+            className="text-[9px] font-black text-neon-blue uppercase tracking-widest flex items-center gap-1"
           >
-            Directory <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-all" />
+            Directory <ArrowRight className="w-3 h-3" />
           </button>
         </div>
 
@@ -131,14 +126,14 @@ const Discovery = () => {
                 <div
                   key={talent.id}
                   onClick={() => navigate(`/talent/${talent.id}`)}
-                  className="group relative h-80 w-64 shrink-0 rounded-[2.5rem] overflow-hidden snap-center border border-white/5 bg-zinc-900 transition-all active:scale-95"
+                  className="group relative h-80 w-64 shrink-0 rounded-[2.5rem] overflow-hidden snap-center border border-white/5 bg-zinc-900"
                 >
                   <img
                     src={talent.avatar_url || ""}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
-                  <div className="absolute bottom-8 left-8 right-8">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                  <div className="absolute bottom-8 left-8">
                     <h3 className="text-3xl font-display text-white uppercase tracking-tighter leading-none mb-1">
                       {talent.display_name}
                     </h3>
@@ -159,37 +154,24 @@ const Discovery = () => {
               <div
                 key={`v-${idx}`}
                 onClick={() => navigate(`/venue/${item.data.id}`)}
-                className="relative h-[28rem] w-full rounded-[3.5rem] overflow-hidden border border-white/10 group shadow-2xl"
+                className="relative h-[30rem] w-full rounded-[3.5rem] overflow-hidden border border-white/10 group shadow-2xl bg-zinc-900"
               >
                 <img
                   src={item.data.image_url || "/placeholder.svg"}
                   className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-
-                <div className="absolute top-10 right-10 bg-black/60 backdrop-blur-xl border border-white/10 px-5 py-2 rounded-full flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_8px_#39FF14]" />
-                  <span className="text-[8px] font-black text-white uppercase italic tracking-widest">Sizzling</span>
-                </div>
-
-                <div className="absolute bottom-12 left-8 right-8">
-                  <div className="space-y-4">
-                    {/* ✅ TYPOGRAPHY REFACTOR:
-                        - text-[clamp(2.5rem,10vw,5rem)]: Scales fluidly, never crops
-                        - hyphens-none: Prevents word breaking
-                        - line-clamp-2: Soft wrap for long names
-                    */}
-                    <h3 className="text-[clamp(2.5rem,10vw,5rem)] font-display text-white uppercase tracking-tighter leading-[0.9] italic drop-shadow-2xl hyphens-none line-clamp-2">
-                      {item.data.name}
-                    </h3>
-                    <div className="flex items-center gap-4">
-                      <p className="text-[10px] text-zinc-400 font-black uppercase tracking-[0.2em]">
-                        {item.data.location}
-                      </p>
-                      <Badge className="bg-white/5 border-white/10 text-white text-[7px] font-black tracking-widest uppercase px-3 py-1">
-                        {item.data.category}
-                      </Badge>
-                    </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+                <div className="absolute bottom-12 left-10 right-10">
+                  <h3 className="text-[clamp(2.5rem,10vw,5rem)] font-display text-white uppercase tracking-tighter leading-[0.9] italic line-clamp-2">
+                    {item.data.name}
+                  </h3>
+                  <div className="flex items-center gap-4 mt-4">
+                    <p className="text-[10px] text-zinc-400 font-black uppercase tracking-[0.2em]">
+                      {item.data.location}
+                    </p>
+                    <Badge className="bg-white/5 border-white/10 text-white text-[7px] font-black uppercase px-3 py-1">
+                      {item.data.category}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -197,11 +179,11 @@ const Discovery = () => {
               <div
                 key={`t-${idx}`}
                 onClick={() => navigate(`/talent/${item.data.user_id}`)}
-                className="relative h-96 w-full rounded-[3rem] overflow-hidden border border-neon-purple/20 bg-zinc-900 shadow-[0_0_30px_rgba(191,0,255,0.05)] transition-all"
+                className="relative h-96 w-full rounded-[3rem] overflow-hidden border border-neon-purple/20 bg-zinc-900 shadow-2xl"
               >
                 <img src={item.data.media_url} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                <div className="absolute bottom-10 left-10 right-10">
+                <div className="absolute bottom-10 left-10">
                   <h4 className="text-5xl font-display text-white uppercase italic leading-none tracking-tighter">
                     {item.data.profiles?.display_name}
                   </h4>
