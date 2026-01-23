@@ -2,17 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle, XCircle, Camera, ArrowLeft } from "lucide-react"; // Loader2 removed
+import { CheckCircle, XCircle, Camera, ArrowLeft, Zap, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { toast } from "sonner";
+import LoadingState from "@/components/ui/LoadingState";
 
 type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
 
 const Bouncer = () => {
   const navigate = useNavigate();
   const { activeVenueId, userVenues, isManager, isLoading: contextLoading } = useUserMode();
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
@@ -20,25 +20,23 @@ const Bouncer = () => {
 
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
+  // Stop scanner on unmount
   useEffect(() => {
     return () => {
       if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(console.error);
+        scannerRef.current.stop().catch(() => {});
       }
     };
   }, []);
 
+  // ✅ REDIRECT LOGIC:
+  // If we finish loading and find no active venue, we send them back.
   useEffect(() => {
-    if (contextLoading) return;
-    if (isManager && activeVenueId) {
-      setIsAuthorized(true);
-      return;
-    }
-    if (!activeVenueId) {
-      toast.error("Venue Link Inactive");
+    if (!contextLoading && !activeVenueId) {
+      toast.error("Sector Selection Required");
       navigate("/dashboard");
     }
-  }, [isManager, activeVenueId, contextLoading, navigate]);
+  }, [activeVenueId, contextLoading, navigate]);
 
   const onScanSuccess = async (qrCodeValue: string) => {
     if (!activeVenueId) return;
@@ -60,23 +58,19 @@ const Bouncer = () => {
 
       const result = data.result as ScanResult;
       setScanResult(result);
-
-      if (data.ticket) {
-        setTicketData(data.ticket);
-      }
+      if (data.ticket) setTicketData(data.ticket);
 
       if (result === "success") {
         toast.success("Identity Verified");
       } else {
         const messages = {
-          already_used: "Ticket already utilized",
-          wrong_venue: "Incorrect venue sector",
-          invalid: "Unrecognized sequence",
+          already_used: "Ticket utilized",
+          wrong_venue: "Invalid sector",
+          invalid: "Sequence unrecognized",
         };
         toast.error(messages[result as keyof typeof messages] || "Access Denied");
       }
     } catch (err) {
-      console.error("Neural Sync Error:", err);
       toast.error("Ledger Sync Failure");
       resetScanner();
     }
@@ -90,13 +84,13 @@ const Bouncer = () => {
 
       await scannerRef.current.start(
         { facingMode: "environment" },
-        { fps: 15, qrbox: { width: 250, height: 250 } },
+        { fps: 20, qrbox: { width: 250, height: 250 } },
         onScanSuccess,
         () => {},
       );
       setIsScanning(true);
     } catch (err) {
-      toast.error("Camera Hardware Unavailable");
+      toast.error("Optical Hardware Offline");
     }
   };
 
@@ -106,99 +100,111 @@ const Bouncer = () => {
     startScanner();
   };
 
-  // ✅ UNIFIED LOADING STRATEGY
-  // We return null so the Neural Engine loader stays visible
-  // until the manager clearance is verified.
-  if (contextLoading || !isAuthorized) {
-    return null;
-  }
+  // ✅ LOCALIZED LOADING
+  if (contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 animate-in fade-in duration-700">
-      {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/5 p-4 flex justify-between items-center">
+    <div className="min-h-screen bg-black flex flex-col p-6 animate-in fade-in duration-700">
+      {/* HEADER SECTION */}
+      <div className="w-full flex justify-between items-center mb-12 pt-12">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => navigate("/dashboard")}
-          className="text-zinc-500 hover:text-white uppercase font-black text-[10px] tracking-widest"
+          className="text-zinc-500 hover:text-white uppercase font-black text-[9px] tracking-[0.3em]"
         >
           <ArrowLeft className="mr-2 w-4 h-4" /> Disconnect
         </Button>
-        <div className="text-right">
-          <p className="text-neon-green text-[10px] font-black uppercase tracking-[0.2em]">
-            {activeVenue?.name || "Neural Bouncer"}
-          </p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-neon-green rounded-full shadow-[0_0_10px_#39FF14] animate-pulse" />
+          <span className="text-white text-[10px] font-black uppercase tracking-widest italic">
+            {activeVenue?.name || "Bouncer Engine"}
+          </span>
         </div>
       </div>
 
-      {scanResult === null ? (
-        <div className="w-full max-w-sm flex flex-col items-center">
-          <div
-            id="qr-reader"
-            className="w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-white/5 bg-zinc-900 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative"
-          >
-            {/* Target Reticle Overlay */}
+      {/* SCANNING INTERFACE */}
+      <div className="flex-1 flex flex-col items-center justify-center">
+        {scanResult === null ? (
+          <div className="w-full max-w-sm">
+            <div
+              id="qr-reader"
+              className="w-full aspect-square rounded-[3rem] overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl relative"
+            >
+              {!isScanning && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-900/50 backdrop-blur-sm">
+                  <div className="w-32 h-32 border border-white/10 rounded-3xl border-dashed animate-[spin_10s_linear_infinite]" />
+                  <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em]">Lens Offline</p>
+                </div>
+              )}
+            </div>
+
             {!isScanning && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-48 h-48 border-2 border-white/10 rounded-3xl border-dashed animate-pulse" />
+              <div className="mt-12 space-y-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Zap className="w-3 h-3 text-zinc-700" />
+                  <p className="text-[9px] font-black text-zinc-700 uppercase tracking-[0.3em]">
+                    Optical Calibration Required
+                  </p>
+                </div>
+                <Button
+                  onClick={startScanner}
+                  className="w-full bg-white text-black h-16 text-xs font-black uppercase tracking-[0.3em] rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] active:scale-95 transition-all"
+                >
+                  <Camera className="mr-3 w-5 h-5" /> Initialize Scanner
+                </Button>
               </div>
             )}
           </div>
-
-          {!isScanning && (
-            <div className="w-full space-y-4 mt-12 text-center">
-              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">Optical Sync Required</h3>
-              <Button
-                onClick={startScanner}
-                className="w-full bg-white text-black h-16 text-sm font-black uppercase tracking-[0.3em] rounded-2xl hover:bg-neon-green transition-all shadow-xl active:scale-95"
+        ) : (
+          <div className="w-full max-w-sm animate-in zoom-in-95 duration-500">
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`p-10 rounded-full mb-8 relative ${scanResult === "success" ? "bg-neon-green/10" : "bg-red-500/10"}`}
               >
-                <Camera className="mr-3 w-5 h-5" /> Initialize Lens
+                <div
+                  className={`absolute inset-0 blur-3xl opacity-30 rounded-full ${scanResult === "success" ? "bg-neon-green" : "bg-red-500"}`}
+                />
+                {scanResult === "success" ? (
+                  <CheckCircle className="w-24 h-24 text-neon-green relative z-10" />
+                ) : (
+                  <XCircle className="w-24 h-24 text-red-500 relative z-10" />
+                )}
+              </div>
+
+              <h2
+                className={`text-6xl font-display uppercase tracking-tighter mb-6 italic ${scanResult === "success" ? "text-neon-green" : "text-red-500"}`}
+              >
+                {scanResult === "success" ? "CLEARED" : "DENIED"}
+              </h2>
+
+              {ticketData && (
+                <Card className="bg-zinc-900/40 border-white/5 p-6 rounded-[2rem] mb-10 w-full backdrop-blur-xl">
+                  <div className="flex items-center gap-2 mb-4 justify-center">
+                    <ShieldCheck className="w-3 h-3 text-zinc-500" />
+                    <span className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">
+                      Digital Ledger Entry
+                    </span>
+                  </div>
+                  <p className="text-white font-display text-2xl uppercase italic tracking-tight leading-none mb-1">
+                    {ticketData.customer_segment || "Standard"}
+                  </p>
+                  <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">
+                    {ticketData.event_name || "Neural Access"}
+                  </p>
+                </Card>
+              )}
+
+              <Button
+                onClick={resetScanner}
+                className="w-full h-16 bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl hover:bg-zinc-200 active:scale-95 shadow-2xl"
+              >
+                Reset Scanner Loop
               </Button>
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
-          <div
-            className={`p-10 rounded-full mb-8 relative ${scanResult === "success" ? "bg-neon-green/10" : "bg-red-500/10"}`}
-          >
-            <div
-              className={`absolute inset-0 blur-3xl opacity-50 rounded-full ${scanResult === "success" ? "bg-neon-green" : "bg-red-500"}`}
-            />
-            {scanResult === "success" ? (
-              <CheckCircle className="w-24 h-24 text-neon-green relative z-10" />
-            ) : (
-              <XCircle className="w-24 h-24 text-red-500 relative z-10" />
-            )}
           </div>
-
-          <h2
-            className={`text-5xl font-display uppercase tracking-tighter mb-4 italic ${scanResult === "success" ? "text-neon-green" : "text-red-500"}`}
-          >
-            {scanResult === "success" ? "Verified" : "Denied"}
-          </h2>
-
-          {ticketData && (
-            <div className="bg-white/5 border border-white/10 px-8 py-5 rounded-2xl mb-10 w-full backdrop-blur-md">
-              <p className="text-zinc-500 text-[9px] uppercase font-black tracking-[0.3em] mb-2">Subject Ledger</p>
-              <p className="text-white font-black uppercase tracking-tight text-lg italic">
-                {ticketData.customer_segment || "Standard"} Entry
-              </p>
-              <p className="text-zinc-400 text-xs font-bold uppercase mt-1">
-                {ticketData.event_name || "General Admission"}
-              </p>
-            </div>
-          )}
-
-          <Button
-            onClick={resetScanner}
-            className="w-full h-16 bg-white text-black font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl"
-          >
-            Reset Sequence
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
