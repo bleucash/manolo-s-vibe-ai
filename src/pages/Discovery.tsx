@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button"; // ✅ FIXED: Added missing import
 import { MapPin, Search, Sparkles, ArrowRight, Radio, Target, Filter } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
@@ -75,7 +76,7 @@ const Discovery = () => {
         <ActivitySidebar />
       </div>
 
-      {/* 🔍 SEARCH & FILTERS (Integrated Container) */}
+      {/* 🔍 SEARCH & FILTERS */}
       <div className="pt-24 px-8 space-y-6">
         <div className="relative group max-w-2xl mx-auto flex gap-3">
           <div className="relative flex-1">
@@ -96,7 +97,7 @@ const Discovery = () => {
         </div>
 
         {/* CATEGORY CHIPS */}
-        <div className="flex overflow-x-auto gap-3 no-scrollbar pb-2 max-w-2xl mx-auto">
+        <div className="flex overflow-x-auto gap-3 hide-scrollbar pb-2 max-w-2xl mx-auto">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.name}
@@ -114,7 +115,7 @@ const Discovery = () => {
         </div>
       </div>
 
-      {/* 🔘 FEATURED NODES (Talent - Large Squircles) */}
+      {/* 🔘 FEATURED NODES */}
       <div className="pt-8 pb-12">
         <div className="px-8 flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
@@ -163,7 +164,7 @@ const Discovery = () => {
         </div>
       </div>
 
-      {/* 🌐 SECTOR FEED (Venues - Modular Cards) */}
+      {/* 🌐 SECTOR FEED */}
       <div className="px-8 space-y-12 max-w-3xl mx-auto pb-20">
         <div className="flex items-center gap-2 mb-2 px-4">
           <Sparkles className="w-3 h-3 text-amber-500" />
