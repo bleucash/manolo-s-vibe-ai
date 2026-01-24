@@ -108,7 +108,7 @@ const Discovery = () => {
 
   return (
     <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
-      {/* 🛠 FIXED HUD (Atmospheric Layer) */}
+      {/* 🛠 FIXED HUD */}
       <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16 mb-1">
           <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: Ignite Safe-Zone with py-4 for glow bleed */}
+        {/* PILLS: Ignite Safe-Zone with Vertical Breathing Room */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -152,7 +152,6 @@ const Discovery = () => {
           })}
         </div>
 
-        {/* GRADIENT SCRIM (The Fade) */}
         <div className="absolute -bottom-20 left-0 right-0 h-20 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-[140]" />
       </div>
 
@@ -161,7 +160,7 @@ const Discovery = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem]"
       >
-        {/* SLIDE 1: SPOTLIGHT (Snap Start Anchor) */}
+        {/* SLIDE 1: SPOTLIGHT */}
         <div className="min-h-[70dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
             {featuredTalent.map((talent) => (
@@ -186,17 +185,19 @@ const Discovery = () => {
             ))}
             <div
               onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-40 h-[52dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group"
+              className="shrink-0 flex flex-col items-center justify-center w-40 h-[52dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
             >
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
                 <ArrowRight className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">View Directory</span>
+              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] group-hover:text-white">
+                View Directory
+              </span>
             </div>
           </div>
         </div>
 
-        {/* FEED SLIDES (Snap Start Alignment) */}
+        {/* FEED SLIDES */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
@@ -223,7 +224,7 @@ const Discovery = () => {
                   <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
                   <button
                     onClick={(e) => handleFollow(item.data.id, e)}
-                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible"
+                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible transition-transform active:scale-95"
                   >
                     {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                     {expandingRing === item.data.id && (
@@ -233,7 +234,7 @@ const Discovery = () => {
                 </div>
               </div>
 
-              {/* TYPOGRAPHY PROTECTION: break-normal + pr-10 */}
+              {/* TYPOGRAPHY PROTECTION: break-normal keeps apostrophes safe */}
               <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
