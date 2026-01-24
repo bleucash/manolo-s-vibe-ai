@@ -67,10 +67,9 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
-  // ✅ VERTICAL ANCHOR: Vertical centering without horizontal talent reset
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
     }
   }, [activeCategory]);
 
@@ -131,7 +130,7 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: Ignite Safe-Zone with py-4 to protect glow bleed */}
+        {/* PILLS: Ignite Safe-Zone with py-4 for glow bleed */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -162,8 +161,8 @@ const Discovery = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem]"
       >
-        {/* SLIDE 1: SPOTLIGHT (Hardware Anchored) */}
-        <div className="min-h-[70dvh] w-full snap-center scroll-mt-[16rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
+        {/* SLIDE 1: SPOTLIGHT (Snap Start Anchor) */}
+        <div className="min-h-[70dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
             {featuredTalent.map((talent) => (
               <div key={talent.id} onClick={() => navigate(`/talent/${talent.id}`)} className="shrink-0 cursor-pointer">
@@ -175,37 +174,34 @@ const Discovery = () => {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-95" />
                   <div className="absolute bottom-10 left-10">
-                    <p className="font-display text-4xl text-white uppercase tracking-tighter italic">
+                    <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">
                       {talent.display_name}
                     </p>
-                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-40">
+                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-40 mt-1 block">
                       Uplink Profile
                     </span>
                   </div>
                 </div>
               </div>
             ))}
-            {/* VIEW ALL PORTAL */}
             <div
               onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-40 h-[52dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
+              className="shrink-0 flex flex-col items-center justify-center w-40 h-[52dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group"
             >
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
                 <ArrowRight className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] group-hover:text-white">
-                View Directory
-              </span>
+              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">View Directory</span>
             </div>
           </div>
         </div>
 
-        {/* FEED SLIDES (Floored Metadata) */}
+        {/* FEED SLIDES (Snap Start Alignment) */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="min-h-[78dvh] w-full snap-center scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-16"
+            className="min-h-[78dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-16"
             style={{ scrollSnapStop: "always" }}
           >
             <img
@@ -225,10 +221,9 @@ const Discovery = () => {
                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 relative">
                   <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
                   <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
-
                   <button
                     onClick={(e) => handleFollow(item.data.id, e)}
-                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible transition-transform active:scale-95"
+                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible"
                   >
                     {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                     {expandingRing === item.data.id && (
@@ -237,7 +232,9 @@ const Discovery = () => {
                   </button>
                 </div>
               </div>
-              <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-6 line-clamp-3">
+
+              {/* TYPOGRAPHY PROTECTION: break-normal + pr-10 */}
+              <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
             </div>
