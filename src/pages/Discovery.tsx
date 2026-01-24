@@ -67,9 +67,10 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory]);
 
+  // ✅ VERTICAL ANCHOR: Vertical centering without horizontal talent reset
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [activeCategory]);
 
@@ -130,7 +131,7 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: Ignite Safe-Zone */}
+        {/* PILLS: Ignite Safe-Zone with py-4 to protect glow bleed */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -161,8 +162,8 @@ const Discovery = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem]"
       >
-        {/* SLIDE 1: SPOTLIGHT (Tighter & Centered) */}
-        <div className="min-h-[70dvh] w-full snap-center relative flex flex-col justify-center bg-black pt-4 pb-2">
+        {/* SLIDE 1: SPOTLIGHT (Hardware Anchored) */}
+        <div className="min-h-[70dvh] w-full snap-center scroll-mt-[16rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
             {featuredTalent.map((talent) => (
               <div key={talent.id} onClick={() => navigate(`/talent/${talent.id}`)} className="shrink-0 cursor-pointer">
@@ -204,7 +205,7 @@ const Discovery = () => {
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="min-h-[78dvh] w-full snap-center relative flex flex-col justify-end overflow-hidden mb-16"
+            className="min-h-[78dvh] w-full snap-center scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-16"
             style={{ scrollSnapStop: "always" }}
           >
             <img
@@ -215,8 +216,6 @@ const Discovery = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
             <div className="relative p-10 pb-12 z-10 max-w-4xl">
-              {" "}
-              {/* pb-12 floors the text */}
               <div className="flex items-center gap-3 mb-6">
                 <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full flex items-center gap-2">
                   <MapPin className="w-3 h-3" />
@@ -227,10 +226,9 @@ const Discovery = () => {
                   <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
                   <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
 
-                  {/* PLUS RING BUTTON */}
                   <button
                     onClick={(e) => handleFollow(item.data.id, e)}
-                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible"
+                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full overflow-visible transition-transform active:scale-95"
                   >
                     {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                     {expandingRing === item.data.id && (
