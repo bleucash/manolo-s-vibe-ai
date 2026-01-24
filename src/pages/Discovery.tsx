@@ -69,7 +69,7 @@ const Discovery = () => {
 
   useEffect(() => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [activeCategory]);
 
@@ -108,7 +108,7 @@ const Discovery = () => {
 
   return (
     <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
-      {/* 🛠 FIXED HUD */}
+      {/* 🛠 FIXED HUD (Atmospheric Layer) */}
       <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16 mb-1">
           <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* PILLS: Ignite Safe-Zone with Vertical Breathing Room */}
+        {/* PILLS: Ignite Safe-Zone */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -152,14 +152,19 @@ const Discovery = () => {
           })}
         </div>
 
+        {/* GRADIENT SCRIM (The Fade) */}
         <div className="absolute -bottom-20 left-0 right-0 h-20 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-[140]" />
       </div>
 
-      {/* 📱 IMMERSIVE SNAP STREAM */}
+      {/* 📱 IMMERSIVE SNAP STREAM (No Padding-Top, Native Scroll) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem]"
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar"
+        style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
       >
+        {/* ✅ GHOST HEADER: The invisible target for Slide 1 snap */}
+        <div className="h-[16rem] w-full shrink-0 pointer-events-none" />
+
         {/* SLIDE 1: SPOTLIGHT */}
         <div className="min-h-[70dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
@@ -197,13 +202,13 @@ const Discovery = () => {
           </div>
         </div>
 
-        {/* FEED SLIDES */}
+        {/* FEED SLIDES (Unified Snap Alignment) */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="min-h-[78dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-16"
-            style={{ scrollSnapStop: "always" }}
+            className="min-h-[75dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-12"
+            style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}
           >
             <img
               src={(item.type === "venue" ? item.data.image_url : item.data.media_url) || "/placeholder.svg"}
@@ -234,7 +239,6 @@ const Discovery = () => {
                 </div>
               </div>
 
-              {/* TYPOGRAPHY PROTECTION: break-normal keeps apostrophes safe */}
               <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
