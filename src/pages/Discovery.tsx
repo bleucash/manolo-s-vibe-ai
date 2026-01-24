@@ -187,15 +187,15 @@ const Discovery = () => {
         <div className="h-[11rem] w-full shrink-0 snap-start pointer-events-none" />
 
         {/* SLIDE 1: SPOTLIGHT NODES */}
-        <div className="h-[60dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black">
-          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth items-center">
+        <div className="h-[45dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black">
+          <div className="flex overflow-x-auto gap-5 px-6 hide-scrollbar scroll-smooth items-center">
             {featuredTalent.map((talent) => (
               <div
                 key={talent.id}
                 onClick={() => navigate(`/talent/${talent.id}`)}
                 className="shrink-0 cursor-pointer group"
               >
-                <div className="relative w-[75vw] md:w-80 h-[52dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]">
+                <div className="relative w-[65vw] md:w-64 h-[38dvh] rounded-[2rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]">
                   <img
                     src={talent.avatar_url || "/placeholder.svg"}
                     className="w-full h-full object-cover opacity-60"
@@ -204,11 +204,11 @@ const Discovery = () => {
                   {/* TOP CARD GRADIENT */}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black opacity-90" />
 
-                  <div className="absolute bottom-10 left-10">
-                    <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">
+                  <div className="absolute bottom-6 left-6">
+                    <p className="font-display text-2xl text-white uppercase tracking-tighter italic leading-none">
                       {talent.display_name}
                     </p>
-                    <span className="text-[10px] font-black text-neon-blue uppercase tracking-widest italic opacity-60 mt-2 block">
+                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-60 mt-1.5 block">
                       Uplink Profile
                     </span>
                   </div>
@@ -218,12 +218,12 @@ const Discovery = () => {
             {/* VIEW ALL PORTAL */}
             <div
               onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-40 h-[52dvh] rounded-[2.5rem] border border-white/5 bg-zinc-900/40 cursor-pointer group hover:border-neon-blue transition-all"
+              className="shrink-0 flex flex-col items-center justify-center w-32 h-[38dvh] rounded-[2rem] border border-white/5 bg-zinc-900/40 cursor-pointer group hover:border-neon-blue transition-all"
             >
-              <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mb-6 group-hover:bg-neon-blue transition-colors">
-                <ArrowRight className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
+                <ArrowRight className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Full Sector</span>
+              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.15em]">Full Sector</span>
             </div>
           </div>
         </div>
@@ -233,7 +233,7 @@ const Discovery = () => {
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-6"
+            className="h-[65dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-4"
             style={{ scrollSnapStop: "always" }}
           >
             <img
