@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Target, Plus, Minus, ArrowRight } from "lucide-react";
+import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
@@ -32,6 +32,7 @@ const Discovery = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All Vibes");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [followedNodes, setFollowedNodes] = useState<Set<string>>(new Set());
   const [expandingRing, setExpandingRing] = useState<string | null>(null);
 
@@ -107,30 +108,48 @@ const Discovery = () => {
   if (initialLoad || contextLoading) return <LoadingState />;
 
   return (
-    <div className="h-screen bg-black overflow-hidden flex flex-col font-body">
-      {/* 🛠 FIXED HUD (Z-Index Locked) */}
-      <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible pb-2">
-        <div className="px-8 flex justify-between items-center h-16 mb-1">
-          <div className="flex items-center gap-3">
-            <Target className="w-4 h-4 text-neon-blue" />
-            <h1 className="font-display text-2xl text-white uppercase tracking-wider italic leading-none">Discovery</h1>
-          </div>
-          <ActivitySidebar />
-        </div>
-
-        <div className="max-w-2xl mx-auto px-8 mb-4 overflow-visible">
+    <div className="h-screen bg-black overflow-hidden flex flex-col font-body relative">
+      {/* 🔍 SEARCH MODAL OVERLAY */}
+      {isSearchOpen && (
+        <div className="absolute inset-0 z-[200] bg-black/95 backdrop-blur-xl p-8 flex flex-col pt-24 animate-in fade-in slide-in-from-top-4 duration-300">
+          <button
+            onClick={() => setIsSearchOpen(false)}
+            className="absolute top-8 right-8 text-white/40 hover:text-white"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <h2 className="text-white font-display text-4xl italic uppercase mb-8 tracking-tighter">Search Sector</h2>
           <div className="relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
+            <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 text-neon-blue" />
             <input
+              autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="SEARCH SECTOR..."
-              className="w-full bg-zinc-950 border border-white/5 pl-12 h-10 rounded-xl text-[9px] font-black tracking-[0.2em] uppercase text-white placeholder:text-white/5 focus:outline-none"
+              placeholder="ENTER VENUE OR LOCATION..."
+              className="w-full bg-transparent border-b border-white/10 py-6 pl-10 text-xl font-bold uppercase tracking-widest text-white focus:outline-none focus:border-neon-blue transition-colors"
             />
           </div>
         </div>
+      )}
 
-        {/* PILLS: Ignite Safe-Zone */}
+      {/* 🛠 SLIM HUD HEADER */}
+      <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
+        <div className="px-8 flex justify-between items-center h-16">
+          <div className="flex items-center gap-3">
+            <Target className="w-4 h-4 text-neon-blue" />
+            <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1 leading-none">
+              Discovery
+            </h1>
+          </div>
+          <div className="flex items-center gap-6">
+            <button onClick={() => setIsSearchOpen(true)} className="text-white/40 hover:text-white transition-colors">
+              <Search className="w-5 h-5" />
+            </button>
+            <ActivitySidebar />
+          </div>
+        </div>
+
+        {/* PILLS: Reclaimed space with Ignite Safe-Zone */}
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.name;
@@ -155,18 +174,17 @@ const Discovery = () => {
         <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-[140]" />
       </div>
 
-      {/* 📱 IMMERSIVE FEED (Hardware-Locked Snapping) */}
+      {/* 📱 IMMERSIVE SNAP STREAM (Lower Offset for Slim HUD) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[16rem]"
-        style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[11rem]"
       >
-        {/* SLIDE 1: SPOTLIGHT (Hardware Anchored) */}
-        <div className="h-[55dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-center bg-black">
-          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth items-center">
+        {/* SLIDE 1: SPOTLIGHT */}
+        <div className="min-h-[65dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
+          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
             {featuredTalent.map((talent) => (
               <div key={talent.id} onClick={() => navigate(`/talent/${talent.id}`)} className="shrink-0 cursor-pointer">
-                <div className="relative w-[75vw] md:w-80 h-[50dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
+                <div className="relative w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
                   <img
                     src={talent.avatar_url || "/placeholder.svg"}
                     className="w-full h-full object-cover opacity-60"
@@ -184,27 +202,26 @@ const Discovery = () => {
                 </div>
               </div>
             ))}
-            {/* VIEW ALL PORTAL */}
             <div
               onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-44 h-[50dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
+              className="shrink-0 flex flex-col items-center justify-center w-40 h-[48dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
             >
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
                 <ArrowRight className="w-5 h-5 text-white" />
               </div>
               <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] group-hover:text-white">
-                Directory Search
+                View Directory
               </span>
             </div>
           </div>
         </div>
 
-        {/* FEED SLIDES (Unified Snap Alignment) */}
+        {/* FEED SLIDES (Floored Metadata) */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
             onClick={() => navigate(item.type === "venue" ? `/venue/${item.data.id}` : `/talent/${item.data.user_id}`)}
-            className="min-h-[75dvh] w-full snap-start scroll-mt-[16rem] relative flex flex-col justify-end overflow-hidden mb-4"
+            className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16"
             style={{ scrollSnapStop: "always" }}
           >
             <img
@@ -214,7 +231,7 @@ const Discovery = () => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
-            <div className="relative p-10 pb-10 z-10 max-w-4xl">
+            <div className="relative p-10 pb-12 z-10 max-w-4xl">
               <div className="flex items-center gap-3 mb-6">
                 <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full flex items-center gap-2">
                   <MapPin className="w-3 h-3" />
@@ -227,7 +244,7 @@ const Discovery = () => {
 
                   <button
                     onClick={(e) => handleFollow(item.data.id, e)}
-                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full transition-transform active:scale-90"
+                    className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full transition-transform active:scale-95"
                   >
                     {followedNodes.has(item.data.id) ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                     {expandingRing === item.data.id && (
