@@ -156,10 +156,10 @@ const Discovery = () => {
         </div>
 
         {/* PILLS: Ignite Safe-Zone */}
-        <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 py-4 overflow-visible relative z-[160]">
+        <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 overflow-visible relative z-[160] py-[10px]">
           {CATEGORIES.map(cat => {
           const isActive = activeCategory === cat.name;
-          return <button key={cat.name} onClick={() => setActiveCategory(cat.name)} className={cn("whitespace-nowrap px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all duration-300 border relative", isActive ? `${cat.color} ${cat.text} border-transparent scale-105` : "bg-zinc-900/50 text-white/30 border-white/5")} style={{
+          return <button key={cat.name} onClick={() => setActiveCategory(cat.name)} className={cn("whitespace-nowrap px-5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all duration-300 border relative py-[7px]", isActive ? `${cat.color} ${cat.text} border-transparent scale-105` : "bg-zinc-900/50 text-white/30 border-white/5")} style={{
             boxShadow: isActive ? `0 0 30px ${cat.glow}80` : "none"
           }}>
                 {cat.name}
