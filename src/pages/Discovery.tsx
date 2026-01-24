@@ -222,7 +222,7 @@ const Discovery = () => {
                   {item.type === "venue" ? item.data.location || "Sector Alpha" : "Transmission"}
                 </Badge>
 
-                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2.5 rounded-full border border-white/10 relative">
+                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 rounded-full border border-white/10 relative py-[3px]">
                   <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse shadow-[0_0_10px_#39FF14]" />
                   <span className="text-[9px] font-black text-white uppercase tracking-[0.2em] mr-2">Live</span>
 
