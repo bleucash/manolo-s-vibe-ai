@@ -24,7 +24,7 @@ const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [chargedPosts, setChargedPosts] = useState<Set<string>>(new Set());
 
-  // Overlay State
+  // Overlay State for Transmission Peek
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [activeOverlayIndex, setActiveOverlayIndex] = useState(0);
 
@@ -36,11 +36,15 @@ const Index = () => {
       if (contextLoading) return;
       setLoading(true);
       if (currentUserId) {
+        // Parallel sync to keep the Neural Engine fast
         await Promise.all([
           fetchFollowedLiveNodes(currentUserId),
           fetchFollowerFeed(currentUserId),
           fetchUserCharges(currentUserId),
         ]);
+      } else {
+        // Fallback for unauthenticated or ghost users
+        await fetchFollowedLiveNodes("");
       }
       setLoading(false);
     };
@@ -54,16 +58,19 @@ const Index = () => {
 
   const fetchFollowedLiveNodes = async (userId: string) => {
     try {
+      // 1. Fetch followed Talent via Neural Uplink
       const { data: followedTalent } = await supabase
         .from("followers")
         .select(`profiles:following_id (id, display_name, avatar_url, venue_id)`)
         .eq("follower_id", userId);
 
+      // 2. Fetch followed Venues (Sectors)
       const { data: followedVenues } = await supabase
         .from("venue_followers")
         .select(`venues (id, name, image_url)`)
         .eq("follower_id", userId);
 
+      // 3. Assemble and filter for 'Live' status (venue_id is presence check)
       const activeTalent = (followedTalent || []).map((f) => f.profiles as any).filter((p) => p && p.venue_id);
 
       const activeVenues = (followedVenues || []).map((v) => ({ ...(v.venues as any), isVenue: true }));
@@ -77,6 +84,7 @@ const Index = () => {
   const fetchFollowerFeed = async (userId: string) => {
     const { data: follows } = await supabase.from("followers").select("following_id").eq("follower_id", userId);
     const followingIds = follows?.map((f) => f.following_id) || [];
+
     if (followingIds.length > 0) {
       const { data: postData } = await supabase
         .from("posts")
@@ -85,6 +93,7 @@ const Index = () => {
         )
         .in("user_id", followingIds)
         .order("created_at", { ascending: false });
+
       if (postData) setPosts(postData as PostWithVenue[]);
     }
   };
@@ -97,11 +106,14 @@ const Index = () => {
   const handleChargeInteraction = async (postId: string) => {
     if (!currentUserId) return toast.error("Verification Required");
     const isCharged = chargedPosts.has(postId);
+
+    // Optimistic UI update to keep the experience fluid
     setChargedPosts((prev) => {
       const next = new Set(prev);
       isCharged ? next.delete(postId) : next.add(postId);
       return next;
     });
+
     try {
       if (isCharged) {
         await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
@@ -127,10 +139,15 @@ const Index = () => {
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto hide-scrollbar">
       {/* 📱 TRANSMISSION OVERLAY */}
       {isOverlayOpen && liveNodes.length > 0 && (
-        <PulseOverlay nodes={liveNodes} initialIndex={activeOverlayIndex} onClose={() => setIsOverlayOpen(false)} />
+        <PulseOverlay
+          nodes={liveNodes}
+          initialIndex={activeOverlayIndex}
+          onClose={() => setIsOverlayOpen(false)}
+          isOpen={isOverlayOpen}
+        />
       )}
 
-      {/* 🛠 GLASS HUD */}
+      {/* 🛠 GLASS HUD - Shared branding with Discovery */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
         <div className="flex items-center gap-3">
           <Activity className="w-4 h-4 text-neon-purple animate-pulse" />
@@ -202,6 +219,7 @@ const Index = () => {
         ) : (
           posts.map((post) => (
             <div key={post.id} className="group animate-in slide-in-from-bottom-12 duration-1000">
+              {/* Header: Profile Meta */}
               <div className="flex items-center gap-4 mb-6 px-2">
                 <Avatar
                   className="w-12 h-12 border border-white/5 cursor-pointer"
@@ -228,10 +246,13 @@ const Index = () => {
                 </button>
               </div>
 
+              {/* Body: Media Content with Cinematic Scrim */}
               <div
                 className={cn(
                   "relative rounded-[3.5rem] overflow-hidden bg-zinc-950 border transition-all duration-1000 shadow-2xl group",
-                  chargedPosts.has(post.id) ? "border-neon-blue/50" : "border-white/5",
+                  chargedPosts.has(post.id)
+                    ? "border-neon-blue/50 shadow-[0_0_30px_rgba(0,183,255,0.1)]"
+                    : "border-white/5",
                 )}
               >
                 {post.media_url && (
@@ -255,6 +276,7 @@ const Index = () => {
                   </div>
                 )}
 
+                {/* Footer: Interaction Block */}
                 <div className="p-10 pt-6">
                   <p className="text-zinc-400 text-sm leading-relaxed mb-10 font-medium italic opacity-80">
                     {post.content}
@@ -284,6 +306,7 @@ const Index = () => {
         )}
       </div>
 
+      {/* Floating Action: Creator Uplink */}
       {isCreator && (
         <button
           onClick={() => setDialogOpen(true)}
