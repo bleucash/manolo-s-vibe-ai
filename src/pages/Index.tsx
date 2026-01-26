@@ -12,6 +12,7 @@ import { PostWithVenue } from "@/types/database";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
 import { cn } from "@/lib/utils";
+import { PulseOverlay } from "@/components/PulseOverlay";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -22,6 +23,10 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [chargedPosts, setChargedPosts] = useState<Set<string>>(new Set());
+
+  // Overlay State
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const [activeOverlayIndex, setActiveOverlayIndex] = useState(0);
 
   const currentUserId = session?.user?.id || null;
   const isCreator = mode === "manager" || mode === "talent";
@@ -49,19 +54,16 @@ const Index = () => {
 
   const fetchFollowedLiveNodes = async (userId: string) => {
     try {
-      // 1. Fetch followed Talent
       const { data: followedTalent } = await supabase
         .from("followers")
         .select(`profiles:following_id (id, display_name, avatar_url, venue_id)`)
         .eq("follower_id", userId);
 
-      // 2. Fetch followed Venues (Sectors)
       const { data: followedVenues } = await supabase
         .from("venue_followers")
         .select(`venues (id, name, image_url)`)
         .eq("follower_id", userId);
 
-      // 3. Cast and filter for 'Live' status (venue_id is present)
       const activeTalent = (followedTalent || []).map((f) => f.profiles as any).filter((p) => p && p.venue_id);
 
       const activeVenues = (followedVenues || []).map((v) => ({ ...(v.venues as any), isVenue: true }));
@@ -85,6 +87,11 @@ const Index = () => {
         .order("created_at", { ascending: false });
       if (postData) setPosts(postData as PostWithVenue[]);
     }
+  };
+
+  const openOverlay = (index: number) => {
+    setActiveOverlayIndex(index);
+    setIsOverlayOpen(true);
   };
 
   const handleChargeInteraction = async (postId: string) => {
@@ -118,6 +125,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto hide-scrollbar">
+      {/* 📱 TRANSMISSION OVERLAY */}
+      {isOverlayOpen && liveNodes.length > 0 && (
+        <PulseOverlay nodes={liveNodes} initialIndex={activeOverlayIndex} onClose={() => setIsOverlayOpen(false)} />
+      )}
+
       {/* 🛠 GLASS HUD */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
         <div className="flex items-center gap-3">
@@ -138,10 +150,10 @@ const Index = () => {
 
         <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth">
           {liveNodes.length > 0
-            ? liveNodes.map((node) => (
+            ? liveNodes.map((node, idx) => (
                 <div
                   key={node.id}
-                  onClick={() => navigate(node.isVenue ? `/venue/${node.id}` : `/talent/${node.id}`)}
+                  onClick={() => openOverlay(idx)}
                   className="flex flex-col gap-3 shrink-0 group cursor-pointer"
                 >
                   <div className="relative w-20 h-20 rounded-full border-2 border-neon-blue p-1 transition-all duration-500 hover:scale-110 shadow-[0_0_15px_rgba(0,183,255,0.2)]">
@@ -161,12 +173,9 @@ const Index = () => {
                   </span>
                 </div>
               ))
-            : // NEURAL SKELETONS
-              Array.from({ length: 5 }).map((_, i) => (
+            : Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-3 shrink-0 animate-pulse">
-                  <div className="w-20 h-20 rounded-full bg-zinc-900 border border-white/5 relative">
-                    <div className="absolute inset-0 rounded-full border border-white/5" />
-                  </div>
+                  <div className="w-20 h-20 rounded-full bg-zinc-900 border border-white/5 relative" />
                   <div className="h-2 w-12 bg-zinc-900 rounded self-center" />
                 </div>
               ))}
@@ -266,11 +275,6 @@ const Index = () => {
                       <span className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.3em] mt-1">
                         Charge
                       </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Badge className="bg-zinc-900/80 text-zinc-500 border-white/5 font-black uppercase text-[8px] px-5 h-9 rounded-xl tracking-widest">
-                        TRANSMISSION
-                      </Badge>
                     </div>
                   </div>
                 </div>
