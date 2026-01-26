@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
-import { ActivitySidebar } from "@/components/ActivitySidebar";
 import LoadingState from "@/components/ui/LoadingState";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -36,7 +35,7 @@ const Discovery = () => {
   const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
   const [expandingRing, setExpandingRing] = useState<string | null>(null);
 
-  // 1. Fetch Discovery Data with "Live" Priority
+  // 1. Fetching logic with Follow-state sync
   useEffect(() => {
     const fetchDiscoveryData = async () => {
       try {
@@ -47,22 +46,18 @@ const Discovery = () => {
 
         const [vRes, tRes, pRes, fRes, vfRes] = await Promise.all([
           venueQuery,
-          // Spotlight: Top 8 Talent ordered by Charge (Simulation for now)
           supabase
             .from("profiles")
             .select("id, display_name, username, avatar_url, venue_id")
             .eq("role_type", "talent")
             .limit(8),
-          // Feed Talent: Prioritize those with an active venue_id (Live)
           supabase
             .from("posts")
             .select(`*, profiles:user_id (display_name, username, avatar_url, venue_id)`)
             .not("media_url", "is", null)
             .order("created_at", { ascending: false })
             .limit(20),
-          // User follows (Talent)
           session ? supabase.from("followers").select("following_id").eq("follower_id", session.user.id) : null,
-          // User follows (Venues)
           session ? supabase.from("venue_followers").select("venue_id").eq("follower_id", session.user.id) : null,
         ]);
 
@@ -83,20 +78,7 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory, session]);
 
-  // 2. Scroll Restoration Logic
-  useEffect(() => {
-    const savedScroll = sessionStorage.getItem("discovery_scroll_pos");
-    if (savedScroll && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = parseInt(savedScroll);
-    }
-    return () => {
-      if (scrollContainerRef.current) {
-        sessionStorage.setItem("discovery_scroll_pos", scrollContainerRef.current.scrollTop.toString());
-      }
-    };
-  }, []);
-
-  // 3. Smart Follow/Charge Logic
+  // 2. Interaction Logic (Follow/Charge)
   const handleInteraction = async (id: string, type: "venue" | "talent", e: React.MouseEvent) => {
     e.stopPropagation();
     if (!session) return navigate("/auth");
@@ -119,13 +101,9 @@ const Discovery = () => {
       } else {
         await Promise.all([
           supabase.from(table).insert({ follower_id: session.user.id, [column]: id }),
-          // Explicitly log a "Charge" interaction
-          supabase.from("interactions").insert({
-            user_id: session.user.id,
-            target_id: id,
-            target_type: type,
-            interaction_type: "charge",
-          }),
+          supabase
+            .from("interactions")
+            .insert({ user_id: session.user.id, target_id: id, target_type: type, interaction_type: "charge" }),
         ]);
         setFollowedIds((prev) => new Set(prev).add(id));
         toast.success("Neural Link Established");
@@ -135,25 +113,16 @@ const Discovery = () => {
     }
   };
 
-  // 4. THE 4:1 LIVE-FIRST FEED ENGINE
+  // 3. 4:1 Feed Logic
   const combinedFeed = useMemo(() => {
-    const filtered = (venues || []).filter(
-      (v) =>
-        v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        v.location?.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-
+    const filtered = (venues || []).filter((v) => v.name.toLowerCase().includes(searchQuery.toLowerCase()));
     const feed = [];
     let talentPointer = 0;
-
-    // Separate Live from Static Talent for priority injection
     const liveTalentPosts = talentPosts.filter((p) => p.profiles?.venue_id !== null);
     const staticTalentPosts = talentPosts.filter((p) => p.profiles?.venue_id === null);
 
     for (let i = 0; i < filtered.length; i++) {
       feed.push({ type: "venue", data: filtered[i] });
-
-      // Inject Talent card every 4 Venues
       if ((i + 1) % 4 === 0) {
         const talentToInject = liveTalentPosts[talentPointer] || staticTalentPosts[talentPointer];
         if (talentToInject) {
@@ -179,24 +148,22 @@ const Discovery = () => {
             <X className="w-8 h-8" />
           </button>
           <div className="max-w-xl mx-auto">
-            <h2 className="text-white font-display text-5xl italic uppercase mb-12 tracking-tighter text-glow-blue">
-              Search Sector
-            </h2>
-            <div className="relative border-b-2 border-neon-blue shadow-[0_4px_20px_rgba(0,183,255,0.2)]">
+            <h2 className="text-white font-display text-5xl italic uppercase mb-12 tracking-tighter">Search Sector</h2>
+            <div className="relative border-b-2 border-neon-blue">
               <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 text-neon-blue" />
               <input
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Enter Sector Name..."
-                className="w-full bg-transparent py-8 pl-12 text-2xl font-bold uppercase tracking-widest text-white focus:outline-none placeholder:text-white/10"
+                className="w-full bg-transparent py-8 pl-12 text-2xl font-bold uppercase tracking-widest text-white focus:outline-none"
               />
             </div>
           </div>
         </div>
       )}
 
-      {/* 🛠 SLIM HUD */}
+      {/* 🛠 REFINED HUD (No Notification Bell) */}
       <div className="fixed top-0 left-0 right-0 z-[150] bg-black/40 backdrop-blur-md pt-4 pb-2 border-b border-white/5">
         <div className="px-8 flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
@@ -205,49 +172,43 @@ const Discovery = () => {
               Discovery
             </h1>
           </div>
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full hover:bg-white/10 transition-colors border border-white/5"
-            >
-              <Search className="w-5 h-5 text-white/40" />
-            </button>
-            <ActivitySidebar />
-          </div>
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full border border-white/5"
+          >
+            <Search className="w-5 h-5 text-white/40" />
+          </button>
         </div>
 
         <div className="flex overflow-x-auto gap-3 hide-scrollbar px-8 overflow-visible relative z-[160] py-[10px]">
-          {CATEGORIES.map((cat) => {
-            const isActive = activeCategory === cat.name;
-            return (
-              <button
-                key={cat.name}
-                onClick={() => setActiveCategory(cat.name)}
-                className={cn(
-                  "whitespace-nowrap px-5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all duration-300 border relative py-[7px]",
-                  isActive
-                    ? `${cat.color} ${cat.text} border-transparent scale-105`
-                    : "bg-zinc-900/50 text-white/30 border-white/5",
-                )}
-                style={{ boxShadow: isActive ? `0 0 30px ${cat.glow}80` : "none" }}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.name}
+              onClick={() => setActiveCategory(cat.name)}
+              className={cn(
+                "whitespace-nowrap px-5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all duration-300 border py-[7px]",
+                activeCategory === cat.name
+                  ? `${cat.color} ${cat.text} border-transparent scale-105`
+                  : "bg-zinc-900/50 text-white/30 border-white/5",
+              )}
+              style={{ boxShadow: activeCategory === cat.name ? `0 0 30px ${cat.glow}80` : "none" }}
+            >
+              {cat.name}
+            </button>
+          ))}
         </div>
       </div>
 
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar"
-        style={{ scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch" }}
+        style={{ scrollSnapType: "y mandatory" }}
       >
         <div className="h-[11rem] w-full shrink-0 snap-start pointer-events-none" />
 
         {/* SPOTLIGHT SECTION */}
         <div className="h-[45dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black">
-          <div className="flex overflow-x-auto gap-5 px-6 hide-scrollbar scroll-smooth items-center py-[15px]">
+          <div className="flex overflow-x-auto gap-5 px-6 hide-scrollbar items-center py-[15px]">
             {featuredTalent.map((talent) => (
               <div
                 key={talent.id}
@@ -272,19 +233,10 @@ const Discovery = () => {
                 </div>
               </div>
             ))}
-            <div
-              onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-32 h-[38dvh] rounded-[2rem] border border-white/5 bg-zinc-900/40 cursor-pointer group hover:border-neon-blue transition-all"
-            >
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
-                <ArrowRight className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.15em]">Full Sector</span>
-            </div>
           </div>
         </div>
 
-        {/* CINEMATIC SNAP STREAM */}
+        {/* FEED CONTENT */}
         {combinedFeed.map((item, idx) => (
           <div
             key={`${item.type}-${idx}`}
@@ -298,23 +250,19 @@ const Discovery = () => {
               alt=""
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-transparent to-black" />
-
             <div className="relative p-10 pb-12 z-10 max-w-4xl">
               <div className="flex items-center gap-3 mb-6">
-                <Badge className="bg-neon-blue text-white border-none text-[10px] font-black uppercase tracking-[0.2em] px-6 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(0,183,255,0.3)]">
+                <Badge className="bg-neon-blue text-white border-none text-[10px] font-black uppercase tracking-[0.2em] px-6 py-2.5 rounded-full flex items-center gap-2">
                   <MapPin className="w-3.5 h-3.5" />
-                  {item.type === "venue" ? item.data.location || "Sector Alpha" : "Transmission"}
+                  {item.type === "venue" ? item.data.location : "Transmission"}
                 </Badge>
-
-                {/* DYNAMIC LIVE INDICATOR */}
                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 rounded-full border border-white/10 relative py-[3px]">
                   {(item.type === "venue" || item.data.profiles?.venue_id) && (
                     <>
-                      <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse shadow-[0_0_10px_#39FF14]" />
-                      <span className="text-[9px] font-black text-white uppercase tracking-[0.2em] mr-2">Live</span>
+                      <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
+                      <span className="text-[9px] font-black text-white uppercase mr-2">Live</span>
                     </>
                   )}
-
                   <button
                     onClick={(e) =>
                       handleInteraction(
@@ -324,7 +272,7 @@ const Discovery = () => {
                       )
                     }
                     className={cn(
-                      "relative w-7 h-7 flex items-center justify-center rounded-full transition-transform active:scale-90 shadow-2xl",
+                      "relative w-7 h-7 flex items-center justify-center rounded-full transition-transform active:scale-90",
                       followedIds.has(item.data.id || item.data.user_id)
                         ? "bg-neon-blue text-white"
                         : "bg-white text-black",
@@ -335,14 +283,10 @@ const Discovery = () => {
                     ) : (
                       <Plus className="w-4 h-4" />
                     )}
-                    {expandingRing === (item.data.id || item.data.user_id) && (
-                      <div className="absolute inset-0 rounded-full border-2 border-white animate-ping opacity-0" />
-                    )}
                   </button>
                 </div>
               </div>
-
-              <h3 className="font-display text-[clamp(2.5rem,11.5vw,5.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-12 whitespace-normal break-normal text-glow-white">
+              <h3 className="font-display text-[clamp(2.5rem,11.5vw,5.5rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-12">
                 {item.type === "venue" ? item.data.name : item.data.profiles?.display_name}
               </h3>
             </div>
