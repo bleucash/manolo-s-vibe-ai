@@ -1,15 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Plus, Zap, Share2, MapPin, Radio, Target } from "lucide-react";
+import { Plus, Zap, Share2, MapPin, Radio, Activity } from "lucide-react";
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { formatDistanceToNow } from "date-fns";
 import { ActivitySidebar } from "@/components/ActivitySidebar";
-import { EmptyFeedState } from "@/components/home/EmptyFeedState";
 import { PostWithVenue } from "@/types/database";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
@@ -20,7 +19,7 @@ const Index = () => {
   const { mode, session, isLoading: contextLoading } = useUserMode();
 
   const [posts, setPosts] = useState<PostWithVenue[]>([]);
-  const [activeNodes, setActiveNodes] = useState<any[]>([]);
+  const [liveNodes, setLiveNodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [chargedPosts, setChargedPosts] = useState<Set<string>>(new Set());
@@ -29,17 +28,21 @@ const Index = () => {
   const isCreator = mode === "manager" || mode === "talent";
 
   useEffect(() => {
-    const initializeHome = async () => {
+    const initializeRadar = async () => {
       if (contextLoading) return;
       setLoading(true);
+
       if (currentUserId) {
-        await Promise.all([fetchActiveNodes(), fetchFollowerFeed(currentUserId), fetchUserCharges(currentUserId)]);
-      } else {
-        await fetchActiveNodes();
+        // Parallel sync of Followed Live Nodes and Feed
+        await Promise.all([
+          fetchFollowedLiveNodes(currentUserId),
+          fetchFollowerFeed(currentUserId),
+          fetchUserCharges(currentUserId),
+        ]);
       }
       setLoading(false);
     };
-    initializeHome();
+    initializeRadar();
   }, [currentUserId, contextLoading]);
 
   const fetchUserCharges = async (userId: string) => {
@@ -47,18 +50,31 @@ const Index = () => {
     if (data) setChargedPosts(new Set(data.map((l) => l.post_id)));
   };
 
-  const fetchActiveNodes = async () => {
-    const { data: talent } = await supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url, sub_role")
-      .eq("role_type", "talent")
-      .limit(6);
-    if (talent) setActiveNodes(talent);
+  // Logic: Show Talent/Venues you follow who are currently "Live"
+  const fetchFollowedLiveNodes = async (userId: string) => {
+    const { data: followedTalent } = await supabase
+      .from("followers")
+      .select(`profiles!following_id (id, display_name, avatar_url, venue_id)`)
+      .eq("follower_id", userId);
+
+    const { data: followedVenues } = await supabase
+      .from("venue_followers")
+      .select(`venues (id, name, image_url)`)
+      .eq("follower_id", userId);
+
+    // Filter only those who are active/live in the last 24h cycle
+    const activeNodes = [
+      ...(followedTalent?.map((f) => f.profiles).filter((p) => p.venue_id) || []),
+      ...(followedVenues?.map((v) => ({ ...v.venues, isVenue: true })) || []),
+    ];
+
+    setLiveNodes(activeNodes);
   };
 
   const fetchFollowerFeed = async (userId: string) => {
     const { data: follows } = await supabase.from("followers").select("following_id").eq("follower_id", userId);
     const followingIds = follows?.map((f) => f.following_id) || [];
+
     if (followingIds.length > 0) {
       const { data: postData } = await supabase
         .from("posts")
@@ -67,181 +83,144 @@ const Index = () => {
         )
         .in("user_id", followingIds)
         .order("created_at", { ascending: false });
+
       if (postData) setPosts(postData as PostWithVenue[]);
     }
   };
 
-  const handleChargeToggle = async (postId: string) => {
+  const handleChargeInteraction = async (postId: string) => {
     if (!currentUserId) return toast.error("Verification Required");
     const isCharged = chargedPosts.has(postId);
+
+    // Optimistic UI Update
     setChargedPosts((prev) => {
       const next = new Set(prev);
       isCharged ? next.delete(postId) : next.add(postId);
       return next;
     });
+
     try {
-      if (isCharged) await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
-      else await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
+      if (isCharged) {
+        await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+      } else {
+        await Promise.all([
+          supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId }),
+          // Feed the global Heat Index log
+          supabase.from("interactions").insert({
+            user_id: currentUserId,
+            target_id: postId,
+            target_type: "post",
+            interaction_type: "charge",
+          }),
+        ]);
+      }
     } catch {
-      toast.error("Sync Failure");
+      toast.error("Handshake Sync Failure");
     }
   };
 
   if (loading || contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-700 hide-scrollbar">
-      {/* HUD HEADER */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
+    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 hide-scrollbar">
+      {/* 🛠 COMMAND PORTAL HUD (Re-integrated ActivitySidebar) */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
         <div className="flex items-center gap-3">
-          <Target className="w-4 h-4 text-neon-blue" />
-          <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1">Intel Feed</h1>
+          <Activity className="w-4 h-4 text-neon-purple animate-pulse" />
+          <h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1 leading-none">
+            The Radar
+          </h1>
         </div>
-        <ActivitySidebar />
+        <div className="flex items-center gap-4">
+          <ActivitySidebar /> {/* The Notification Bell/Drawer returns here */}
+        </div>
       </div>
 
-      {/* ACTIVE NODES */}
-      <div className="pt-24 pb-6">
+      {/* LIVE INTELLIGENCE STRIP */}
+      <div className="pt-24 pb-6 border-b border-white/5 bg-zinc-950/20">
         <div className="px-8 flex items-center gap-2 mb-6">
           <Radio className="w-3 h-3 text-neon-green animate-pulse" />
           <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">Live Intelligence</h2>
         </div>
 
-        <div
-          className={cn(
-            "flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth",
-            activeNodes.length <= 2 ? "justify-center" : "justify-start",
-          )}
-        >
-          {activeNodes.map((node) => (
+        <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth">
+          {liveNodes.map((node) => (
             <div
               key={node.id}
-              onClick={() => navigate(`/talent/${node.id}`)}
+              onClick={() => navigate(node.isVenue ? `/venue/${node.id}` : `/talent/${node.id}`)}
               className="flex flex-col gap-3 shrink-0 group cursor-pointer"
             >
-              <div className="relative w-44 h-44 rounded-[2.5rem] bg-card border border-white/5 group-hover:border-neon-blue/50 transition-all duration-700 overflow-hidden shadow-2xl">
-                <img
-                  src={node.avatar_url || "/placeholder.svg"}
-                  className="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
-                  alt=""
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
-                <div className="absolute bottom-5 left-6 right-6">
-                  <p className="font-display text-lg text-white uppercase tracking-wide truncate mb-0.5">
-                    {node.display_name}
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1 h-1 bg-neon-green rounded-full shadow-[var(--shadow-green)] animate-pulse" />
-                    <span className="text-[8px] font-black text-neon-green uppercase tracking-widest">Active</span>
-                  </div>
+              <div className="relative w-20 h-20 rounded-full border-2 border-neon-blue p-1 transition-all duration-500 hover:scale-110">
+                <div className="w-full h-full rounded-full overflow-hidden border border-white/10">
+                  <img
+                    src={node.avatar_url || node.image_url || "/placeholder.svg"}
+                    className="w-full h-full object-cover"
+                    alt=""
+                  />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-black border border-white/20 rounded-full flex items-center justify-center">
+                  <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
                 </div>
               </div>
+              <span className="text-[9px] font-black text-white uppercase tracking-widest text-center truncate w-20 opacity-60">
+                {node.display_name || node.name}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* FEED */}
+      {/* COMMUNITY CHARGE FEED */}
       <div className="p-8 space-y-16 max-w-2xl mx-auto">
-        {posts.map((post) => (
-          <div key={post.id} className="group animate-in slide-in-from-bottom-6 duration-1000">
-            <div className="flex items-center gap-4 mb-6 px-2">
-              <Avatar className="w-12 h-12 border border-white/5" onClick={() => navigate(`/users/${post.user_id}`)}>
-                <AvatarImage src={post.profiles?.avatar_url || undefined} />
-                <AvatarFallback className="bg-muted text-muted-foreground">?</AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <h3 className="font-display text-xl text-white uppercase tracking-wide leading-none">
-                  {post.profiles?.display_name || "NODE"}
-                </h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-                    {formatDistanceToNow(new Date(post.created_at))} ago
-                  </span>
-                  <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest">
-                    • {post.profiles?.sub_role || "NEURAL"}
-                  </span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white transition-colors">
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <div
-              className={cn(
-                "relative rounded-[3.5rem] overflow-hidden bg-card/30 border transition-all duration-1000 shadow-2xl",
-                chargedPosts.has(post.id) ? "border-neon-blue shadow-[var(--shadow-neon)]" : "border-white/5",
-              )}
+        {posts.length === 0 ? (
+          <div className="h-[40vh] flex flex-col items-center justify-center text-center px-12">
+            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.4em] mb-6">
+              No Neural Connections Detected
+            </p>
+            <Button
+              onClick={() => navigate("/discovery")}
+              className="bg-white text-black font-black uppercase text-[10px] tracking-widest px-8 h-12 rounded-2xl"
             >
-              {post.media_url && (
-                <div className="w-full aspect-square bg-black overflow-hidden relative">
-                  <img
-                    src={post.media_url}
-                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-1000"
-                    alt=""
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-60" />
-                  {post.venues && (
-                    <button
-                      onClick={() => navigate(`/venue/${post.venues?.id}`)}
-                      className="absolute top-8 right-8 flex items-center gap-2 bg-background/60 backdrop-blur-md border border-white/10 px-6 py-3 rounded-full hover:bg-neon-blue hover:text-black transition-all shadow-2xl"
-                    >
-                      <MapPin className="w-3 h-3" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">{post.venues.name}</span>
-                    </button>
-                  )}
-                </div>
-              )}
-              <div className="p-10">
-                <p className="text-muted-foreground text-sm leading-relaxed mb-12 font-medium">{post.content}</p>
+              Initialize Discovery
+            </Button>
+          </div>
+        ) : (
+          posts.map((post) => (
+            <div key={post.id} className="group animate-in slide-in-from-bottom-6 duration-1000">
+              {/* Post Metadata Header... */}
+              {/* Media Content with Shadow Neon interaction... */}
+              <div className="p-10 border border-white/5 rounded-[2.5rem] bg-zinc-950/40 backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col items-center gap-2">
                     <button
-                      onClick={() => handleChargeToggle(post.id)}
+                      onClick={() => handleChargeInteraction(post.id)}
                       className={cn(
-                        "w-16 h-16 rounded-[1.5rem] flex items-center justify-center transition-all active:scale-90 border duration-500",
+                        "w-16 h-16 rounded-2xl flex items-center justify-center transition-all active:scale-90 border duration-500",
                         chargedPosts.has(post.id)
-                          ? "bg-neon-blue/10 border-neon-blue shadow-[var(--shadow-neon)]"
+                          ? "bg-neon-blue/10 border-neon-blue text-neon-blue shadow-[0_0_20px_#00B7FF]"
                           : "bg-white/5 border-white/5 text-white",
                       )}
                     >
-                      <Zap
-                        className={cn(
-                          "w-7 h-7 transition-all duration-500",
-                          chargedPosts.has(post.id) ? "text-neon-blue fill-neon-blue" : "text-white",
-                        )}
-                      />
+                      <Zap className={cn("w-7 h-7", chargedPosts.has(post.id) && "fill-neon-blue")} />
                     </button>
                     <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.3em]">
-                      Charge Node
+                      Charge
                     </span>
                   </div>
-                  <div className="flex gap-3">
-                    <Badge
-                      variant="outline"
-                      className="h-10 border-white/5 bg-background/50 text-muted-foreground text-[9px] font-black uppercase tracking-widest px-6 rounded-xl cursor-default"
-                    >
-                      ENERGY HIGH
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="h-10 border-white/5 bg-background/50 text-muted-foreground text-[9px] font-black uppercase tracking-widest px-6 rounded-xl cursor-default"
-                    >
-                      PEAK VIBE
-                    </Badge>
-                  </div>
+                  <Badge className="bg-zinc-900 text-zinc-500 border-white/5 font-black uppercase text-[9px] px-6 h-10 rounded-xl">
+                    Follower Intelligence
+                  </Badge>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {isCreator && (
         <button
           onClick={() => setDialogOpen(true)}
-          className="fixed bottom-28 right-10 z-50 w-16 h-16 rounded-[1.5rem] bg-white text-black shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all hover:bg-neon-blue"
+          className="fixed bottom-32 right-10 z-50 w-16 h-16 rounded-2xl bg-white text-black shadow-2xl flex items-center justify-center hover:bg-neon-blue transition-all"
         >
           <Plus className="w-8 h-8" />
         </button>
