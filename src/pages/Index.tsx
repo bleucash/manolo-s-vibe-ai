@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Zap, Share2, MapPin, Radio, Activity } from "lucide-react";
+import { Plus, Zap, Share2, MapPin, Radio, Activity, Target } from "lucide-react";
 import { CreatePostDialog } from "@/components/CreatePostDialog";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { formatDistanceToNow } from "date-fns";
@@ -48,21 +48,28 @@ const Index = () => {
   };
 
   const fetchFollowedLiveNodes = async (userId: string) => {
-    const { data: followedTalent } = await supabase
-      .from("followers")
-      .select(`profiles!following_id (id, display_name, avatar_url, venue_id)`)
-      .eq("follower_id", userId);
+    try {
+      // 1. Fetch followed Talent
+      const { data: followedTalent } = await supabase
+        .from("followers")
+        .select(`profiles:following_id (id, display_name, avatar_url, venue_id)`)
+        .eq("follower_id", userId);
 
-    const { data: followedVenues } = await supabase
-      .from("venue_followers")
-      .select(`venues (id, name, image_url)`)
-      .eq("follower_id", userId);
+      // 2. Fetch followed Venues (Sectors)
+      const { data: followedVenues } = await supabase
+        .from("venue_followers")
+        .select(`venues (id, name, image_url)`)
+        .eq("follower_id", userId);
 
-    const activeNodes = [
-      ...(followedTalent?.map((f) => f.profiles).filter((p) => p.venue_id) || []),
-      ...(followedVenues?.map((v) => ({ ...v.venues, isVenue: true })) || []),
-    ];
-    setLiveNodes(activeNodes);
+      // 3. Cast and filter for 'Live' status (venue_id is present)
+      const activeTalent = (followedTalent || []).map((f) => f.profiles as any).filter((p) => p && p.venue_id);
+
+      const activeVenues = (followedVenues || []).map((v) => ({ ...(v.venues as any), isVenue: true }));
+
+      setLiveNodes([...activeTalent, ...activeVenues]);
+    } catch (error) {
+      console.error("Radar Node Sync Error:", error);
+    }
   };
 
   const fetchFollowerFeed = async (userId: string) => {
@@ -94,9 +101,12 @@ const Index = () => {
       } else {
         await Promise.all([
           supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId }),
-          supabase
-            .from("interactions")
-            .insert({ user_id: currentUserId, target_id: postId, target_type: "post", interaction_type: "charge" }),
+          supabase.from("interactions").insert({
+            user_id: currentUserId,
+            target_id: postId,
+            target_type: "post",
+            interaction_type: "charge",
+          }),
         ]);
       }
     } catch {
@@ -107,8 +117,8 @@ const Index = () => {
   if (loading || contextLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto">
-      {/* 🛠 GLASS HUD: Synced with Discovery */}
+    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700 overflow-y-auto hide-scrollbar">
+      {/* 🛠 GLASS HUD */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/5 px-8 h-20 flex justify-between items-center pt-4">
         <div className="flex items-center gap-3">
           <Activity className="w-4 h-4 text-neon-purple animate-pulse" />
@@ -151,7 +161,7 @@ const Index = () => {
                   </span>
                 </div>
               ))
-            : // NEURAL SKELETONS: Filling the void
+            : // NEURAL SKELETONS
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-3 shrink-0 animate-pulse">
                   <div className="w-20 h-20 rounded-full bg-zinc-900 border border-white/5 relative">
@@ -183,7 +193,6 @@ const Index = () => {
         ) : (
           posts.map((post) => (
             <div key={post.id} className="group animate-in slide-in-from-bottom-12 duration-1000">
-              {/* Post Header */}
               <div className="flex items-center gap-4 mb-6 px-2">
                 <Avatar
                   className="w-12 h-12 border border-white/5 cursor-pointer"
@@ -210,7 +219,6 @@ const Index = () => {
                 </button>
               </div>
 
-              {/* Media Card */}
               <div
                 className={cn(
                   "relative rounded-[3.5rem] overflow-hidden bg-zinc-950 border transition-all duration-1000 shadow-2xl group",
@@ -238,7 +246,6 @@ const Index = () => {
                   </div>
                 )}
 
-                {/* Interaction Footer */}
                 <div className="p-10 pt-6">
                   <p className="text-zinc-400 text-sm leading-relaxed mb-10 font-medium italic opacity-80">
                     {post.content}
@@ -260,7 +267,6 @@ const Index = () => {
                         Charge
                       </span>
                     </div>
-
                     <div className="flex gap-2">
                       <Badge className="bg-zinc-900/80 text-zinc-500 border-white/5 font-black uppercase text-[8px] px-5 h-9 rounded-xl tracking-widest">
                         TRANSMISSION
