@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button"; // Restored missing import
 import {
   MapPin,
   Zap,
@@ -47,11 +48,10 @@ const TalentProfile = () => {
   const isSelfView = currentUserId === id;
 
   /**
-   * ✅ ANTI-SPAM HANDSHAKE LOGIC
-   * 1. Managers: Always allowed (Business priority)
-   * 2. Followers: Allowed (Permission granted via follow)
+   * ✅ PERMISSION LOGIC
+   * Restored from original: Managers and Owners of the profile can always message.
    */
-  const canMessage = mode === "manager" || isSelfView; // Extended logic below in render
+  const canMessage = mode === "manager" || isSelfView;
 
   useEffect(() => {
     fetchDiscoveryData();
@@ -146,7 +146,7 @@ const TalentProfile = () => {
 
   return (
     <div className="min-h-screen bg-black text-white font-body relative overflow-x-hidden">
-      {/* 🎬 HERO REEL: 2026 Immersive Continuity */}
+      {/* 🎬 HERO REEL */}
       <div className="relative h-[65dvh] w-full overflow-hidden">
         <img
           src={latestPost?.media_url || profile.avatar_url || "/placeholder.svg"}
@@ -157,17 +157,21 @@ const TalentProfile = () => {
 
         {/* Navigation HUD */}
         <div className="absolute top-12 left-8 right-8 flex justify-between items-center z-50">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => navigate(-1)}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition-all"
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition-all text-white hover:bg-black/60"
           >
             <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex gap-4">
-            <button className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition-all">
-              <Share2 className="w-5 h-5" />
-            </button>
-          </div>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition-all text-white hover:bg-black/60"
+          >
+            <Share2 className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Live Status Overlay */}
@@ -188,7 +192,12 @@ const TalentProfile = () => {
         <div className="flex flex-col items-center text-center">
           <div className="relative mb-6">
             <div className="w-32 h-32 rounded-[2.5rem] border-4 border-black shadow-2xl overflow-hidden bg-zinc-900">
-              <img src={profile.avatar_url || "/placeholder.svg"} className="w-full h-full object-cover" alt="" />
+              <Avatar className="w-full h-full rounded-none">
+                <AvatarImage src={profile.avatar_url || undefined} className="object-cover" />
+                <AvatarFallback className="bg-zinc-800 text-2xl uppercase font-display">
+                  {profile.display_name?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
             </div>
             {venue && (
               <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-neon-blue rounded-2xl flex items-center justify-center border-4 border-black shadow-xl">
@@ -197,11 +206,11 @@ const TalentProfile = () => {
             )}
           </div>
 
-          <h1 className="font-display text-5xl uppercase italic tracking-tighter mb-2 text-glow-white">
+          <h1 className="font-display text-5xl uppercase italic tracking-tighter mb-2 text-glow-white leading-none">
             {profile.display_name || profile.username}
           </h1>
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-8">
-            {profile.sub_role || "Talent Entity"} • Neural ID: {profile.id.slice(0, 8)}
+            {profile.sub_role || "Talent Entity"} • ID: {profile.id.slice(0, 8)}
           </p>
 
           <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-8">
@@ -223,18 +232,24 @@ const TalentProfile = () => {
                       : "bg-zinc-900/50 border-white/5 text-zinc-600 cursor-not-allowed",
                   )}
                 >
-                  {canMessage ? (
-                    <MessageSquare className="w-4 h-4 mr-2" />
+                  {initiatingChat ? (
+                    <Loader2 className="animate-spin w-4 h-4" />
                   ) : (
-                    <Lock className="w-4 h-4 mr-2 opacity-50" />
+                    <div className="flex items-center">
+                      {canMessage ? (
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Lock className="w-4 h-4 mr-2 opacity-50" />
+                      )}
+                      {canMessage ? "Open Link" : "Link to Message"}
+                    </div>
                   )}
-                  {canMessage ? "Open Link" : "Follow to Message"}
                 </Button>
               </>
             )}
             {isSelfView && (
               <Button
-                className="col-span-2 bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-[0.2em] h-14 rounded-2xl"
+                className="col-span-2 bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-[0.2em] h-14 rounded-2xl hover:bg-white/10"
                 onClick={() => navigate("/profile")}
               >
                 Edit Personal Vibe
@@ -248,7 +263,7 @@ const TalentProfile = () => {
               onClick={handleInvite}
               disabled={inviting || !!connectionStatus}
               className={cn(
-                "w-full max-w-sm h-16 font-black uppercase tracking-[0.2em] rounded-2xl mb-8",
+                "w-full max-w-sm h-16 font-black uppercase tracking-[0.2em] rounded-2xl mb-8 transition-all active:scale-95",
                 connectionStatus === "active"
                   ? "bg-neon-green/10 text-neon-green border border-neon-green/20"
                   : "bg-white text-black hover:bg-neon-green",
@@ -268,15 +283,15 @@ const TalentProfile = () => {
             </Button>
           )}
 
-          {/* ⚡ THE HANDSHAKE: Ticket Storefront */}
+          {/* ⚡ THE HANDSHAKE: Ticket Conversion Card */}
           {venue ? (
-            <div className="w-full max-w-sm bg-zinc-950 border border-neon-blue/20 rounded-[2.5rem] p-8 shadow-[0_0_40px_rgba(0,183,255,0.05)] mb-12">
+            <div className="w-full max-w-sm bg-zinc-950 border border-neon-blue/20 rounded-[2.5rem] p-8 shadow-[0_0_40px_rgba(0,183,255,0.05)] mb-12 animate-in slide-in-from-bottom-6 duration-1000">
               <div className="flex items-center justify-between mb-8 text-left">
                 <div>
                   <span className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.3em] block mb-1">
                     Current Sector
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-white">
                     <MapPin className="w-3 h-3 text-neon-blue" />
                     <span className="text-sm font-bold uppercase tracking-tight">{venue.name}</span>
                   </div>
@@ -289,12 +304,12 @@ const TalentProfile = () => {
                 </div>
               </div>
 
-              <button
+              <Button
                 onClick={() => setIsTicketOpen(true)}
-                className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-neon-blue hover:text-white transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
+                className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-neon-blue hover:text-white transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 border-none"
               >
                 Secure Entry <Zap className="w-4 h-4 fill-current" />
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="w-full max-w-sm bg-zinc-900/30 border border-white/5 rounded-[2.5rem] p-10 text-center italic mb-12">
@@ -325,35 +340,35 @@ const TalentProfile = () => {
 
         {/* CONTENT TABS */}
         <Tabs defaultValue="vibe" className="w-full">
-          <TabsList className="w-full bg-transparent border-b border-white/5 h-12 justify-start gap-10 mb-8">
+          <TabsList className="w-full bg-transparent border-b border-white/5 h-12 justify-start gap-10 mb-8 p-0">
             <TabsTrigger
               value="vibe"
-              className="uppercase font-black tracking-[0.2em] text-[10px] data-[state=active]:text-neon-pink"
+              className="uppercase font-black tracking-[0.2em] text-[10px] data-[state=active]:text-neon-pink bg-transparent p-0 rounded-none h-full border-b-2 border-transparent data-[state=active]:border-neon-pink"
             >
               The Vibe
             </TabsTrigger>
             <TabsTrigger
               value="residencies"
-              className="uppercase font-black tracking-[0.2em] text-[10px] data-[state=active]:text-neon-pink"
+              className="uppercase font-black tracking-[0.2em] text-[10px] data-[state=active]:text-neon-pink bg-transparent p-0 rounded-none h-full border-b-2 border-transparent data-[state=active]:border-neon-pink"
             >
               Residencies
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="vibe">
+          <TabsContent value="vibe" className="m-0 focus-visible:outline-none">
             {posts.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-700">
+              <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-1000">
                 {posts.map((post) => (
                   <div
                     key={post.id}
-                    className="group relative aspect-[3/4] rounded-3xl overflow-hidden bg-zinc-900 border border-white/5"
+                    className="group relative aspect-[3/4] rounded-3xl overflow-hidden bg-zinc-900 border border-white/5 shadow-lg"
                   >
                     <img
                       src={post.media_url}
-                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110"
                       alt=""
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                   </div>
                 ))}
               </div>
@@ -366,7 +381,7 @@ const TalentProfile = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="residencies" className="space-y-4">
+          <TabsContent value="residencies" className="m-0 focus-visible:outline-none space-y-4">
             {schedule.length === 0 ? (
               <div className="py-20 text-center border border-dashed border-white/10 rounded-[40px]">
                 <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.4em]">
@@ -377,20 +392,20 @@ const TalentProfile = () => {
               schedule.map((item) => (
                 <Card
                   key={item.id}
-                  className="bg-zinc-900/40 border-white/5 p-6 rounded-[32px] flex justify-between items-center backdrop-blur-xl"
+                  className="bg-zinc-900/40 border-white/5 p-6 rounded-[32px] flex justify-between items-center backdrop-blur-xl shadow-lg"
                 >
                   <div>
-                    <p className="text-white font-display text-xl uppercase tracking-tighter italic">
+                    <p className="text-white font-display text-xl uppercase tracking-tighter italic leading-none">
                       {item.venue_name}
                     </p>
-                    <p className="text-[10px] text-zinc-600 uppercase flex items-center gap-1 mt-1 font-bold">
+                    <p className="text-[10px] text-zinc-600 uppercase flex items-center gap-1 mt-2 font-bold tracking-widest">
                       <MapPin className="w-3 h-3 text-neon-pink" /> {item.venue_location}
                     </p>
                   </div>
                   <Button
                     size="sm"
                     onClick={() => navigate(`/venue/${item.venue_id}`)}
-                    className="bg-white text-black text-[10px] font-black uppercase rounded-full px-6"
+                    className="bg-white text-black text-[10px] font-black uppercase rounded-full px-6 h-10 hover:bg-neon-blue transition-all active:scale-95"
                   >
                     Visit
                   </Button>
@@ -401,7 +416,7 @@ const TalentProfile = () => {
         </Tabs>
       </div>
 
-      {/* 🎟 Stripe Integration: Direct B2B Referral */}
+      {/* 🎟 Stripe Integration Card */}
       {venue && (
         <TicketPurchaseDialog
           open={isTicketOpen}
