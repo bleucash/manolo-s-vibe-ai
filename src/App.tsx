@@ -36,21 +36,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-6 text-center">
+        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8 text-center">
           <h2 className="text-2xl font-display uppercase text-red-500 mb-2 tracking-tighter italic">
             Neural Engine Failure
           </h2>
-          <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-8 max-w-xs overflow-hidden">
-            Trace: {this.state.errorLog || "Unknown Core Collision"}
+          <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-10 max-w-xs overflow-hidden leading-relaxed">
+            Trace: {this.state.errorLog || "Object/Context Handshake Disrupted"}
           </p>
           <button
             onClick={() => {
               localStorage.clear();
               window.location.assign("/");
             }}
-            className="bg-white text-black px-10 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+            className="bg-white text-black px-10 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all"
           >
-            Reboot & Purge Cache
+            Reboot & Purge System
           </button>
         </div>
       );
@@ -64,8 +64,11 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const { isLoading, session, mode } = useUserMode();
 
-  // 🛡️ THE STABILIZER: Prevents the Bouncer from mounting
-  // during the "Guest-to-Manager" transition gap.
+  /**
+   * 🛡️ THE STABILIZER
+   * Prevents any route from mounting until we are 100% sure of the user's status.
+   * If a session exists but 'mode' hasn't arrived from Supabase, we hold the line.
+   */
   if (isLoading || (session && !mode)) {
     return <LoadingState fullPage />;
   }
@@ -136,7 +139,6 @@ const AppContent = () => {
               }
             />
 
-            {/* 🛡️ BOUNCER SHIELD: Double-guarded route */}
             <Route
               path="/bouncer"
               element={
@@ -150,8 +152,8 @@ const AppContent = () => {
           </Routes>
         </div>
 
-        {/* Hide nav during hard loading to prevent ref collisions */}
-        {!isLoading && <BottomNav />}
+        {/* Prevent BottomNav from rendering during hydration to avoid ref mismatch */}
+        {!isLoading && session && <BottomNav />}
       </div>
     </TooltipProvider>
   );
