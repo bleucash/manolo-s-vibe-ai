@@ -37,9 +37,10 @@ const Bouncer = () => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   // 🛡️ ULTRA-SAFE VENUE LOOKUP
-  const activeVenue = Array.isArray(userVenues) ? userVenues.find((v) => v.id === activeVenueId) : null;
+  // We ensure userVenues exists and is an array before attempting a .find
+  const activeVenue = userVenues && Array.isArray(userVenues) ? userVenues.find((v) => v.id === activeVenueId) : null;
 
-  // 🛡️ SYSTEM SHUTDOWN PROTOCOL
+  // 🛡️ HARDENED CLEANUP: Safely release camera hardware
   useEffect(() => {
     return () => {
       const shutdown = async () => {
@@ -48,7 +49,7 @@ const Bouncer = () => {
             await scannerRef.current.stop();
             scannerRef.current.clear();
           } catch (e) {
-            console.warn("Lens shutdown delayed or already cleared");
+            console.warn("Optical hardware cleanup delayed");
           }
         }
       };
@@ -56,19 +57,19 @@ const Bouncer = () => {
     };
   }, []);
 
-  // 🛡️ SECTOR VALIDATION
+  // 🛡️ AUTHORIZATION CHECK
   useEffect(() => {
     if (!contextLoading && !activeVenueId) {
-      toast.error("Sector Authorization Required");
+      toast.error("No active sector selected");
       navigate("/dashboard");
     }
-  }, [activeVenueId, contextLoading, navigate]);
+  }, [activeVenueId, contextLoading]);
 
   const onScanSuccess = async (qrCodeValue: string) => {
     if (!activeVenueId) return;
 
     try {
-      // Immediate Hardware Pause
+      // Pause hardware pattern recognition immediately
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.pause(true);
       }
@@ -80,20 +81,25 @@ const Bouncer = () => {
 
       if (error) throw error;
 
-      setScanResult(data.result as ScanResult);
-      if (data.ticket) setTicketData(data.ticket);
+      // ✅ NULL-SAFE EXTRACTION: Prevent ErrorBoundary triggers
+      const result = data?.result as ScanResult;
+      setScanResult(result || "error");
 
-      if (data.result === "success") {
-        toast.success("ID Patterns Verified");
+      if (data?.ticket) {
+        setTicketData(data.ticket);
+      }
+
+      if (result === "success") {
+        toast.success("Guest Authenticated");
       } else {
-        toast.error("Handshake Refused");
+        toast.error("Access Refused");
       }
     } catch (err) {
-      console.error("Ledger Sync Failure:", err);
+      console.error("Ledger Sync failure:", err);
       setScanResult("error");
-      setLocalError("Sync error with global ledger");
+      setLocalError("Handshake Synchronization Failed");
     } finally {
-      // Release hardware after pattern check
+      // Fully release camera after processing
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop().catch(() => {});
         setIsScanning(false);
@@ -107,11 +113,12 @@ const Bouncer = () => {
     setIsInitializing(true);
 
     try {
-      // 1. Verify DOM Stability
-      const container = document.getElementById("qr-reader");
-      if (!container) throw new Error("Optical Housing Interface Missing");
+      // ✅ DOM VALIDATOR: Ensures the div exists before library touches it
+      const housing = document.getElementById("qr-reader");
+      if (!housing) {
+        throw new Error("Optical Housing Interface Not Ready");
+      }
 
-      // 2. Initialize Hardware Instance
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode("qr-reader");
       }
@@ -122,19 +129,18 @@ const Bouncer = () => {
         aspectRatio: 1.0,
       };
 
-      // 3. Request Hardware Permission & Start Stream
       await scannerRef.current.start(
         { facingMode: "environment" },
         config,
         onScanSuccess,
-        () => {}, // Silent catch for frame-read jitter
+        () => {}, // Ignore frame jitter
       );
 
       setIsScanning(true);
     } catch (err: any) {
       console.error("Hardware Init failure:", err);
       setLocalError(err.message || "Hardware Access Denied");
-      toast.error("Optical Lens Failure");
+      toast.error("Scanner failed to start");
     } finally {
       setIsInitializing(false);
     }
@@ -173,18 +179,21 @@ const Bouncer = () => {
             <div className="w-20 h-20 bg-zinc-900/50 rounded-[2rem] flex items-center justify-center mx-auto border border-white/5 shadow-2xl">
               <Lock className="w-8 h-8 text-zinc-700" />
             </div>
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">Sector Lock Enabled</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">
+              Sector Authorization Required
+            </p>
             <Button
               onClick={() => navigate("/dashboard")}
               className="bg-white text-black font-black uppercase text-[10px] px-8 rounded-xl h-14"
             >
-              Authorize via Dashboard
+              Return to Command
             </Button>
           </div>
         ) : scanResult === null ? (
           <div className="w-full max-w-sm space-y-12">
             <div
               id="qr-reader"
+              key="bouncer-lens" // Key forces fresh render if state shifts
               className={cn(
                 "w-full aspect-square rounded-[3.5rem] overflow-hidden border-2 transition-all duration-700 bg-zinc-950 shadow-2xl relative",
                 isScanning ? "border-neon-blue shadow-[0_0_60px_rgba(0,183,255,0.1)]" : "border-white/5",
@@ -200,14 +209,14 @@ const Bouncer = () => {
                     </div>
                   )}
                   <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.5em] px-10 text-center leading-relaxed">
-                    {localError || "Bouncer Lens Offline"}
+                    {localError || "Optical Interface Ready"}
                   </p>
                 </div>
               )}
 
               {isScanning && (
                 <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
-                  <div className="w-full h-[1px] bg-neon-blue shadow-[0_0_20px_#00B7FF] animate-[scan_3s_ease-in-out_infinite]" />
+                  <div className="w-full h-[1px] bg-neon-blue shadow-[0_0_20px_#00B7FF] animate-[scanLine_2.5s_ease-in-out_infinite]" />
                 </div>
               )}
             </div>
@@ -222,7 +231,7 @@ const Bouncer = () => {
               ) : (
                 <Power className="mr-3 w-5 h-5" />
               )}
-              {isScanning ? "Scanning Target..." : isInitializing ? "Warming Up..." : "Initialize Optical Link"}
+              {isScanning ? "Pattern Detection Active" : isInitializing ? "Syncing Lens..." : "Activate Optical Link"}
             </Button>
           </div>
         ) : (
@@ -256,7 +265,7 @@ const Bouncer = () => {
             </h2>
 
             {ticketData && (
-              <Card className="bg-zinc-900/40 border-white/5 p-8 rounded-[2.5rem] mb-12 w-full backdrop-blur-2xl">
+              <Card className="bg-zinc-900/40 border border-white/5 p-8 rounded-[2.5rem] mb-12 w-full backdrop-blur-2xl">
                 <div className="flex items-center gap-3 mb-6 justify-center text-zinc-500">
                   <ShieldCheck className="w-4 h-4" />
                   <span className="text-[9px] font-black uppercase tracking-[0.3em]">Identity Authenticated</span>
@@ -265,7 +274,7 @@ const Bouncer = () => {
                   {ticketData.customer_segment || "General Access"}
                 </p>
                 <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                  Sector Check-in: {activeVenue?.name || "Verified"}
+                  Sector: {activeVenue?.name || "Verified Node"}
                 </p>
               </Card>
             )}
@@ -284,7 +293,7 @@ const Bouncer = () => {
       </div>
 
       <style>{`
-        @keyframes scan {
+        @keyframes scanLine {
           0% { transform: translateY(0); opacity: 0; }
           10% { opacity: 1; }
           90% { opacity: 1; }
