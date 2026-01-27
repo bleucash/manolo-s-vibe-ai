@@ -158,41 +158,6 @@ export type Database = {
           },
         ]
       }
-      interactions: {
-        Row: {
-          created_at: string | null
-          id: string
-          interaction_type: string
-          target_id: string
-          target_type: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          interaction_type: string
-          target_id: string
-          target_type: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          interaction_type?: string
-          target_id?: string
-          target_type?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       messages: {
         Row: {
           content: string
@@ -595,42 +560,6 @@ export type Database = {
           },
           {
             foreignKeyName: "venue_claims_venue_id_fkey"
-            columns: ["venue_id"]
-            isOneToOne: false
-            referencedRelation: "venues"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      venue_followers: {
-        Row: {
-          created_at: string | null
-          follower_id: string | null
-          id: string
-          venue_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          follower_id?: string | null
-          id?: string
-          venue_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          follower_id?: string | null
-          id?: string
-          venue_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "venue_followers_follower_id_fkey"
-            columns: ["follower_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_followers_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

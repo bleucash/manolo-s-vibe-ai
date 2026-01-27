@@ -17,19 +17,14 @@ import {
   Ticket,
   Zap,
   UserCheck,
+  Phone,
+  Mail,
   Building,
   MapPin,
   Settings,
-  Phone,
-  Mail,
-  Activity,
-  Flame,
-  Users,
-  Radio,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Venue as VenueType } from "@/types/database";
-import { cn } from "@/lib/utils";
 
 const Venue = () => {
   const { id } = useParams();
@@ -37,8 +32,6 @@ const Venue = () => {
   const { mode, session, isLoading: contextLoading } = useUserMode();
 
   const [venue, setVenue] = useState<VenueType | null>(null);
-  const [liveTalent, setLiveTalent] = useState<any[]>([]);
-  const [heatIndex, setHeatIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
@@ -51,18 +44,12 @@ const Venue = () => {
   const currentUserId = session?.user?.id || null;
 
   useEffect(() => {
-    const initializeSector = async () => {
-      if (!id) return;
-      setLoading(true);
-      await Promise.all([fetchVenue(), fetchLiveTalent(), fetchHeatIndex(), ifAuthenticated(checkClaimStatus)]);
-      setLoading(false);
-    };
-    initializeSector();
+    fetchVenue();
+    if (id && currentUserId) checkClaimStatus();
   }, [id, currentUserId]);
 
-  const ifAuthenticated = (fn: () => Promise<void>) => (currentUserId ? fn() : Promise.resolve());
-
   const fetchVenue = async () => {
+    if (!id) return;
     try {
       const { data } = await supabase.from("venues").select("*").eq("id", id).single();
       if (data) setVenue(data as VenueType);
@@ -77,31 +64,10 @@ const Venue = () => {
         if (statusData) setConnectionStatus(statusData.status);
       }
     } catch (error) {
-      console.error("Sector Sync Error:", error);
+      console.error("Discovery Sync Error:", error);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const fetchLiveTalent = async () => {
-    // 📡 UPLINK LOGIC: Fetch profiles currently clocked into this venue_id
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url, venue_id, sub_role")
-      .eq("venue_id", id)
-      .eq("role_type", "talent");
-    if (data) setLiveTalent(data);
-  };
-
-  const fetchHeatIndex = async () => {
-    // 🔥 ENERGY METER: Calculate heat based on last 24h interactions
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await supabase
-      .from("interactions")
-      .select("*", { count: "exact", head: true })
-      .eq("target_id", id)
-      .gte("created_at", twentyFourHoursAgo);
-
-    // Simple normalization for the UI: 100 interactions = 100% heat
-    setHeatIndex(Math.min((count || 0) * 5, 100));
   };
 
   const checkClaimStatus = async () => {
@@ -157,106 +123,79 @@ const Venue = () => {
     }
   };
 
+  /**
+   * ✅ UNIFIED LOADING STRATEGY
+   * Prevents "Blackout" flicker by using the localized loader
+   */
   if (loading || contextLoading) return <LoadingState />;
-  if (!venue)
+
+  if (!venue) {
     return (
-      <div className="h-screen flex items-center justify-center bg-black text-white italic">Neural Path Terminated</div>
+      <div className="h-screen flex flex-col items-center justify-center bg-black p-6">
+        <h1 className="font-display text-2xl text-white uppercase italic mb-4">Neural Path Terminated</h1>
+        <Button
+          onClick={() => navigate("/")}
+          variant="outline"
+          className="border-white/10 text-white font-black uppercase tracking-widest text-[9px]"
+        >
+          Return to Hub
+        </Button>
+      </div>
     );
+  }
 
   const isOwner = venue.owner_id === currentUserId;
 
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
-      {/* 🛠 GLASS HUD NAVIGATION */}
-      <div className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center bg-black/20 backdrop-blur-md border-b border-white/5">
+      {/* HEADER NAVIGATION */}
+      <div className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate(-1)}
-          className="w-10 h-10 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 text-white"
+          className="bg-black/40 backdrop-blur-xl rounded-full border border-white/5 text-white"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-neon-blue animate-pulse" />
-          <span className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Sector Intelligence</span>
-        </div>
-        <div className="w-10" /> {/* Spacer */}
       </div>
 
       {/* VENUE HERO */}
-      <div className="relative h-[60vh] w-full overflow-hidden">
+      <div className="relative h-[55vh] w-full overflow-hidden">
         <img
           src={venue.image_url || "/placeholder.svg"}
           alt={venue.name}
-          className="w-full h-full object-cover animate-in zoom-in-105 duration-[10000ms]"
+          className="w-full h-full object-cover transition-transform duration-1000 scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60" />
-
-        <div className="absolute bottom-16 left-8 right-8 z-20">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse shadow-[0_0_10px_#39FF14]" />
-            <p className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Active Sector</p>
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+        <div className="absolute bottom-12 left-8 right-8 z-20">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 bg-[#FF5F1F] rounded-full shadow-[0_0_8px_#FF5F1F]" />
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em]">Sector Verified</p>
           </div>
-          <h1 className="font-display text-[clamp(3rem,12vw,6rem)] text-white uppercase tracking-tighter leading-[0.8] italic mb-6">
+          <h1 className="font-display text-7xl text-white uppercase tracking-tighter leading-none italic mb-4">
             {venue.name}
           </h1>
           <div className="flex items-center gap-4">
-            <Badge className="bg-white/5 backdrop-blur-md text-white border-white/10 uppercase text-[10px] font-black tracking-widest px-6 py-2 rounded-full">
-              <MapPin className="w-3.5 h-3.5 mr-2 text-neon-blue" /> {venue.location}
+            <Badge className="bg-white/5 backdrop-blur-md text-white border-white/10 uppercase text-[9px] font-black tracking-widest px-4 py-1.5 rounded-full">
+              <MapPin className="w-3 h-3 mr-2 text-zinc-500" /> {venue.location}
             </Badge>
           </div>
         </div>
       </div>
 
-      {/* 🚀 UPLINK STRIP: Live Talent Currently at Venue */}
-      {liveTalent.length > 0 && (
-        <div className="px-8 -mt-8 relative z-40 mb-12">
-          <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 shadow-2xl">
-            <div className="flex items-center gap-2 mb-4 px-2">
-              <Radio className="w-3 h-3 text-neon-green animate-pulse" />
-              <h3 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em]">Live Uplinks</h3>
-            </div>
-            <div className="flex overflow-x-auto gap-5 hide-scrollbar py-2">
-              {liveTalent.map((talent) => (
-                <div
-                  key={talent.id}
-                  onClick={() => navigate(`/talent/${talent.id}`)}
-                  className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
-                >
-                  <div className="relative w-16 h-16 rounded-2xl border-2 border-neon-blue p-0.5 group-hover:scale-110 transition-all duration-500">
-                    <img
-                      src={talent.avatar_url || "/placeholder.svg"}
-                      className="w-full h-full object-cover rounded-[0.8rem]"
-                      alt=""
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-black border border-white/20 rounded-full flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
-                    </div>
-                  </div>
-                  <span className="text-[8px] font-black text-white/40 uppercase tracking-widest truncate w-16 text-center">
-                    {talent.display_name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ACTION ZONE: Conversion Handshake */}
-      <div className={cn("px-8 relative z-30 mb-12", liveTalent.length === 0 && "-mt-10")}>
+      {/* ACTION ZONE */}
+      <div className="px-8 -mt-10 relative z-30 mb-12">
         {mode === "talent" ? (
           <Button
             size="lg"
             onClick={handleApply}
             disabled={!!connectionStatus}
-            className={cn(
-              "w-full h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-[2rem] shadow-2xl transition-all",
+            className={`w-full h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-[2rem] shadow-2xl transition-all ${
               connectionStatus === "active"
                 ? "bg-zinc-900 border border-neon-purple/30 text-neon-purple"
-                : "bg-neon-purple text-white hover:shadow-[0_0_30px_#BF00FF30]",
-            )}
+                : "bg-neon-purple text-white hover:shadow-[0_0_30px_rgba(191,0,255,0.3)]"
+            }`}
           >
             {connectionStatus === "active" ? (
               <>
@@ -285,14 +224,14 @@ const Venue = () => {
             <Button
               size="lg"
               onClick={() => setPurchaseOpen(true)}
-              className="w-full h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-[2rem] bg-neon-green text-black hover:shadow-[0_0_30px_#39FF1440] transition-all border-none"
+              className="w-full h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-[2rem] bg-neon-green text-black hover:shadow-[0_0_25px_#39FF14] transition-all"
             >
-              <Ticket className="mr-3 w-5 h-5 fill-black" /> Secure Entry • ${venue.entry_price || "20.00"}
+              <Ticket className="mr-3 w-5 h-5 fill-black" /> Secure Entry
             </Button>
 
-            {!venue.owner_id && (
-              <div className="p-8 border border-orange-500/20 bg-orange-500/5 rounded-[2.5rem] text-center mt-6">
-                <p className="text-[9px] font-black text-orange-500/60 uppercase tracking-[0.4em] mb-4 flex items-center justify-center gap-2">
+            {venue.owner_id === null && (
+              <div className="p-8 border border-[#FF5F1F]/20 bg-[#FF5F1F]/5 rounded-[2.5rem] text-center mt-6">
+                <p className="text-[9px] font-black text-[#FF5F1F]/60 uppercase tracking-[0.4em] mb-4 flex items-center justify-center gap-2">
                   <Zap className="w-3 h-3 animate-pulse" /> Unclaimed Intelligence
                 </p>
                 {claimStatus === "pending" ? (
@@ -306,7 +245,7 @@ const Venue = () => {
                   <Button
                     onClick={() => setClaimDialogOpen(true)}
                     variant="outline"
-                    className="w-full h-14 bg-black/40 border-orange-500/40 text-white font-black uppercase tracking-widest text-[9px] hover:bg-orange-500 hover:text-white transition-all rounded-2xl"
+                    className="w-full h-14 bg-black/40 border-[#FF5F1F]/40 text-white font-black uppercase tracking-widest text-[9px] hover:bg-[#FF5F1F] hover:text-white transition-all rounded-2xl"
                   >
                     Claim This Sector
                   </Button>
@@ -315,20 +254,6 @@ const Venue = () => {
             )}
           </div>
         )}
-      </div>
-
-      {/* 📊 ENERGY HUD */}
-      <div className="px-8 grid grid-cols-2 gap-4 mb-12">
-        <div className="bg-zinc-900/40 rounded-[2rem] p-6 border border-white/5 flex flex-col items-center">
-          <Flame className={cn("w-6 h-6 mb-3", heatIndex > 50 ? "text-orange-500 animate-bounce" : "text-zinc-700")} />
-          <span className="text-2xl font-display italic text-white">{heatIndex}%</span>
-          <span className="text-[8px] font-black uppercase text-zinc-600 tracking-widest mt-2">Heat Index</span>
-        </div>
-        <div className="bg-zinc-900/40 rounded-[2rem] p-6 border border-white/5 flex flex-col items-center">
-          <Users className="w-6 h-6 text-neon-blue mb-3" />
-          <span className="text-2xl font-display italic text-white">{venue.capacity || "500"}</span>
-          <span className="text-[8px] font-black uppercase text-zinc-600 tracking-widest mt-2">Capacity</span>
-        </div>
       </div>
 
       {/* INTELLIGENCE TABS */}
@@ -349,78 +274,65 @@ const Venue = () => {
         </TabsList>
 
         <TabsContent value="vibe" className="animate-in slide-in-from-bottom-2 duration-500">
-          <div className="flex items-center gap-2 mb-6">
-            <Settings className="w-3 h-3 text-neon-blue" />
-            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sector Briefing</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <Settings className="w-3 h-3 text-zinc-600" />
+            <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Description</h3>
           </div>
-          <p className="text-zinc-400 text-sm leading-relaxed font-medium mb-12 italic opacity-80">
-            {venue.description || "No transmission data found for this node. Standard nightlife protocols apply."}
+          <p className="text-zinc-400 text-sm leading-relaxed font-medium mb-8">
+            {venue.description || "No transmission data found for this node."}
           </p>
-        </TabsContent>
-
-        <TabsContent value="amenities">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-5 bg-zinc-900/20 border border-white/5 rounded-2xl">
-              <p className="text-[8px] font-black text-zinc-600 uppercase mb-2">Category</p>
-              <p className="text-xs font-bold uppercase text-white tracking-wider">{venue.category || "Nightclub"}</p>
-            </div>
-            <div className="p-5 bg-zinc-900/20 border border-white/5 rounded-2xl">
-              <p className="text-[8px] font-black text-zinc-600 uppercase mb-2">Sector Status</p>
-              <p className="text-xs font-bold uppercase text-neon-green tracking-wider">Live & Operational</p>
-            </div>
-          </div>
         </TabsContent>
       </Tabs>
 
       {/* NEURAL CLAIM DIALOG */}
       <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
-        <DialogContent className="bg-black border-white/5 text-white max-w-lg rounded-[3rem] p-0 overflow-hidden shadow-[0_0_60px_rgba(255,95,31,0.15)]">
-          <div className="p-10 border-b border-white/5 bg-zinc-900/40">
-            <DialogTitle className="text-5xl font-display uppercase italic tracking-tighter mb-2">
+        <DialogContent className="bg-black border-white/5 text-white max-w-lg rounded-[2.5rem] p-0 overflow-hidden shadow-[0_0_50px_rgba(255,95,31,0.1)]">
+          <div className="p-8 border-b border-white/5 bg-zinc-900/40">
+            <DialogTitle className="text-4xl font-display uppercase italic tracking-tighter mb-1">
               Sector Claim
             </DialogTitle>
             <DialogDescription className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-              Submit legal credentials for sector authentication.
+              Submit legal intel for credential verification.
             </DialogDescription>
           </div>
-          <form onSubmit={handleClaimSubmit} className="space-y-6 p-10">
+          <form onSubmit={handleClaimSubmit} className="space-y-6 p-8">
             <div className="space-y-4">
               <div className="relative group">
-                <UserCheck className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-orange-500" />
+                <UserCheck className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-[#FF5F1F]" />
                 <input
                   name="legalName"
                   required
                   placeholder="LEGAL REPRESENTATIVE"
-                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-6 pl-16 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-orange-500/50 transition-all outline-none"
+                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-5 pl-14 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-[#FF5F1F]/50 transition-all outline-none"
                 />
               </div>
               <div className="relative group">
-                <Building className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-orange-500" />
+                <Building className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-[#FF5F1F]" />
                 <input
                   name="title"
                   required
                   placeholder="POSITION / TITLE"
-                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-6 pl-16 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-orange-500/50 transition-all outline-none"
+                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-5 pl-14 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-[#FF5F1F]/50 transition-all outline-none"
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="relative group">
-                  <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                  <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
                   <input
                     name="email"
                     type="email"
                     required
                     placeholder="BUSINESS EMAIL"
-                    className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-6 pl-16 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-orange-500/50 transition-all outline-none"
+                    className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-5 pl-14 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-[#FF5F1F]/50 transition-all outline-none"
                   />
                 </div>
                 <div className="relative group">
-                  <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                  <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
                   <input
                     name="phone"
                     required
                     placeholder="CONTACT PHONE"
-                    className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-6 pl-16 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-orange-500/50 transition-all outline-none"
+                    className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-5 pl-14 text-[10px] uppercase font-black placeholder:text-zinc-700 focus:border-[#FF5F1F]/50 transition-all outline-none"
                   />
                 </div>
               </div>
@@ -428,7 +340,7 @@ const Venue = () => {
             <Button
               disabled={isSubmittingClaim}
               type="submit"
-              className="w-full h-16 bg-orange-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all border-none"
+              className="w-full h-16 bg-[#FF5F1F] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
             >
               {isSubmittingClaim ? "Synchronizing..." : "Transmit Claim Intelligence"}
             </Button>

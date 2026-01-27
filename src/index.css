@@ -55,13 +55,9 @@
     /* Neon Accent Colors */
     --neon-purple: 268 100% 25%; /* #22007C */
     --neon-pink: 340 100% 60%;
-    --neon-blue: 197 100% 50%; /* #00B7FF - Transmission Blue */
-    --neon-green: 106 100% 55%; /* #39FF14 - Live Indicator Green */
+    --neon-blue: 244 100% 32%; /* #0D00A4 */
+    --neon-green: 150 100% 50%;
     --neon-cyan: 180 100% 50%;
-    
-    /* Pulse Overlay Specific */
-    --pulse-blue: 197 100% 50%; /* #00B7FF */
-    --pulse-green: 106 100% 55%; /* #39FF14 */
 
     /* Glassmorphism */
     --glass: 220 15% 10%;

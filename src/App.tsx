@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { UserModeProvider, useUserMode } from "./contexts/UserModeContext";
 import BottomNav from "./components/BottomNav";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import LoadingState from "./components/ui/LoadingState";
+import LoadingState from "./components/ui/LoadingState"; // ✅ Verified Import
 
 // Page Imports
 import Index from "./pages/Index";
@@ -25,28 +25,24 @@ import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorLog: string }> {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorLog: "" };
+    this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, errorLog: error.message };
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true };
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8 text-center">
-          <h2 className="text-2xl font-display uppercase text-red-500 mb-2 italic">Neural Engine Failure</h2>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-10 max-w-xs leading-relaxed">
-            Trace: {this.state.errorLog}
-          </p>
+        <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-6 text-center">
+          <h2 className="text-2xl font-display uppercase text-red-500 mb-4 tracking-tighter italic">
+            Neural Engine Failure
+          </h2>
           <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.assign("/auth");
-            }}
-            className="bg-white text-black px-10 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest"
+            onClick={() => window.location.assign("/")}
+            className="bg-white text-black px-8 py-3 rounded-full font-bold uppercase text-[10px] tracking-widest transition-transform active:scale-95"
           >
             Reboot System
           </button>
@@ -60,17 +56,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { isLoading, session, mode } = useUserMode();
+  const { isLoading, session } = useUserMode();
+  const hasCachedMode = !!localStorage.getItem("userMode");
 
-  // Hold the UI until the core handshake is ready
-  if (isLoading && !session) {
+  // ✅ Persists the BottomNav by only showing full-page loader on initial zero-state boot
+  if (isLoading && !session && !hasCachedMode) {
     return <LoadingState fullPage />;
   }
 
   return (
     <TooltipProvider>
       <Toaster />
-      <Sonner position="top-center" richColors />
+      <Sonner position="top-center" expand={false} richColors />
 
       <div className="relative min-h-screen bg-black">
         <div className="pb-32">
@@ -79,9 +76,6 @@ const AppContent = () => {
             <Route path="/auth" element={<Auth />} />
             <Route path="/discovery" element={<Discovery />} />
             <Route path="/venue/:id" element={<Venue />} />
-            <Route path="/talent-directory" element={<TalentDirectory />} />
-            <Route path="/talent/:id" element={<TalentProfile />} />
-            <Route path="/users/:id" element={<TalentProfile />} />
 
             <Route
               path="/messages"
@@ -91,6 +85,20 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
+            <Route
+              path="/venue/:id/manage"
+              element={
+                <ProtectedRoute allowedModes={["manager"]}>
+                  <Venue />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="/talent-directory" element={<TalentDirectory />} />
+            <Route path="/talent/:id" element={<TalentProfile />} />
+            <Route path="/users/:id" element={<TalentProfile />} />
+
             <Route
               path="/profile"
               element={
@@ -99,6 +107,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/wallet"
               element={
@@ -107,6 +116,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/notifications"
               element={
@@ -124,6 +134,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/dashboard"
               element={
@@ -132,6 +143,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/bouncer"
               element={
@@ -151,6 +163,7 @@ const AppContent = () => {
   );
 };
 
+// ✅ Cleaned up the export structure to resolve line 148 errors
 export default function App() {
   return (
     <ErrorBoundary>
