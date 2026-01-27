@@ -13,46 +13,23 @@ interface ProtectedRouteProps {
 export const ProtectedRoute = ({ children, allowedModes }: ProtectedRouteProps) => {
   const { isLoading: contextLoading, session, mode } = useUserMode();
   const location = useLocation();
-
-  // 🛡️ Guard the hook input
   const permissions = useWorkerPermissions(session?.user?.id || null);
 
-  /**
-   * ✅ FIX 1: THE NEURAL BUFFER
-   * We do not allow ANY logic to run until BOTH syncs are finished.
-   * Your old file checked session separately, which allowed the "Guest Gap".
-   */
   const isSyncing = contextLoading || permissions.loading;
 
-  if (isSyncing) {
-    // We use fullPage here specifically for the Bouncer/Dashboard
-    // to ensure the hardware/context has a clean slate.
+  if (isSyncing && session) {
     return <LoadingState fullPage />;
   }
 
-  /**
-   * ✅ FIX 2: HARD AUTH CHECK
-   * Now that we are 100% sure loading is done, we check session.
-   */
-  if (!session) {
+  if (!session && !contextLoading) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  /**
-   * ✅ FIX 3: SYNCHRONIZED ROLE VALIDATION
-   * By this point, 'mode' is guaranteed to be its final value
-   * (manager, talent, or guest) because we waited for permissions.loading.
-   */
-  if (allowedModes) {
-    const hasPermission = allowedModes.includes(mode);
-
-    // Role-specific cross-verification (The Bouncer Handshake)
-    if (allowedModes.includes("manager") && !permissions.isStaffRole) {
-      console.error("Neural Access Denied: Managerial Credentials Required");
+  if (allowedModes && !isSyncing) {
+    if (!allowedModes.includes(mode)) {
       return <Navigate to="/" replace />;
     }
-
-    if (!hasPermission) {
+    if (allowedModes.includes("manager") && !permissions.isStaffRole) {
       return <Navigate to="/" replace />;
     }
   }
