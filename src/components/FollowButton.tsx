@@ -4,6 +4,7 @@ import { UserPlus, UserCheck, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserMode } from "@/contexts/UserModeContext";
+import { cn } from "@/lib/utils";
 
 interface FollowButtonProps {
   targetId: string;
@@ -22,10 +23,12 @@ export const FollowButton = ({ targetId, targetName = "User", targetType, classN
 
   useEffect(() => {
     const checkFollowStatus = async () => {
+      // 🛡️ CIRCUIT BREAKER: Prevents the "eq." 400 error in your console
       if (!session?.user?.id || !targetId) {
         setLoading(false);
         return;
       }
+
       try {
         const { data, error } = await supabase
           .from(table)
@@ -33,46 +36,75 @@ export const FollowButton = ({ targetId, targetName = "User", targetType, classN
           .eq("follower_id", session.user.id)
           .eq(column, targetId)
           .maybeSingle();
+
         if (error) throw error;
         setIsFollowing(!!data);
+      } catch (err) {
+        // Silently catch to prevent global app crash
       } finally {
         setLoading(false);
       }
     };
+
     checkFollowStatus();
   }, [session?.user?.id, targetId, table, column]);
 
   const handleToggleFollow = async () => {
     if (!session?.user?.id) {
-      toast.error("Verification required");
+      toast.error("Neural handshake required");
       return;
     }
+
     setLoading(true);
     try {
       if (isFollowing) {
-        await supabase.from(table).delete().eq("follower_id", session.user.id).eq(column, targetId);
+        const { error } = await supabase.from(table).delete().eq("follower_id", session.user.id).eq(column, targetId);
+
+        if (error) throw error;
         setIsFollowing(false);
+        toast.success(`Link severed with ${targetName}`);
       } else {
-        await supabase.from(table).insert({ follower_id: session.user.id, [column]: targetId });
+        const { error } = await supabase.from(table).insert({
+          follower_id: session.user.id,
+          [column]: targetId,
+        });
+
+        if (error) throw error;
         setIsFollowing(true);
+        toast.success(`Link established with ${targetName}`);
       }
+    } catch (err) {
+      toast.error("Handshake failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Button
+    <button
       onClick={handleToggleFollow}
       disabled={loading}
-      size="sm"
       className={cn(
-        "font-bold uppercase text-[10px] h-10 px-6 rounded-full",
-        isFollowing ? "bg-white/10 text-white" : "bg-white text-black",
+        "font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-all rounded-full flex items-center justify-center gap-2",
+        isFollowing
+          ? "bg-white/10 border border-white/20 text-white"
+          : "bg-white text-black hover:bg-neon-blue hover:text-white",
         className,
       )}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : isFollowing ? "Linked" : "Link"}
-    </Button>
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isFollowing ? (
+        <>
+          <UserCheck className="h-4 w-4" />
+          Linked
+        </>
+      ) : (
+        <>
+          <UserPlus className="h-4 h-4" />
+          Link
+        </>
+      )}
+    </button>
   );
 };
