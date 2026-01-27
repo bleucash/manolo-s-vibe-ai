@@ -14,6 +14,7 @@ import {
   AlertOctagon,
   Lock,
   Power,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,40 +37,26 @@ const Bouncer = () => {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // 🛡️ ULTRA-SAFE VENUE LOOKUP
-  // We ensure userVenues exists and is an array before attempting a .find
+  // 🛡️ NULL-SAFE VENUE RETRIEVAL
   const activeVenue = userVenues && Array.isArray(userVenues) ? userVenues.find((v) => v.id === activeVenueId) : null;
 
-  // 🛡️ HARDENED CLEANUP: Safely release camera hardware
+  // 🛡️ CLEAN SHUTDOWN: Releases camera hardware immediately on unmount
   useEffect(() => {
     return () => {
-      const shutdown = async () => {
-        if (scannerRef.current?.isScanning) {
-          try {
-            await scannerRef.current.stop();
-            scannerRef.current.clear();
-          } catch (e) {
-            console.warn("Optical hardware cleanup delayed");
-          }
-        }
-      };
-      shutdown();
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current
+          .stop()
+          .then(() => scannerRef.current?.clear())
+          .catch(() => console.warn("Lens release delay"));
+      }
     };
   }, []);
-
-  // 🛡️ AUTHORIZATION CHECK
-  useEffect(() => {
-    if (!contextLoading && !activeVenueId) {
-      toast.error("No active sector selected");
-      navigate("/dashboard");
-    }
-  }, [activeVenueId, contextLoading]);
 
   const onScanSuccess = async (qrCodeValue: string) => {
     if (!activeVenueId) return;
 
     try {
-      // Pause hardware pattern recognition immediately
+      // Pause camera to prevent rapid-fire scans
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.pause(true);
       }
@@ -81,25 +68,22 @@ const Bouncer = () => {
 
       if (error) throw error;
 
-      // ✅ NULL-SAFE EXTRACTION: Prevent ErrorBoundary triggers
+      // Defensive result handling
       const result = data?.result as ScanResult;
       setScanResult(result || "error");
-
-      if (data?.ticket) {
-        setTicketData(data.ticket);
-      }
+      if (data?.ticket) setTicketData(data.ticket);
 
       if (result === "success") {
-        toast.success("Guest Authenticated");
+        toast.success("Pattern Authenticated: Cleared");
       } else {
-        toast.error("Access Refused");
+        toast.error("Identity Handshake Refused");
       }
     } catch (err) {
-      console.error("Ledger Sync failure:", err);
+      console.error("Ledger Sync Failure:", err);
       setScanResult("error");
-      setLocalError("Handshake Synchronization Failed");
+      setLocalError("Handshake desync. Check connection.");
     } finally {
-      // Fully release camera after processing
+      // Release hardware
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop().catch(() => {});
         setIsScanning(false);
@@ -113,15 +97,18 @@ const Bouncer = () => {
     setIsInitializing(true);
 
     try {
-      // ✅ DOM VALIDATOR: Ensures the div exists before library touches it
+      // 1. Verify DOM anchor
       const housing = document.getElementById("qr-reader");
-      if (!housing) {
-        throw new Error("Optical Housing Interface Not Ready");
+      if (!housing) throw new Error("Optical Housing Interface Failed");
+
+      // 2. Clear previous instances
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop();
+        } catch (e) {}
       }
 
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("qr-reader");
-      }
+      scannerRef.current = new Html5Qrcode("qr-reader");
 
       const config = {
         fps: 24,
@@ -133,14 +120,14 @@ const Bouncer = () => {
         { facingMode: "environment" },
         config,
         onScanSuccess,
-        () => {}, // Ignore frame jitter
+        () => {}, // Frames discarded quietly
       );
 
       setIsScanning(true);
     } catch (err: any) {
-      console.error("Hardware Init failure:", err);
+      console.error("Scanner Warm-up Error:", err);
       setLocalError(err.message || "Hardware Access Denied");
-      toast.error("Scanner failed to start");
+      toast.error("Camera handshake failed");
     } finally {
       setIsInitializing(false);
     }
@@ -149,25 +136,25 @@ const Bouncer = () => {
   if (contextLoading) return <LoadingState fullPage />;
 
   return (
-    <div className="min-h-screen bg-black flex flex-col p-8 animate-in fade-in duration-700 font-body relative overflow-hidden">
+    <div className="min-h-screen bg-black flex flex-col p-8 animate-in fade-in duration-1000 font-body relative overflow-hidden">
       {/* 🛠 HUD NAVIGATION */}
       <div className="w-full flex justify-between items-center mb-16 pt-8 z-20">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => navigate("/dashboard")}
-          className="text-zinc-500 hover:text-white uppercase font-black text-[9px] tracking-[0.4em] bg-white/5 px-6 rounded-full border border-white/5 h-10"
+          className="text-zinc-500 hover:text-white uppercase font-black text-[9px] tracking-[0.4em] bg-white/5 px-6 rounded-full border border-white/5 h-12 transition-all hover:bg-white/10"
         >
-          <ArrowLeft className="mr-2 w-4 h-4" /> Disconnect
+          <ArrowLeft className="mr-2 w-4 h-4" /> Disconnect Hub
         </Button>
-        <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-2 rounded-full border border-white/5 h-10">
+        <div className="flex items-center gap-4 bg-zinc-900/50 px-6 py-2 rounded-full border border-white/5 h-12 backdrop-blur-xl">
           <div
             className={cn(
-              "w-1.5 h-1.5 rounded-full shadow-[0_0_10px_currentColor]",
+              "w-2 h-2 rounded-full shadow-[0_0_10px_currentColor]",
               activeVenue ? "text-neon-green bg-neon-green animate-pulse" : "text-zinc-600 bg-zinc-600",
             )}
           />
-          <span className="text-white text-[9px] font-black uppercase tracking-[0.2em] italic truncate max-w-[120px]">
+          <span className="text-white text-[9px] font-black uppercase tracking-[0.2em] italic truncate max-w-[140px]">
             {activeVenue?.name || "Neural Warming..."}
           </span>
         </div>
@@ -175,16 +162,19 @@ const Bouncer = () => {
 
       <div className="flex-1 flex flex-col items-center justify-center z-10">
         {!activeVenueId ? (
-          <div className="text-center space-y-6">
-            <div className="w-20 h-20 bg-zinc-900/50 rounded-[2rem] flex items-center justify-center mx-auto border border-white/5 shadow-2xl">
+          <div className="text-center space-y-8 animate-in slide-in-from-bottom-8 duration-700">
+            <div className="w-24 h-24 bg-zinc-900/40 rounded-[2.5rem] flex items-center justify-center mx-auto border border-white/5 shadow-2xl backdrop-blur-3xl">
               <Lock className="w-8 h-8 text-zinc-700" />
             </div>
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">
-              Sector Authorization Required
-            </p>
+            <div>
+              <p className="text-[11px] font-black text-white uppercase tracking-[0.5em] mb-2">Sector Lock Active</p>
+              <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-[0.2em]">
+                Managerial Clearances Required
+              </p>
+            </div>
             <Button
               onClick={() => navigate("/dashboard")}
-              className="bg-white text-black font-black uppercase text-[10px] px-8 rounded-xl h-14"
+              className="bg-white text-black font-black uppercase text-[10px] px-12 rounded-2xl h-16 hover:scale-105 transition-all shadow-xl"
             >
               Return to Command
             </Button>
@@ -193,30 +183,30 @@ const Bouncer = () => {
           <div className="w-full max-w-sm space-y-12">
             <div
               id="qr-reader"
-              key="bouncer-lens" // Key forces fresh render if state shifts
               className={cn(
-                "w-full aspect-square rounded-[3.5rem] overflow-hidden border-2 transition-all duration-700 bg-zinc-950 shadow-2xl relative",
-                isScanning ? "border-neon-blue shadow-[0_0_60px_rgba(0,183,255,0.1)]" : "border-white/5",
+                "w-full aspect-square rounded-[3.5rem] overflow-hidden border-2 transition-all duration-1000 bg-zinc-950 shadow-2xl relative group",
+                isScanning ? "border-neon-blue shadow-[0_0_70px_rgba(0,183,255,0.1)]" : "border-white/5",
               )}
             >
               {!isScanning && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-zinc-950/90 backdrop-blur-md">
                   {localError ? (
-                    <AlertOctagon className="w-12 h-12 text-red-500 animate-pulse" />
+                    <AlertOctagon className="w-14 h-14 text-red-500 animate-pulse" />
                   ) : (
-                    <div className="w-24 h-24 border-2 border-white/5 rounded-full border-dashed animate-[spin_25s_linear_infinite] flex items-center justify-center">
-                      <Scan className="w-8 h-8 text-zinc-800" />
+                    <div className="w-28 h-28 border-2 border-white/5 rounded-full border-dashed animate-[spin_30s_linear_infinite] flex items-center justify-center">
+                      <Scan className="w-10 h-10 text-zinc-800" />
                     </div>
                   )}
-                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.5em] px-10 text-center leading-relaxed">
-                    {localError || "Optical Interface Ready"}
+                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.6em] px-10 text-center leading-relaxed">
+                    {localError || "Optical Lens Offline"}
                   </p>
                 </div>
               )}
 
               {isScanning && (
                 <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
-                  <div className="w-full h-[1px] bg-neon-blue shadow-[0_0_20px_#00B7FF] animate-[scanLine_2.5s_ease-in-out_infinite]" />
+                  <div className="w-full h-[2px] bg-neon-blue shadow-[0_0_30px_#00B7FF] animate-[scan_2.5s_ease-in-out_infinite]" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-neon-blue/5 to-transparent animate-pulse" />
                 </div>
               )}
             </div>
@@ -224,22 +214,25 @@ const Bouncer = () => {
             <Button
               onClick={startScanner}
               disabled={isScanning || isInitializing}
-              className="w-full bg-white text-black h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-3xl shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 transition-all border-none"
+              className="w-full bg-white text-black h-20 text-[11px] font-black uppercase tracking-[0.4em] rounded-[2rem] shadow-[0_15px_40px_rgba(255,255,255,0.1)] active:scale-95 transition-all border-none group"
             >
               {isInitializing ? (
-                <RefreshCw className="mr-3 w-5 h-5 animate-spin" />
+                <RefreshCw className="mr-4 w-6 h-6 animate-spin text-neon-blue" />
               ) : (
-                <Power className="mr-3 w-5 h-5" />
+                <Power className="mr-4 w-6 h-6 group-hover:text-neon-blue transition-colors" />
               )}
-              {isScanning ? "Pattern Detection Active" : isInitializing ? "Syncing Lens..." : "Activate Optical Link"}
+              {isScanning ? "Pattern detection active" : isInitializing ? "Syncing hardware" : "Initialize Lens"}
             </Button>
           </div>
         ) : (
-          <div className="w-full max-w-sm animate-in zoom-in-95 duration-500 text-center">
+          /* RESULT INTERFACE */
+          <div className="w-full max-w-sm animate-in zoom-in-95 duration-700 text-center">
             <div
               className={cn(
-                "inline-flex p-12 rounded-full mb-10 relative",
-                scanResult === "success" ? "bg-neon-green/10" : "bg-red-500/10",
+                "inline-flex p-16 rounded-full mb-12 relative",
+                scanResult === "success"
+                  ? "bg-neon-green/10 shadow-[0_0_50px_rgba(57,255,20,0.1)]"
+                  : "bg-red-500/10 shadow-[0_0_50px_rgba(239,68,68,0.1)]",
               )}
             >
               <div
@@ -249,15 +242,15 @@ const Bouncer = () => {
                 )}
               />
               {scanResult === "success" ? (
-                <CheckCircle className="w-24 h-24 text-neon-green relative z-10" />
+                <CheckCircle className="w-28 h-28 text-neon-green relative z-10" />
               ) : (
-                <XCircle className="w-24 h-24 text-red-500 relative z-10" />
+                <XCircle className="w-28 h-28 text-red-500 relative z-10 shadow-[0_0_30px_rgba(239,68,68,0.3)]" />
               )}
             </div>
 
             <h2
               className={cn(
-                "text-7xl font-display uppercase italic tracking-tighter mb-8 leading-none",
+                "text-8xl font-display uppercase italic tracking-tighter mb-12 leading-none",
                 scanResult === "success" ? "text-neon-green" : "text-red-500",
               )}
             >
@@ -265,16 +258,16 @@ const Bouncer = () => {
             </h2>
 
             {ticketData && (
-              <Card className="bg-zinc-900/40 border border-white/5 p-8 rounded-[2.5rem] mb-12 w-full backdrop-blur-2xl">
-                <div className="flex items-center gap-3 mb-6 justify-center text-zinc-500">
+              <Card className="bg-zinc-900/40 border-white/5 p-10 rounded-[3rem] mb-12 w-full backdrop-blur-3xl border border-white/5">
+                <div className="flex items-center gap-3 mb-8 justify-center text-zinc-500">
                   <ShieldCheck className="w-4 h-4" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em]">Identity Authenticated</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.4em]">Pattern Authenticated</span>
                 </div>
-                <p className="text-white font-display text-3xl uppercase italic mb-2 tracking-tight leading-none">
-                  {ticketData.customer_segment || "General Access"}
+                <p className="text-white font-display text-4xl uppercase italic mb-3 tracking-tighter leading-none">
+                  {ticketData.customer_segment || "Standard Unit"}
                 </p>
-                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                  Sector: {activeVenue?.name || "Verified Node"}
+                <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.3em]">
+                  {activeVenue?.name || "Verified Sector"}
                 </p>
               </Card>
             )}
@@ -284,20 +277,20 @@ const Bouncer = () => {
                 setScanResult(null);
                 startScanner();
               }}
-              className="w-full h-16 bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl hover:bg-zinc-200 transition-all active:scale-95 shadow-xl border-none"
+              className="w-full h-18 bg-white text-black font-black uppercase tracking-[0.3em] text-[11px] rounded-[1.8rem] hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl border-none flex items-center justify-center gap-3"
             >
-              Reset Scanner Loop
+              Reset Scanner Loop <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         )}
       </div>
 
       <style>{`
-        @keyframes scanLine {
-          0% { transform: translateY(0); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateY(280px); opacity: 0; }
+        @keyframes scan {
+          0% { transform: translateY(-50px); opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateY(300px); opacity: 0; }
         }
       `}</style>
     </div>
