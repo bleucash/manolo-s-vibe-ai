@@ -15,21 +15,28 @@ export const ProtectedRoute = ({ children, allowedModes }: ProtectedRouteProps) 
   const location = useLocation();
   const permissions = useWorkerPermissions(session?.user?.id || null);
 
+  // 🛡️ PATIENCE GUARD: Wait for all handshakes to finish
   const isSyncing = contextLoading || permissions.loading;
 
   if (isSyncing && session) {
     return <LoadingState fullPage />;
   }
 
+  // Auth Check
   if (!session && !contextLoading) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // Role/Mode Check
   if (allowedModes && !isSyncing) {
-    if (!allowedModes.includes(mode)) {
+    const hasPermission = allowedModes.includes(mode);
+
+    // Extra safety for Manager routes
+    if (allowedModes.includes("manager") && !permissions.isStaffRole) {
       return <Navigate to="/" replace />;
     }
-    if (allowedModes.includes("manager") && !permissions.isStaffRole) {
+
+    if (!hasPermission) {
       return <Navigate to="/" replace />;
     }
   }
