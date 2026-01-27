@@ -37,20 +37,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     if (this.state.hasError) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-black text-white p-8 text-center">
-          <h2 className="text-2xl font-display uppercase text-red-500 mb-2 tracking-tighter italic">
-            Neural Engine Failure
-          </h2>
-          <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-10 max-w-xs overflow-hidden leading-relaxed">
-            Trace: {this.state.errorLog || "Object/Context Handshake Disrupted"}
+          <h2 className="text-2xl font-display uppercase text-red-500 mb-2 italic">Neural Engine Failure</h2>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-10 max-w-xs leading-relaxed">
+            Trace: {this.state.errorLog}
           </p>
           <button
             onClick={() => {
               localStorage.clear();
-              window.location.assign("/");
+              window.location.assign("/auth");
             }}
-            className="bg-white text-black px-10 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all"
+            className="bg-white text-black px-10 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest"
           >
-            Reboot & Purge System
+            Reboot System
           </button>
         </div>
       );
@@ -64,19 +62,15 @@ const queryClient = new QueryClient();
 const AppContent = () => {
   const { isLoading, session, mode } = useUserMode();
 
-  /**
-   * 🛡️ THE STABILIZER
-   * Prevents any route from mounting until we are 100% sure of the user's status.
-   * If a session exists but 'mode' hasn't arrived from Supabase, we hold the line.
-   */
-  if (isLoading || (session && !mode)) {
+  // Hold the UI until the core handshake is ready
+  if (isLoading && !session) {
     return <LoadingState fullPage />;
   }
 
   return (
     <TooltipProvider>
       <Toaster />
-      <Sonner position="top-center" expand={false} richColors />
+      <Sonner position="top-center" richColors />
 
       <div className="relative min-h-screen bg-black">
         <div className="pb-32">
@@ -138,7 +132,6 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/bouncer"
               element={
@@ -152,8 +145,7 @@ const AppContent = () => {
           </Routes>
         </div>
 
-        {/* Prevent BottomNav from rendering during hydration to avoid ref mismatch */}
-        {!isLoading && session && <BottomNav />}
+        <BottomNav />
       </div>
     </TooltipProvider>
   );
