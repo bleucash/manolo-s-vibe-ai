@@ -4,7 +4,6 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Home, Compass, MessageSquare, Wallet, LayoutDashboard, Star, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ✅ FIXED: Wrapped in forwardRef to satisfy App.tsx TooltipProvider
 const BottomNav = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((props, ref) => {
   const { mode, isLoading, session } = useUserMode();
   const location = useLocation();
@@ -13,18 +12,8 @@ const BottomNav = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((pr
   if (location.pathname === "/auth") return null;
 
   const navItems = [
-    {
-      icon: Home,
-      path: "/",
-      color: "text-[#FF5F1F]",
-      glow: "drop-shadow-[0_0_10px_rgba(255,95,31,0.5)]",
-    },
-    {
-      icon: Compass,
-      path: "/discovery",
-      color: "text-[#00B7FF]",
-      glow: "drop-shadow-[0_0_10px_rgba(0,183,255,0.5)]",
-    },
+    { icon: Home, path: "/", color: "text-[#FF5F1F]", glow: "drop-shadow-[0_0_10px_rgba(255,95,31,0.5)]" },
+    { icon: Compass, path: "/discovery", color: "text-[#00B7FF]", glow: "drop-shadow-[0_0_10px_rgba(0,183,255,0.5)]" },
     {
       icon: MessageSquare,
       path: "/messages",
@@ -37,12 +26,7 @@ const BottomNav = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((pr
       color: "text-[#39FF14]",
       glow: "drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]",
     },
-    {
-      icon: User,
-      path: "/profile",
-      color: "text-[#BF00FF]",
-      glow: "drop-shadow-[0_0_10px_rgba(191,0,255,0.5)]",
-    },
+    { icon: User, path: "/profile", color: "text-[#BF00FF]", glow: "drop-shadow-[0_0_10px_rgba(191,0,255,0.5)]" },
   ];
 
   return (
@@ -55,7 +39,6 @@ const BottomNav = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((pr
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-
           return (
             <button
               key={item.path}
