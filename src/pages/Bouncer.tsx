@@ -2,7 +2,18 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle, XCircle, Camera, ArrowLeft, Zap, ShieldCheck, Scan, RefreshCw, AlertOctagon } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Camera,
+  ArrowLeft,
+  Zap,
+  ShieldCheck,
+  Scan,
+  RefreshCw,
+  AlertOctagon,
+  Lock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useUserMode } from "@/contexts/UserModeContext";
@@ -22,22 +33,17 @@ const Bouncer = () => {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const activeVenue = userVenues?.find((v) => v.id === activeVenueId);
+
+  // 🛡️ ULTRA-SAFE VENUE LOOKUP
+  // Prevents .find() on undefined userVenues
+  const activeVenue = Array.isArray(userVenues) ? userVenues.find((v) => v.id === activeVenueId) : null;
 
   // 🛡️ HARDENED CLEANUP
   useEffect(() => {
     return () => {
-      const stopAndClear = async () => {
-        if (scannerRef.current?.isScanning) {
-          try {
-            await scannerRef.current.stop();
-            scannerRef.current.clear();
-          } catch (e) {
-            console.warn("Hardware release delay");
-          }
-        }
-      };
-      stopAndClear();
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => console.warn("Lens shutdown delayed"));
+      }
     };
   }, []);
 
@@ -53,7 +59,7 @@ const Bouncer = () => {
     if (!activeVenueId) return;
 
     try {
-      // Pause camera immediately to prevent double-scans
+      // Immediate pause to lock the pattern
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.pause(true);
       }
@@ -69,16 +75,15 @@ const Bouncer = () => {
       if (data.ticket) setTicketData(data.ticket);
 
       if (data.result === "success") {
-        toast.success("Identity Verified");
+        toast.success("Pattern Recognized: Access Granted");
       } else {
-        toast.error("Neural Patterns Mismatched");
+        toast.error("Identity Handshake Refused");
       }
     } catch (err) {
       console.error("Ledger Sync Failure:", err);
       setScanResult("error");
-      toast.error("Global Ledger Sync Failure");
     } finally {
-      // Fully stop camera after processing result
+      // Ensure hardware release
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop().catch(() => {});
         setIsScanning(false);
@@ -91,13 +96,17 @@ const Bouncer = () => {
     setScanResult(null);
 
     try {
+      // Double check DOM presence to prevent library crash
+      const container = document.getElementById("qr-reader");
+      if (!container) throw new Error("Optical Housing Missing");
+
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode("qr-reader");
       }
 
       const config = {
-        fps: 20,
-        qrbox: { width: 260, height: 260 },
+        fps: 24,
+        qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
       };
 
@@ -105,16 +114,17 @@ const Bouncer = () => {
         { facingMode: "environment" },
         config,
         onScanSuccess,
-        () => {}, // Suppress noisy frame-by-frame warnings
+        () => {}, // Silent frame rejection
       );
       setIsScanning(true);
     } catch (err: any) {
-      console.error("Camera Init Error:", err);
-      setLocalError("Optical Hardware Unavailable");
-      toast.error("Camera access denied or offline");
+      console.error("Camera Init failure:", err);
+      setLocalError(err.message || "Hardware Access Denied");
+      toast.error("Optical Lens Failure");
     }
   };
 
+  // ✅ LOCALIZED LOADER: Prevents global crash if context is jittery
   if (contextLoading) return <LoadingState />;
 
   return (
@@ -127,28 +137,46 @@ const Bouncer = () => {
           onClick={() => navigate("/dashboard")}
           className="text-zinc-500 hover:text-white uppercase font-black text-[9px] tracking-[0.4em] bg-white/5 px-6 rounded-full border border-white/5 h-10"
         >
-          <ArrowLeft className="mr-2 w-4 h-4" /> Disconnect Hub
+          <ArrowLeft className="mr-2 w-4 h-4" /> Disconnect
         </Button>
         <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-2 rounded-full border border-white/5 h-10">
-          <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_10px_#39FF14] animate-pulse" />
+          <div
+            className={cn(
+              "w-1.5 h-1.5 rounded-full shadow-[0_0_10px_currentColor]",
+              activeVenue ? "text-neon-green bg-neon-green animate-pulse" : "text-zinc-600 bg-zinc-600",
+            )}
+          />
           <span className="text-white text-[9px] font-black uppercase tracking-[0.2em] italic truncate max-w-[120px]">
-            {activeVenue?.name || "Sector Alpha"}
+            {activeVenue?.name || "Syncing Sector..."}
           </span>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center z-10">
-        {scanResult === null ? (
+        {!activeVenueId ? (
+          <div className="text-center space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="w-20 h-20 bg-zinc-900/50 rounded-[2rem] flex items-center justify-center mx-auto border border-white/5 shadow-2xl">
+              <Lock className="w-8 h-8 text-zinc-700" />
+            </div>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.5em]">No Active Sector Link</p>
+            <Button
+              onClick={() => navigate("/dashboard")}
+              className="bg-white text-black font-black uppercase text-[10px] px-8 rounded-xl h-14"
+            >
+              Initialize Dashboard
+            </Button>
+          </div>
+        ) : scanResult === null ? (
           <div className="w-full max-w-sm space-y-12">
             <div
               id="qr-reader"
               className={cn(
                 "w-full aspect-square rounded-[3.5rem] overflow-hidden border-2 transition-all duration-700 bg-zinc-950 shadow-2xl relative",
-                isScanning ? "border-neon-blue shadow-[0_0_50px_rgba(0,183,255,0.2)]" : "border-white/5",
+                isScanning ? "border-neon-blue shadow-[0_0_50px_rgba(0,183,255,0.15)]" : "border-white/5",
               )}
             >
               {!isScanning && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-zinc-950/80 backdrop-blur-md">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-zinc-950/90 backdrop-blur-md">
                   {localError ? (
                     <AlertOctagon className="w-12 h-12 text-red-500 animate-pulse" />
                   ) : (
@@ -157,7 +185,7 @@ const Bouncer = () => {
                     </div>
                   )}
                   <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.5em] px-10 text-center leading-relaxed">
-                    {localError || "Optical Interface Offline"}
+                    {localError || "Optical Interface Ready"}
                   </p>
                 </div>
               )}
@@ -174,7 +202,7 @@ const Bouncer = () => {
               disabled={isScanning}
               className="w-full bg-white text-black h-20 text-[11px] font-black uppercase tracking-[0.3em] rounded-3xl shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 transition-all border-none"
             >
-              <Camera className="mr-3 w-6 h-6" /> {isScanning ? "Scanning Pattern..." : "Initialize Optical Scan"}
+              <Camera className="mr-3 w-6 h-6" /> {isScanning ? "Pattern Detection Active" : "Activate Optical Lens"}
             </Button>
           </div>
         ) : (
@@ -194,13 +222,13 @@ const Bouncer = () => {
               {scanResult === "success" ? (
                 <CheckCircle className="w-24 h-24 text-neon-green relative z-10" />
               ) : (
-                <XCircle className="w-24 h-24 text-red-500 relative z-10" />
+                <XCircle className="w-24 h-24 text-red-500 relative z-10 shadow-[0_0_20px_rgba(239,68,68,0.3)]" />
               )}
             </div>
 
             <h2
               className={cn(
-                "text-7xl font-display uppercase tracking-tighter mb-8 italic leading-none",
+                "text-7xl font-display uppercase italic tracking-tighter mb-8 leading-none",
                 scanResult === "success" ? "text-neon-green" : "text-red-500",
               )}
             >
@@ -209,17 +237,15 @@ const Bouncer = () => {
 
             {ticketData && (
               <Card className="bg-zinc-900/40 border-white/5 p-8 rounded-[2.5rem] mb-12 w-full backdrop-blur-2xl">
-                <div className="flex items-center gap-3 mb-6 justify-center">
-                  <ShieldCheck className="w-4 h-4 text-zinc-500" />
-                  <span className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.3em]">
-                    Identity Link Verified
-                  </span>
+                <div className="flex items-center gap-3 mb-6 justify-center text-zinc-500">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em]">Pattern Authenticated</span>
                 </div>
-                <p className="text-white font-display text-3xl uppercase italic mb-2 tracking-tight">
-                  {ticketData.customer_segment || "Neural Unit"}
+                <p className="text-white font-display text-3xl uppercase italic mb-2 tracking-tight leading-none">
+                  {ticketData.customer_segment || "Standard Unit"}
                 </p>
                 <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                  {ticketData.event_name || "Access Granted"}
+                  {ticketData.event_name || "Neural Entry"}
                 </p>
               </Card>
             )}
@@ -231,7 +257,7 @@ const Bouncer = () => {
               }}
               className="w-full h-16 bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl hover:bg-zinc-200 transition-all active:scale-95 shadow-xl border-none"
             >
-              Initialize Next Pattern
+              Reset Scanner Loop
             </Button>
           </div>
         )}
