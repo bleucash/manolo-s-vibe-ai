@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Wallet, History as HistoryIcon } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
 
@@ -20,29 +20,13 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
     setLoading(true);
     try {
       if (activeTab === "pending") {
-        const { data } = await supabase
-          .from("tickets")
-          .select(`promoter_id, price_paid, profiles:promoter_id (display_name, username)`)
-          .eq("venue_id", venueId)
-          .eq("status", "Scanned")
-          .not("promoter_id", "is", null);
-
-        const aggregated = new Map();
-        data?.forEach((ticket: any) => {
-          const promoterId = ticket.promoter_id;
-          const profile = ticket.profiles;
-          const displayName = profile?.display_name || profile?.username || "Neural Unknown";
-          const commission = (ticket.price_paid || 0) * 0.15; // Standard 15%
-
-          if (aggregated.has(promoterId)) {
-            const e = aggregated.get(promoterId);
-            e.totalCommission += commission;
-            e.ticketCount += 1;
-          } else {
-            aggregated.set(promoterId, { promoterId, displayName, totalCommission: commission, ticketCount: 1 });
-          }
+        // ✅ Call the new RPC we deployed (No more manual aggregation)
+        const { data, error } = await supabase.rpc("get_unpaid_commissions", {
+          venue_id_input: venueId,
         });
-        setPayouts(Array.from(aggregated.values()));
+
+        if (error) throw error;
+        setPayouts(data || []);
       } else {
         const { data } = await supabase
           .from("payout_history")
@@ -51,6 +35,9 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
           .order("processed_at", { ascending: false });
         setHistory(data || []);
       }
+    } catch (err) {
+      console.error("Payout fetch error:", err);
+      toast.error("Ledger Sync Failure");
     } finally {
       setLoading(false);
     }
@@ -58,20 +45,24 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
 
   const handleProcessPayout = async (talent: any) => {
     try {
+      // ✅ Use the IDs and amounts directly from the RPC response
       const { error } = await supabase.from("payout_history").insert({
         venue_id: venueId,
-        promoter_id: talent.promoterId,
-        amount: talent.totalCommission,
-        ticket_count: talent.ticketCount,
+        promoter_id: talent.promoter_id,
+        amount: talent.total_unpaid,
+        ticket_count: talent.ticket_count,
       });
 
       if (error) throw error;
-      toast.success(`Settlement complete for ${talent.displayName}`, {
+
+      toast.success(`Settlement complete for ${talent.full_name || talent.username}`, {
         icon: <CheckCircle2 className="text-neon-green" />,
       });
-      fetchData();
-    } catch {
-      toast.error("Ledger Sync Failure");
+
+      fetchData(); // Refresh the list
+    } catch (err) {
+      console.error("Payout processing error:", err);
+      toast.error("Settlement Failed");
     }
   };
 
@@ -103,16 +94,18 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
           ) : (
             payouts.map((t) => (
               <Card
-                key={t.promoterId}
+                key={t.promoter_id}
                 className="bg-zinc-900/40 border-white/5 p-5 flex items-center justify-between rounded-2xl group"
               >
                 <div>
-                  <p className="font-bold text-white uppercase italic tracking-tight">{t.displayName}</p>
-                  <p className="text-[8px] text-zinc-600 uppercase font-black mt-1">{t.ticketCount} Units Handled</p>
+                  <p className="font-bold text-white uppercase italic tracking-tight">
+                    {t.full_name || t.username || "Neural ID Unknown"}
+                  </p>
+                  <p className="text-[8px] text-zinc-600 uppercase font-black mt-1">{t.ticket_count} Units Verified</p>
                 </div>
                 <div className="flex items-center gap-6">
                   <span className="font-display text-xl text-white italic tracking-tighter">
-                    ${t.totalCommission.toFixed(2)}
+                    ${Number(t.total_unpaid).toFixed(2)}
                   </span>
                   <Button
                     onClick={() => handleProcessPayout(t)}
