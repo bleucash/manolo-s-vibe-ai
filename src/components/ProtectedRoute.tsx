@@ -14,45 +14,48 @@ export const ProtectedRoute = ({ children, allowedModes }: ProtectedRouteProps) 
   const { isLoading: contextLoading, session, mode } = useUserMode();
   const location = useLocation();
 
-  const { isTalentRole, isStaffRole, loading: permissionsLoading } = useWorkerPermissions(session?.user?.id || null);
+  // 🛡️ Guard the hook input
+  const permissions = useWorkerPermissions(session?.user?.id || null);
 
   /**
-   * ✅ PERSISTENT NAVIGATION FIX:
-   * Instead of a full-page 'blanket', we use the localized LoadingState.
-   * By NOT passing 'fullPage', it defaults to a transparent background
-   * and stays within the routing container, leaving the BottomNav visible.
+   * ✅ FIX 1: THE NEURAL BUFFER
+   * We do not allow ANY logic to run until BOTH syncs are finished.
+   * Your old file checked session separately, which allowed the "Guest Gap".
    */
-  if ((contextLoading || permissionsLoading) && session) {
-    return <LoadingState />;
+  const isSyncing = contextLoading || permissions.loading;
+
+  if (isSyncing) {
+    // We use fullPage here specifically for the Bouncer/Dashboard
+    // to ensure the hardware/context has a clean slate.
+    return <LoadingState fullPage />;
   }
 
-  // Auth Check: No session and done loading? Go to Auth.
-  if (!session && !contextLoading) {
+  /**
+   * ✅ FIX 2: HARD AUTH CHECK
+   * Now that we are 100% sure loading is done, we check session.
+   */
+  if (!session) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Permission & Mode Check:
-  // Only evaluate once we are 100% sure of the user's status.
-  if (allowedModes && !contextLoading && !permissionsLoading) {
-    const isManagerRoute = allowedModes.includes("manager");
-    const isTalentRoute = allowedModes.includes("talent");
+  /**
+   * ✅ FIX 3: SYNCHRONIZED ROLE VALIDATION
+   * By this point, 'mode' is guaranteed to be its final value
+   * (manager, talent, or guest) because we waited for permissions.loading.
+   */
+  if (allowedModes) {
+    const hasPermission = allowedModes.includes(mode);
 
-    // Manager Route Protection
-    if (isManagerRoute && mode === "manager" && !isStaffRole) {
+    // Role-specific cross-verification (The Bouncer Handshake)
+    if (allowedModes.includes("manager") && !permissions.isStaffRole) {
+      console.error("Neural Access Denied: Managerial Credentials Required");
       return <Navigate to="/" replace />;
     }
 
-    // Talent Route Protection
-    if (isTalentRoute && mode === "talent" && !isTalentRole) {
-      return <Navigate to="/" replace />;
-    }
-
-    // General Mode Switch Protection
-    if (!allowedModes.includes(mode)) {
+    if (!hasPermission) {
       return <Navigate to="/" replace />;
     }
   }
 
-  // If all checks pass, show the page content
   return <>{children}</>;
 };
