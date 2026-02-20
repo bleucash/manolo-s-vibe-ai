@@ -158,6 +158,44 @@ export type Database = {
           },
         ]
       }
+      interactions: {
+        Row: {
+          action_value: number | null
+          created_at: string | null
+          id: string
+          interaction_type: string
+          target_id: string
+          target_type: string
+          user_id: string | null
+        }
+        Insert: {
+          action_value?: number | null
+          created_at?: string | null
+          id?: string
+          interaction_type: string
+          target_id: string
+          target_type: string
+          user_id?: string | null
+        }
+        Update: {
+          action_value?: number | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -206,6 +244,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string | null
+          title: string | null
+          type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string | null
+          title?: string | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string | null
+          title?: string | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       payout_history: {
         Row: {
@@ -300,6 +368,44 @@ export type Database = {
           },
         ]
       }
+      portfolio_items: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          display_order: number | null
+          id: string
+          media_type: string | null
+          media_url: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          media_type?: string | null
+          media_url: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          media_type?: string | null
+          media_url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_likes: {
         Row: {
           created_at: string | null
@@ -340,7 +446,9 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string
+          expires_at: string | null
           id: string
+          is_active: boolean | null
           likes_count: number | null
           media_type: string | null
           media_url: string
@@ -350,7 +458,9 @@ export type Database = {
         Insert: {
           content?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
+          is_active?: boolean | null
           likes_count?: number | null
           media_type?: string | null
           media_url: string
@@ -360,7 +470,9 @@ export type Database = {
         Update: {
           content?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
+          is_active?: boolean | null
           likes_count?: number | null
           media_type?: string | null
           media_url?: string
@@ -392,6 +504,7 @@ export type Database = {
           city: string | null
           display_name: string | null
           full_name: string | null
+          hero_reel_url: string | null
           id: string
           location: string | null
           role_type: Database["public"]["Enums"]["app_role"]
@@ -409,6 +522,7 @@ export type Database = {
           city?: string | null
           display_name?: string | null
           full_name?: string | null
+          hero_reel_url?: string | null
           id: string
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
@@ -426,6 +540,7 @@ export type Database = {
           city?: string | null
           display_name?: string | null
           full_name?: string | null
+          hero_reel_url?: string | null
           id?: string
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
@@ -567,6 +682,42 @@ export type Database = {
           },
         ]
       }
+      venue_followers: {
+        Row: {
+          created_at: string | null
+          follower_id: string | null
+          id: string
+          venue_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          follower_id?: string | null
+          id?: string
+          venue_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          follower_id?: string | null
+          id?: string
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_followers_follower_id_fkey"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_followers_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_staff: {
         Row: {
           commission_rate: number | null
@@ -622,6 +773,9 @@ export type Database = {
           created_at: string
           description: string | null
           entry_price: number | null
+          event_flyer_url: string | null
+          general_description: string | null
+          hero_reel_url: string | null
           id: string
           image_url: string | null
           is_active: boolean | null
@@ -630,8 +784,11 @@ export type Database = {
           owner_id: string | null
           settings: Json | null
           standard_commission: number | null
+          subscription_tier: string | null
           table_min_spend: number | null
+          ticketing_enabled: boolean | null
           venue_type: string | null
+          vip_description: string | null
           vip_price: number | null
           website: string | null
         }
@@ -644,6 +801,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           entry_price?: number | null
+          event_flyer_url?: string | null
+          general_description?: string | null
+          hero_reel_url?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null
@@ -652,8 +812,11 @@ export type Database = {
           owner_id?: string | null
           settings?: Json | null
           standard_commission?: number | null
+          subscription_tier?: string | null
           table_min_spend?: number | null
+          ticketing_enabled?: boolean | null
           venue_type?: string | null
+          vip_description?: string | null
           vip_price?: number | null
           website?: string | null
         }
@@ -666,6 +829,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           entry_price?: number | null
+          event_flyer_url?: string | null
+          general_description?: string | null
+          hero_reel_url?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null
@@ -674,8 +840,11 @@ export type Database = {
           owner_id?: string | null
           settings?: Json | null
           standard_commission?: number | null
+          subscription_tier?: string | null
           table_min_spend?: number | null
+          ticketing_enabled?: boolean | null
           venue_type?: string | null
+          vip_description?: string | null
           vip_price?: number | null
           website?: string | null
         }
@@ -718,6 +887,19 @@ export type Database = {
         Args: { current_venue_id: string; qr_input: string }
         Returns: Json
       }
+      cleanup_expired_posts: { Args: never; Returns: number }
+      get_talent_spotlight: {
+        Args: { limit_count?: number }
+        Returns: {
+          avatar_url: string
+          charge_score: number
+          display_name: string
+          hero_reel_url: string
+          sub_role: string
+          talent_id: string
+          venue_id: string
+        }[]
+      }
       get_unpaid_commissions: {
         Args: { venue_id_input: string }
         Returns: {
@@ -739,7 +921,6 @@ export type Database = {
         Args: { _role_type: string; _user_id: string }
         Returns: boolean
       }
-      scan_ticket: { Args: { _ticket_id: string }; Returns: Json }
       start_conversation: { Args: { target_user_id: string }; Returns: string }
       update_user_profile:
         | {
