@@ -5,12 +5,13 @@ export interface Venue {
   name: string;
   location: string;
   category: string | null;
-  image_url: string | null; // Use string | null for Supabase compatibility
+  image_url: string | null;
+  hero_reel_url: string | null;
   is_active: boolean;
   description: string | null;
   capacity: number | null;
   entry_price: number | null;
-  owner_id: string | null; // ✅ The fix for your Venue.tsx errors
+  owner_id: string | null;
   created_at?: string;
 }
 
