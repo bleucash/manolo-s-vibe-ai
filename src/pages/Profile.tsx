@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HeroReel } from "@/components/HeroReel";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
@@ -80,9 +81,12 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
       {/* SYSTEM BANNER */}
-      <div className="relative w-full h-56 bg-zinc-900 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black" />
-        <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070')] bg-cover bg-center" />
+      <div className="relative w-full h-56">
+        <HeroReel
+          fallbackImageUrl="https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070"
+          alt="Test banner"
+          className="w-full h-full"
+        />
 
         {/* NEURAL MODE SWITCH */}
         <div className="absolute top-8 left-6 z-20">
