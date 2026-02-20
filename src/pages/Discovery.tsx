@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, Search, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { Search, Sparkles, ArrowRight, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Venue } from "@/types/database";
@@ -33,27 +33,34 @@ const Discovery = () => {
   }, [activeCategory]);
 
   const fetchDiscoveryData = async () => {
-    // Only set page-level loading, don't block the shell
     setLoading(true);
     try {
-      let venueQuery = supabase.from("venues").select("*");
+      // 1. Venues: active first, then inactive; with optional category filter
+      let venueQuery = supabase
+        .from("venues")
+        .select("*")
+        .order("is_active", { ascending: false });
+
       if (activeCategory !== "All Vibes") {
         venueQuery = venueQuery.ilike("category", `%${activeCategory}%`);
       }
 
-      const [vRes, tRes, pRes] = await Promise.all([
+      // 2. Top 3 charged talent via RPC spotlight function
+      // 3. Feed talent profiles: venue_id NOT NULL first, then others
+      const [vRes, spotlightRes, feedTalentRes] = await Promise.all([
         venueQuery,
-        supabase.from("profiles").select("id, display_name, username, avatar_url").eq("role_type", "talent").limit(8),
+        supabase.rpc("get_talent_spotlight", { limit_count: 3 }),
         supabase
-          .from("posts")
-          .select(`*, profiles:user_id (display_name, username, avatar_url)`)
-          .not("media_url", "is", null)
-          .limit(10),
+          .from("profiles")
+          .select("id, display_name, username, avatar_url, hero_reel_url, venue_id, sub_role")
+          .eq("role_type", "talent")
+          .order("venue_id", { ascending: false, nullsFirst: false })
+          .limit(12),
       ]);
 
       if (vRes.data) setVenues(vRes.data as Venue[]);
-      if (tRes.data) setFeaturedTalent(tRes.data);
-      if (pRes.data) setTalentPosts(pRes.data);
+      if (spotlightRes.data) setFeaturedTalent(spotlightRes.data);
+      if (feedTalentRes.data) setTalentPosts(feedTalentRes.data);
     } catch (err) {
       console.error("Discovery Sync Error", err);
     } finally {
@@ -122,10 +129,10 @@ const Discovery = () => {
         <div className="flex overflow-x-auto gap-6 px-6 no-scrollbar snap-x">
           {loading
             ? [1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-64 shrink-0 rounded-[2.5rem] bg-zinc-900" />)
-            : featuredTalent.map((talent) => (
+          : featuredTalent.map((talent) => (
                 <div
-                  key={talent.id}
-                  onClick={() => navigate(`/talent/${talent.id}`)}
+                  key={talent.talent_id}
+                  onClick={() => navigate(`/talent/${talent.talent_id}`)}
                   className="group relative h-80 w-64 shrink-0 rounded-[2.5rem] overflow-hidden snap-center border border-white/5 bg-zinc-900"
                 >
                   <img
@@ -137,7 +144,7 @@ const Discovery = () => {
                     <h3 className="text-3xl font-display text-white uppercase tracking-tighter leading-none mb-1">
                       {talent.display_name}
                     </h3>
-                    <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">@{talent.username}</p>
+                    <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">{talent.sub_role || "Talent"}</p>
                   </div>
                 </div>
               ))}
@@ -178,17 +185,20 @@ const Discovery = () => {
             ) : (
               <div
                 key={`t-${idx}`}
-                onClick={() => navigate(`/talent/${item.data.user_id}`)}
+                onClick={() => navigate(`/talent/${item.data.id}`)}
                 className="relative h-96 w-full rounded-[3rem] overflow-hidden border border-neon-purple/20 bg-zinc-900 shadow-2xl"
               >
-                <img src={item.data.media_url} className="w-full h-full object-cover" />
+                <img
+                  src={item.data.hero_reel_url || item.data.avatar_url || "/placeholder.svg"}
+                  className="w-full h-full object-cover"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                 <div className="absolute bottom-10 left-10">
                   <h4 className="text-5xl font-display text-white uppercase italic leading-none tracking-tighter">
-                    {item.data.profiles?.display_name}
+                    {item.data.display_name}
                   </h4>
                   <p className="text-[9px] text-neon-purple font-black uppercase tracking-widest mt-3 flex items-center gap-2">
-                    <Zap className="w-3 h-3 fill-neon-purple animate-pulse" /> Vibe Pulse
+                    <Zap className="w-3 h-3 fill-neon-purple animate-pulse" /> {item.data.sub_role || "Talent"}
                   </p>
                 </div>
               </div>
