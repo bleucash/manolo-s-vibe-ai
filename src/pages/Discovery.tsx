@@ -71,7 +71,7 @@ const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => 
         alt={talent.display_name}
         className="w-full h-full opacity-60"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
+      <div className="absolute inset-0 gradient-overlay-card" />
 
       {/* Active badge */}
       {talent.venue_id && (
@@ -133,7 +133,7 @@ const VenueFeedCard = ({
       alt={venue.name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
+    <div className="absolute inset-0 gradient-overlay-card" />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
@@ -185,7 +185,7 @@ const TalentFeedCard = ({
       alt={talent.display_name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
+    <div className="absolute inset-0 gradient-overlay-card" />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
@@ -527,14 +527,14 @@ const Discovery = () => {
         </div>
 
         {/* GRADIENT FADE */}
-        <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black/100 via-black/50 to-black/0 pointer-events-none z-[140]" />
+        <div className="absolute -bottom-16 left-0 right-0 h-16 gradient-header-fade pointer-events-none z-[140]" />
       </div>
 
       {/* IMMERSIVE SNAP STREAM */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-24">
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[55dvh] w-full snap-start scroll-mt-24 relative flex flex-col justify-center bg-black pt-4 pb-0">
-          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-2 items-center">
+        <div className="w-full relative flex flex-col justify-center bg-black pt-4 pb-6">
+          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth items-center">
             {loading ? (
               <>
                 {[1, 2, 3].map((i) => (
