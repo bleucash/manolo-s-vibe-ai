@@ -1,14 +1,14 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
+import { HeroReel } from "@/components/HeroReel";
 import { Venue } from "@/types/database";
-import { ActivitySidebar } from "@/components/ActivitySidebar";
-import LoadingState from "@/components/ui/LoadingState";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
   { name: "All Vibes", color: "bg-white", text: "text-black", glow: "#FFFFFF" },
@@ -18,168 +18,419 @@ const CATEGORIES = [
   { name: "Lounges", color: "bg-[#BF00FF]", text: "text-white", glow: "#BF00FF" },
   { name: "Hookah", color: "bg-[#00FFFF]", text: "text-black", glow: "#00FFFF" },
   { name: "Strip Clubs", color: "bg-[#FF007F]", text: "text-white", glow: "#FF007F" },
-  { name: "LGBQT+", color: "bg-[#FF5F1F]", text: "text-white", glow: "#FF5F1F" },
+  { name: "LGBTQ+", color: "bg-[#FF5F1F]", text: "text-white", glow: "#FF5F1F" },
 ];
 
+/* ── Active badge component ─────────────────────────────────── */
+const ActiveBadge = () => (
+  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-neon-green/15 border border-neon-green/30 text-neon-green text-[7px] font-black uppercase tracking-widest">
+    <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+    ACTIVE
+  </span>
+);
+
+/* ── Follow button component ────────────────────────────────── */
+const FollowButton = ({
+  targetId,
+  targetType,
+  isFollowing,
+  onClick,
+  subtle = false,
+}: {
+  targetId: string;
+  targetType: "talent" | "venue";
+  isFollowing: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  subtle?: boolean;
+}) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "relative flex items-center justify-center rounded-full transition-all active:scale-95",
+      subtle
+        ? "w-8 h-8 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20"
+        : "w-10 h-10 bg-white text-black hover:bg-white/90",
+    )}
+    aria-label={isFollowing ? "Unfollow" : "Follow"}
+  >
+    {isFollowing ? (
+      <Minus className={subtle ? "w-3 h-3 text-white" : "w-4 h-4"} />
+    ) : (
+      <Plus className={subtle ? "w-3 h-3 text-white" : "w-4 h-4"} />
+    )}
+  </button>
+);
+
+/* ── Talent spotlight card (no follow button) ───────────────── */
+const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => void }) => (
+  <div onClick={onNavigate} className="shrink-0 cursor-pointer">
+    <div className="relative w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
+      <HeroReel
+        videoUrl={talent.hero_reel_url}
+        fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
+        alt={talent.display_name}
+        className="w-full h-full opacity-60"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-95" />
+
+      {/* Active badge */}
+      {talent.venue_id && (
+        <div className="absolute top-4 left-4">
+          <ActiveBadge />
+        </div>
+      )}
+
+      {/* Bottom info */}
+      <div className="absolute bottom-10 left-10">
+        <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">
+          {talent.display_name}
+        </p>
+        {talent.sub_role && (
+          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1 block">
+            {talent.sub_role}
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Directory portal card ──────────────────────────────────── */
+const DirectoryCard = ({ onNavigate }: { onNavigate: () => void }) => (
+  <div
+    onClick={onNavigate}
+    className="shrink-0 flex flex-col items-center justify-center w-40 h-[48dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
+  >
+    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
+      <ArrowRight className="w-5 h-5 text-white" />
+    </div>
+    <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] group-hover:text-white text-center px-4">
+      View Directory
+    </span>
+  </div>
+);
+
+/* ── Venue feed card (with follow button) ───────────────────── */
+const VenueFeedCard = ({
+  venue,
+  onNavigate,
+  isFollowing,
+  onFollow,
+}: {
+  venue: Venue;
+  onNavigate: () => void;
+  isFollowing: boolean;
+  onFollow: (e: React.MouseEvent) => void;
+}) => (
+  <div
+    onClick={onNavigate}
+    className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    style={{ scrollSnapStop: "always" }}
+  >
+    <HeroReel
+      videoUrl={venue.hero_reel_url}
+      fallbackImageUrl={venue.image_url || "/placeholder.svg"}
+      alt={venue.name}
+      className="absolute inset-0 w-full h-full"
+    />
+    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
+
+    {/* Top right - Follow button (subtle) */}
+    <div className="absolute top-6 right-6 z-20">
+      <FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={onFollow} subtle />
+    </div>
+
+    {/* Bottom content */}
+    <div className="relative p-10 pb-12 z-10 max-w-4xl">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        {venue.category && (
+          <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full">
+            {venue.category}
+          </Badge>
+        )}
+        {venue.is_active && <ActiveBadge />}
+        <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full flex items-center gap-2">
+          <MapPin className="w-3 h-3" />
+          {venue.location || "Tampa Bay"}
+        </Badge>
+      </div>
+
+      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
+        {venue.name}
+      </h3>
+    </div>
+  </div>
+);
+
+/* ── Talent feed card (with follow button) ──────────────────── */
+const TalentFeedCard = ({
+  talent,
+  onNavigate,
+  isFollowing,
+  onFollow,
+}: {
+  talent: any;
+  onNavigate: () => void;
+  isFollowing: boolean;
+  onFollow: (e: React.MouseEvent) => void;
+}) => (
+  <div
+    onClick={onNavigate}
+    className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    style={{ scrollSnapStop: "always" }}
+  >
+    <HeroReel
+      videoUrl={talent.hero_reel_url}
+      fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
+      alt={talent.display_name}
+      className="absolute inset-0 w-full h-full"
+    />
+    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
+
+    {/* Top badges + Follow button */}
+    <div className="absolute top-6 left-6 right-6 z-20 flex items-start justify-between">
+      <div className="flex flex-col gap-2">
+        {talent.sub_role && (
+          <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full w-fit">
+            {talent.sub_role}
+          </Badge>
+        )}
+        {talent.venue_id && <ActiveBadge />}
+      </div>
+
+      {/* Follow button (prominent) */}
+      <FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={onFollow} />
+    </div>
+
+    {/* Bottom content */}
+    <div className="relative p-10 pb-12 z-10 max-w-4xl">
+      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
+        {talent.display_name}
+      </h3>
+      <p className="text-[10px] text-neon-purple font-black uppercase tracking-widest mt-4">Talent</p>
+    </div>
+  </div>
+);
+
+/* ── Main Discovery page ────────────────────────────────────── */
 const Discovery = () => {
   const navigate = useNavigate();
-  const { isLoading: contextLoading, session } = useUserMode();
+  const { session } = useUserMode();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [venues, setVenues] = useState<Venue[]>([]);
-  const [featuredTalent, setFeaturedTalent] = useState<any[]>([]);
-  const [talentPosts, setTalentPosts] = useState<any[]>([]);
+  const [spotlightTalent, setSpotlightTalent] = useState<any[]>([]);
+  const [feedTalent, setFeedTalent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All Vibes");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [followedTalent, setFollowedTalent] = useState<Set<string>>(new Set());
-  const [expandingRing, setExpandingRing] = useState<string | null>(null);
+  const [followedVenues, setFollowedVenues] = useState<Set<string>>(new Set());
 
   const currentUserId = session?.user?.id || null;
 
-  // ✅ FETCH: Load Discovery Data + User's Existing Follows
+  // Fetch discovery data + user's follows
   useEffect(() => {
     const fetchDiscoveryData = async () => {
+      setLoading(true);
       try {
-        let venueQuery = supabase.from("venues").select("*");
+        // Build venue query with active-first sorting
+        let venueQuery = supabase.from("venues").select("*").order("is_active", { ascending: false });
+
         if (activeCategory !== "All Vibes") {
           venueQuery = venueQuery.ilike("category", `%${activeCategory}%`);
         }
 
         const queries = [
           venueQuery,
-          supabase.from("profiles").select("id, display_name, username, avatar_url").eq("role_type", "talent").limit(8),
+          // Get top 3 charged talent
+          supabase.rpc("get_talent_spotlight", { limit_count: 3 }),
+          // Get talent profiles for 4:1 feed (working talent first)
           supabase
-            .from("posts")
-            .select(`*, profiles:user_id (display_name, username, avatar_url)`)
-            .not("media_url", "is", null)
-            .limit(10),
+            .from("profiles")
+            .select("id, display_name, username, avatar_url, hero_reel_url, venue_id, sub_role")
+            .eq("role_type", "talent")
+            .order("venue_id", { ascending: false, nullsFirst: false })
+            .limit(12),
         ];
 
-        // ✅ If logged in, also fetch their existing follows
+        // If logged in, fetch follows
         if (currentUserId) {
-          queries.push(supabase.from("followers").select("following_id").eq("follower_id", currentUserId));
+          queries.push(
+            supabase.from("followers").select("following_id").eq("follower_id", currentUserId),
+            supabase.from("venue_followers").select("venue_id").eq("user_id", currentUserId),
+          );
         }
 
-        const [vRes, tRes, pRes, fRes] = await Promise.all(queries);
+        const results = await Promise.all(queries);
+        const [vRes, spotlightRes, feedTalentRes, talentFollowsRes, venueFollowsRes] = results;
 
         if (vRes.data) setVenues(vRes.data as Venue[]);
-        if (tRes.data) setFeaturedTalent(tRes.data);
-        if (pRes.data) setTalentPosts(pRes.data);
+        if (spotlightRes.data) setSpotlightTalent(spotlightRes.data);
+        if (feedTalentRes.data) setFeedTalent(feedTalentRes.data);
 
-        // ✅ Hydrate followed talent from database
-        if (fRes?.data) {
-          const followedIds = fRes.data.map((f: any) => f.following_id);
-          setFollowedTalent(new Set(followedIds));
+        // Hydrate follows
+        if (talentFollowsRes?.data) {
+          const ids = talentFollowsRes.data.map((f: any) => f.following_id);
+          setFollowedTalent(new Set(ids));
+        }
+        if (venueFollowsRes?.data) {
+          const ids = venueFollowsRes.data.map((f: any) => f.venue_id);
+          setFollowedVenues(new Set(ids));
         }
       } catch (err) {
-        console.error("Discovery Sync Error", err);
+        console.error("Discovery fetch error:", err);
       } finally {
         setLoading(false);
-        setInitialLoad(false);
       }
     };
 
     fetchDiscoveryData();
   }, [activeCategory, currentUserId]);
 
-  // ✅ SCROLL TO TOP: When category changes, reset scroll position
+  // Scroll to top when category changes
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [activeCategory]);
 
-  // ✅ FOLLOW/UNFOLLOW: Integrated with Supabase followers table
-  const handleFollowTalent = async (talentId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Handle passive charging on card click
+  const handleCardClick = useCallback(
+    async (targetId: string, targetType: "venue" | "talent", navigateTo: string) => {
+      // Navigate first (don't block UX)
+      navigate(navigateTo);
 
-    // 🔒 Auth Check
-    if (!currentUserId) {
-      toast.error("Sign in Required");
-      navigate("/auth");
-      return;
-    }
-
-    // 🎯 Prevent self-follow
-    if (talentId === currentUserId) {
-      toast.error("Cannot Follow Yourself");
-      return;
-    }
-
-    const isFollowing = followedTalent.has(talentId);
-
-    // ✨ Optimistic UI Update
-    setExpandingRing(talentId);
-    setTimeout(() => setExpandingRing(null), 600);
-
-    setFollowedTalent((prev) => {
-      const next = new Set(prev);
-      if (isFollowing) next.delete(talentId);
-      else next.add(talentId);
-      return next;
-    });
-
-    // 🔄 Database Sync
-    try {
-      if (isFollowing) {
-        const { error } = await supabase
-          .from("followers")
-          .delete()
-          .eq("follower_id", currentUserId)
-          .eq("following_id", talentId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("followers")
-          .insert({ follower_id: currentUserId, following_id: talentId });
-
-        if (error) throw error;
+      // Log charge in background (if logged in)
+      if (currentUserId) {
+        await supabase.from("interactions").insert({
+          user_id: currentUserId,
+          target_id: targetId,
+          target_type: targetType,
+          interaction_type: "charge",
+          action_value: 1, // Passive charge
+        });
       }
-    } catch (err) {
-      console.error("Follow Sync Error:", err);
-      toast.error("Connection Failed");
+    },
+    [currentUserId, navigate],
+  );
 
-      // ❌ Rollback optimistic update on error
+  // Handle follow/unfollow talent
+  const handleFollowTalent = useCallback(
+    async (talentId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!currentUserId) {
+        toast.error("Sign in to follow");
+        navigate("/auth");
+        return;
+      }
+
+      if (talentId === currentUserId) {
+        toast.error("Cannot follow yourself");
+        return;
+      }
+
+      const isFollowing = followedTalent.has(talentId);
+
+      // Optimistic update
       setFollowedTalent((prev) => {
         const next = new Set(prev);
-        if (isFollowing) next.add(talentId);
-        else next.delete(talentId);
+        if (isFollowing) next.delete(talentId);
+        else next.add(talentId);
         return next;
       });
-    }
-  };
 
-  // 🔍 COMBINED FEED: Venues + Talent Posts with Search Filter
+      try {
+        if (isFollowing) {
+          await supabase.from("followers").delete().eq("follower_id", currentUserId).eq("following_id", talentId);
+        } else {
+          await supabase.from("followers").insert({ follower_id: currentUserId, following_id: talentId });
+        }
+      } catch (err) {
+        console.error("Follow error:", err);
+        toast.error("Connection failed");
+        // Rollback
+        setFollowedTalent((prev) => {
+          const next = new Set(prev);
+          if (isFollowing) next.add(talentId);
+          else next.delete(talentId);
+          return next;
+        });
+      }
+    },
+    [currentUserId, followedTalent, navigate],
+  );
+
+  // Handle follow/unfollow venue
+  const handleFollowVenue = useCallback(
+    async (venueId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!currentUserId) {
+        toast.error("Sign in to follow");
+        navigate("/auth");
+        return;
+      }
+
+      const isFollowing = followedVenues.has(venueId);
+
+      // Optimistic update
+      setFollowedVenues((prev) => {
+        const next = new Set(prev);
+        if (isFollowing) next.delete(venueId);
+        else next.add(venueId);
+        return next;
+      });
+
+      try {
+        if (isFollowing) {
+          await supabase.from("venue_followers").delete().eq("user_id", currentUserId).eq("venue_id", venueId);
+        } else {
+          await supabase.from("venue_followers").insert({ user_id: currentUserId, venue_id: venueId });
+        }
+      } catch (err) {
+        console.error("Follow venue error:", err);
+        toast.error("Connection failed");
+        // Rollback
+        setFollowedVenues((prev) => {
+          const next = new Set(prev);
+          if (isFollowing) next.add(venueId);
+          else next.delete(venueId);
+          return next;
+        });
+      }
+    },
+    [currentUserId, followedVenues, navigate],
+  );
+
+  // Build 4:1 combined feed with search filter
   const combinedFeed = useMemo(() => {
-    const filtered = (venues || []).filter(
+    const filtered = venues.filter(
       (v) =>
         v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         v.location?.toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
     const feed: Array<{ type: "venue" | "talent"; data: any }> = [];
-    let postIndex = 0;
+    let talentIdx = 0;
 
     for (let i = 0; i < filtered.length; i++) {
       feed.push({ type: "venue", data: filtered[i] });
-      // ✅ Inject talent posts every 2 venues (instead of 4)
-      if ((i + 1) % 2 === 0 && talentPosts[postIndex]) {
-        feed.push({ type: "talent", data: talentPosts[postIndex] });
-        postIndex++;
+      // After every 4th venue, inject a talent
+      if ((i + 1) % 4 === 0 && feedTalent[talentIdx]) {
+        feed.push({ type: "talent", data: feedTalent[talentIdx] });
+        talentIdx++;
       }
     }
-    return feed;
-  }, [venues, searchQuery, talentPosts]);
 
-  if (initialLoad || contextLoading) return <LoadingState />;
+    return feed;
+  }, [venues, feedTalent, searchQuery]);
 
   return (
     <div className="h-screen bg-black overflow-hidden flex flex-col font-body relative">
-      {/* 🔍 SEARCH MODAL OVERLAY */}
+      {/* SEARCH MODAL OVERLAY */}
       {isSearchOpen && (
         <div className="absolute inset-0 z-[200] bg-black/95 backdrop-blur-xl p-8 flex flex-col pt-24 animate-in fade-in slide-in-from-top-4 duration-300">
           <button
@@ -188,7 +439,7 @@ const Discovery = () => {
           >
             <X className="w-6 h-6" />
           </button>
-          <h2 className="text-white font-display text-4xl italic uppercase mb-8 tracking-tighter">Search Sector</h2>
+          <h2 className="text-white font-display text-4xl italic uppercase mb-8 tracking-tighter">Search Venues</h2>
           <div className="relative">
             <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 text-neon-blue" />
             <input
@@ -200,7 +451,7 @@ const Discovery = () => {
             />
           </div>
 
-          {/* ✅ SEARCH RESULTS PREVIEW */}
+          {/* SEARCH RESULTS PREVIEW */}
           {searchQuery && (
             <div className="mt-12 space-y-4">
               <p className="text-white/40 text-xs font-black uppercase tracking-widest">
@@ -215,7 +466,7 @@ const Discovery = () => {
                       key={idx}
                       onClick={() => {
                         setIsSearchOpen(false);
-                        navigate(`/venue/${item.data.id}`);
+                        handleCardClick(item.data.id, "venue", `/venue/${item.data.id}`);
                       }}
                       className="flex items-center gap-4 p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors"
                     >
@@ -236,7 +487,7 @@ const Discovery = () => {
         </div>
       )}
 
-      {/* 🛠 SLIM HUD HEADER */}
+      {/* SLIM HUD HEADER */}
       <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
@@ -245,12 +496,9 @@ const Discovery = () => {
               Discovery
             </h1>
           </div>
-          <div className="flex items-center gap-6">
-            <button onClick={() => setIsSearchOpen(true)} className="text-white/40 hover:text-white transition-colors">
-              <Search className="w-5 h-5" />
-            </button>
-            <ActivitySidebar />
-          </div>
+          <button onClick={() => setIsSearchOpen(true)} className="text-white/40 hover:text-white transition-colors">
+            <Search className="w-5 h-5" />
+          </button>
         </div>
 
         {/* CATEGORY PILLS */}
@@ -279,108 +527,75 @@ const Discovery = () => {
         <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-[140]" />
       </div>
 
-      {/* 📱 IMMERSIVE SNAP STREAM */}
+      {/* IMMERSIVE SNAP STREAM */}
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[11rem]"
       >
-        {/* SLIDE 1: SPOTLIGHT */}
+        {/* TALENT SPOTLIGHT SECTION */}
         <div className="min-h-[65dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
-            {featuredTalent.map((talent) => (
-              <div key={talent.id} onClick={() => navigate(`/talent/${talent.id}`)} className="shrink-0 cursor-pointer">
-                <div className="relative w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
-                  <img
-                    src={talent.avatar_url || "/placeholder.svg"}
-                    className="w-full h-full object-cover opacity-60"
-                    alt=""
+            {loading ? (
+              <>
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="shrink-0 w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950" />
+                ))}
+              </>
+            ) : spotlightTalent.length > 0 ? (
+              <>
+                {spotlightTalent.map((talent) => (
+                  <SpotlightCard
+                    key={talent.talent_id}
+                    talent={talent}
+                    onNavigate={() => handleCardClick(talent.talent_id, "talent", `/talent/${talent.talent_id}`)}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-95" />
-                  <div className="absolute bottom-10 left-10">
-                    <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">
-                      {talent.display_name}
-                    </p>
-                    <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest italic opacity-40 mt-1 block">
-                      Uplink Profile
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div
-              onClick={() => navigate("/talent-directory")}
-              className="shrink-0 flex flex-col items-center justify-center w-40 h-[48dvh] rounded-[2.5rem] border border-white/5 bg-zinc-950/40 cursor-pointer group hover:border-neon-blue transition-all"
-            >
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:bg-neon-blue transition-colors">
-                <ArrowRight className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] group-hover:text-white">
-                View Directory
-              </span>
-            </div>
+                ))}
+                <DirectoryCard onNavigate={() => navigate("/talent-directory")} />
+              </>
+            ) : (
+              <>
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="shrink-0 w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950" />
+                ))}
+                <DirectoryCard onNavigate={() => navigate("/talent-directory")} />
+              </>
+            )}
           </div>
         </div>
 
-        {/* FEED SLIDES */}
-        {combinedFeed.length === 0 && !loading ? (
+        {/* MAIN FEED */}
+        {loading ? (
+          <div className="px-8 space-y-16">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[78dvh] w-full rounded-3xl bg-zinc-950" />
+            ))}
+          </div>
+        ) : combinedFeed.length === 0 ? (
           <div className="min-h-[78dvh] flex flex-col items-center justify-center text-center px-8">
             <Search className="w-16 h-16 text-zinc-900 mb-6" />
             <p className="text-zinc-600 font-black uppercase tracking-[0.3em] text-[10px]">No Venues Found</p>
             <p className="text-zinc-700 text-xs mt-2">Try a different category or search term</p>
           </div>
         ) : (
-          combinedFeed.map((item, idx) => {
-            const isTalentPost = item.type === "talent";
-            const talentId = isTalentPost ? item.data.user_id : null;
-            const isFollowing = talentId ? followedTalent.has(talentId) : false;
-
-            return (
-              <div
-                key={`${item.type}-${idx}`}
-                onClick={() => navigate(isTalentPost ? `/talent/${talentId}` : `/venue/${item.data.id}`)}
-                className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
-                style={{ scrollSnapStop: "always" }}
-              >
-                <img
-                  src={(isTalentPost ? item.data.media_url : item.data.image_url) || "/placeholder.svg"}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  alt=""
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
-
-                <div className="relative p-10 pb-12 z-10 max-w-4xl">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full flex items-center gap-2">
-                      <MapPin className="w-3 h-3" />
-                      {isTalentPost ? "Transmission" : item.data.location || "Sector Alpha"}
-                    </Badge>
-
-                    {/* ✅ FOLLOW BUTTON: Only shows on talent posts */}
-                    {isTalentPost && talentId && (
-                      <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 relative">
-                        <div className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_8px_#39FF14]" />
-                        <span className="text-[8px] font-black text-white uppercase tracking-widest mr-2">Live</span>
-
-                        <button
-                          onClick={(e) => handleFollowTalent(talentId, e)}
-                          className="relative w-6 h-6 flex items-center justify-center bg-white text-black rounded-full transition-transform active:scale-95"
-                        >
-                          {isFollowing ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                          {expandingRing === talentId && (
-                            <div className="absolute inset-0 rounded-full border-2 border-white animate-ping opacity-0" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
-                    {isTalentPost ? item.data.profiles?.display_name : item.data.name}
-                  </h3>
-                </div>
-              </div>
-            );
-          })
+          combinedFeed.map((item, idx) =>
+            item.type === "venue" ? (
+              <VenueFeedCard
+                key={`v-${item.data.id}`}
+                venue={item.data}
+                onNavigate={() => handleCardClick(item.data.id, "venue", `/venue/${item.data.id}`)}
+                isFollowing={followedVenues.has(item.data.id)}
+                onFollow={(e) => handleFollowVenue(item.data.id, e)}
+              />
+            ) : (
+              <TalentFeedCard
+                key={`t-${item.data.id}`}
+                talent={item.data}
+                onNavigate={() => handleCardClick(item.data.id, "talent", `/talent/${item.data.id}`)}
+                isFollowing={followedTalent.has(item.data.id)}
+                onFollow={(e) => handleFollowTalent(item.data.id, e)}
+              />
+            ),
+          )
         )}
       </div>
     </div>
