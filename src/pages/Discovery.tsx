@@ -71,7 +71,12 @@ const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => 
         alt={talent.display_name}
         className="w-full h-full opacity-60"
       />
-      <div className="absolute inset-0 gradient-overlay-card" />
+      <div
+        className="absolute inset-0 gradient-overlay-card"
+        style={{
+          background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+        }}
+      />
 
       {/* Active badge */}
       {talent.venue_id && (
@@ -124,7 +129,7 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-24 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-20 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -133,7 +138,12 @@ const VenueFeedCard = ({
       alt={venue.name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 gradient-overlay-card" />
+    <div
+      className="absolute inset-0 gradient-overlay-card"
+      style={{
+        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+      }}
+    />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
@@ -176,7 +186,7 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-24 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-20 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -185,7 +195,12 @@ const TalentFeedCard = ({
       alt={talent.display_name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 gradient-overlay-card" />
+    <div
+      className="absolute inset-0 gradient-overlay-card"
+      style={{
+        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+      }}
+    />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
@@ -262,7 +277,7 @@ const Discovery = () => {
         if (currentUserId) {
           queries.push(
             supabase.from("followers").select("following_id").eq("follower_id", currentUserId),
-            supabase.from("venue_followers").select("venue_id").eq("user_id", currentUserId),
+            supabase.from("venue_followers").select("venue_id").eq("follower_id", currentUserId),
           );
         }
 
@@ -389,9 +404,9 @@ const Discovery = () => {
 
       try {
         if (isFollowing) {
-          await supabase.from("venue_followers").delete().eq("user_id", currentUserId).eq("venue_id", venueId);
+          await supabase.from("venue_followers").delete().eq("follower_id", currentUserId).eq("venue_id", venueId);
         } else {
-          await supabase.from("venue_followers").insert({ user_id: currentUserId, venue_id: venueId });
+          await supabase.from("venue_followers").insert({ follower_id: currentUserId, venue_id: venueId });
         }
       } catch (err) {
         console.error("Follow venue error:", err);
@@ -527,13 +542,19 @@ const Discovery = () => {
         </div>
 
         {/* GRADIENT FADE */}
-        <div className="absolute -bottom-16 left-0 right-0 h-16 gradient-header-fade pointer-events-none z-[140]" />
+        <div
+          className="absolute -bottom-16 left-0 right-0 h-16 gradient-header-fade pointer-events-none z-[140]"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0) 100%)",
+          }}
+        />
       </div>
 
       {/* IMMERSIVE SNAP STREAM */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-24">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-20">
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="w-full relative flex flex-col justify-center bg-black pt-4 pb-6">
+        <div className="min-h-[50vh] w-full snap-start scroll-mt-20 relative flex flex-col justify-center bg-black pt-2 pb-4">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth items-center">
             {loading ? (
               <>
