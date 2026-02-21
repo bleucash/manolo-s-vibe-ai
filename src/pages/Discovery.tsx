@@ -124,7 +124,7 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-24 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -176,7 +176,7 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-24 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -531,12 +531,9 @@ const Discovery = () => {
       </div>
 
       {/* IMMERSIVE SNAP STREAM */}
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[11rem]"
-      >
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-24">
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[55dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black pt-4 pb-0">
+        <div className="min-h-[55dvh] w-full snap-start scroll-mt-24 relative flex flex-col justify-center bg-black pt-4 pb-0">
           <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-2 items-center">
             {loading ? (
               <>
