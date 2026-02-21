@@ -15,10 +15,10 @@ const CATEGORIES = [
   { name: "Nightclubs", color: "bg-[#00B7FF]", text: "text-black", glow: "#00B7FF" },
   { name: "Bars", color: "bg-[#39FF14]", text: "text-black", glow: "#39FF14" },
   { name: "Live Music", color: "bg-[#FFD700]", text: "text-black", glow: "#FFD700" },
-  { name: "Lounges", color: "bg-[#BF00FF]", text: "text-white", glow: "#BF00FF" },
+  { name: "Lounges", color: "bg-[#BF00FF]", text: "text-black", glow: "#BF00FF" },
   { name: "Hookah", color: "bg-[#00FFFF]", text: "text-black", glow: "#00FFFF" },
-  { name: "Strip Clubs", color: "bg-[#FF007F]", text: "text-white", glow: "#FF007F" },
-  { name: "LGBTQ+", color: "bg-[#FF5F1F]", text: "text-white", glow: "#FF5F1F" },
+  { name: "Strip Clubs", color: "bg-[#FF007F]", text: "text-black", glow: "#FF007F" },
+  { name: "LGBTQ+", color: "bg-[#FF5F1F]", text: "text-black", glow: "#FF5F1F" },
 ];
 
 /* ── Active badge component ─────────────────────────────────── */
