@@ -17,8 +17,8 @@ const CATEGORIES = [
   { name: "Live Music", color: "bg-[#FFD700]", text: "text-black", glow: "#FFD700" },
   { name: "Lounges", color: "bg-[#BF00FF]", text: "text-black", glow: "#BF00FF" },
   { name: "Hookah", color: "bg-[#00FFFF]", text: "text-black", glow: "#00FFFF" },
-  { name: "Strip Clubs", color: "bg-[#FF007F]", text: "text-black", glow: "#FF007F" },
-  { name: "LGBTQ+", color: "bg-[#FF5F1F]", text: "text-black", glow: "#FF5F1F" },
+  { name: "Strip Clubs", color: "bg-[#FF007F]", text: "text-white", glow: "#FF007F" },
+  { name: "LGBTQ+", color: "bg-[#FF5F1F]", text: "text-white", glow: "#FF5F1F" },
 ];
 
 /* ── Active badge component ─────────────────────────────────── */
@@ -71,7 +71,7 @@ const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => 
         alt={talent.display_name}
         className="w-full h-full opacity-60"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-95" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
 
       {/* Active badge */}
       {talent.venue_id && (
@@ -133,31 +133,31 @@ const VenueFeedCard = ({
       alt={venue.name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
+    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        {venue.category && (
-          <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full">
-            {venue.category}
-          </Badge>
-        )}
         {venue.is_active && <ActiveBadge />}
         <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full flex items-center gap-2">
           <MapPin className="w-3 h-3" />
           {venue.location || "Tampa Bay"}
         </Badge>
+        {/* Follow button integrated with badges */}
+        <div onClick={onFollow}>
+          <FollowButton
+            targetId={venue.id}
+            targetType="venue"
+            isFollowing={isFollowing}
+            onClick={(e) => e.stopPropagation()}
+            subtle
+          />
+        </div>
       </div>
 
       <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-4">
         {venue.name}
       </h3>
-    </div>
-
-    {/* Follow button - Bottom right */}
-    <div className="absolute bottom-10 right-10 z-20">
-      <FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={onFollow} subtle />
     </div>
   </div>
 );
@@ -185,29 +185,32 @@ const TalentFeedCard = ({
       alt={talent.display_name}
       className="absolute inset-0 w-full h-full"
     />
-    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
-
-    {/* Top badges */}
-    <div className="absolute top-6 left-6 z-20 flex flex-col gap-2">
-      {talent.sub_role && (
-        <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full w-fit">
-          {talent.sub_role}
-        </Badge>
-      )}
-      {talent.venue_id && <ActiveBadge />}
-    </div>
+    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/40 to-black/0" />
 
     {/* Bottom content */}
     <div className="relative p-10 pb-16 z-10 max-w-4xl">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        {talent.sub_role && (
+          <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
+            {talent.sub_role}
+          </Badge>
+        )}
+        {talent.venue_id && <ActiveBadge />}
+        {/* Follow button integrated with badges */}
+        <div onClick={onFollow}>
+          <FollowButton
+            targetId={talent.id}
+            targetType="talent"
+            isFollowing={isFollowing}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </div>
+
       <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-2">
         {talent.display_name}
       </h3>
       <p className="text-[10px] text-neon-purple font-black uppercase tracking-widest">Talent</p>
-    </div>
-
-    {/* Follow button - Bottom right */}
-    <div className="absolute bottom-10 right-10 z-20">
-      <FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={onFollow} />
     </div>
   </div>
 );
@@ -524,7 +527,7 @@ const Discovery = () => {
         </div>
 
         {/* GRADIENT FADE */}
-        <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-[140]" />
+        <div className="absolute -bottom-16 left-0 right-0 h-16 bg-gradient-to-b from-black/100 via-black/50 to-black/0 pointer-events-none z-[140]" />
       </div>
 
       {/* IMMERSIVE SNAP STREAM */}
@@ -533,8 +536,8 @@ const Discovery = () => {
         className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-[11rem]"
       >
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[65dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black pt-4 pb-2">
-          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-6 items-center">
+        <div className="min-h-[55dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-center bg-black pt-4 pb-0">
+          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth pb-2 items-center">
             {loading ? (
               <>
                 {[1, 2, 3].map((i) => (
