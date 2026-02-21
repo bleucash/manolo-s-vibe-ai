@@ -124,7 +124,7 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -135,13 +135,8 @@ const VenueFeedCard = ({
     />
     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
-    {/* Top right - Follow button (subtle) */}
-    <div className="absolute top-6 right-6 z-20">
-      <FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={onFollow} subtle />
-    </div>
-
     {/* Bottom content */}
-    <div className="relative p-10 pb-12 z-10 max-w-4xl">
+    <div className="relative p-10 pb-16 z-10 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {venue.category && (
           <Badge className="bg-neon-blue text-white border-none text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full">
@@ -155,9 +150,14 @@ const VenueFeedCard = ({
         </Badge>
       </div>
 
-      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
+      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-4">
         {venue.name}
       </h3>
+    </div>
+
+    {/* Follow button - Bottom right */}
+    <div className="absolute bottom-10 right-10 z-20">
+      <FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={onFollow} subtle />
     </div>
   </div>
 );
@@ -176,7 +176,7 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-start scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-[11rem] relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
@@ -187,27 +187,27 @@ const TalentFeedCard = ({
     />
     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-95" />
 
-    {/* Top badges + Follow button */}
-    <div className="absolute top-6 left-6 right-6 z-20 flex items-start justify-between">
-      <div className="flex flex-col gap-2">
-        {talent.sub_role && (
-          <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full w-fit">
-            {talent.sub_role}
-          </Badge>
-        )}
-        {talent.venue_id && <ActiveBadge />}
-      </div>
-
-      {/* Follow button (prominent) */}
-      <FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={onFollow} />
+    {/* Top badges */}
+    <div className="absolute top-6 left-6 z-20 flex flex-col gap-2">
+      {talent.sub_role && (
+        <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full w-fit">
+          {talent.sub_role}
+        </Badge>
+      )}
+      {talent.venue_id && <ActiveBadge />}
     </div>
 
     {/* Bottom content */}
-    <div className="relative p-10 pb-12 z-10 max-w-4xl">
-      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-10 whitespace-normal break-normal line-clamp-3">
+    <div className="relative p-10 pb-16 z-10 max-w-4xl">
+      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-2">
         {talent.display_name}
       </h3>
-      <p className="text-[10px] text-neon-purple font-black uppercase tracking-widest mt-4">Talent</p>
+      <p className="text-[10px] text-neon-purple font-black uppercase tracking-widest">Talent</p>
+    </div>
+
+    {/* Follow button - Bottom right */}
+    <div className="absolute bottom-10 right-10 z-20">
+      <FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={onFollow} />
     </div>
   </div>
 );
@@ -488,7 +488,7 @@ const Discovery = () => {
       )}
 
       {/* SLIM HUD HEADER */}
-      <div className="fixed top-0 left-0 right-0 z-[150] bg-black pt-4 overflow-visible">
+      <div className="fixed top-0 left-0 right-0 z-[150] glass pt-4 overflow-visible">
         <div className="px-8 flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
             <Target className="w-4 h-4 text-neon-blue" />
