@@ -1,100 +1,78 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 @import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap");
-
 @layer base {
   /* Force dark mode always - no light mode */
   :root {
     color-scheme: dark;
   }
-
   :root,
   .dark {
     /* Base Colors - Dark nightclub aesthetic */
     --background: 0 0% 4%; /* #0A0A0A - Deep black background */
     --foreground: 0 0% 98%; /* #FAFAFA - Near white text */
-
     /* Cards - Slightly lighter than background */
     --card: 0 0% 7%; /* #121212 - Dark gray cards */
     --card-foreground: 0 0% 98%;
-
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 98%;
-
     /* Primary - Electric Blue (your brand) */
     --primary: 244 100% 32%; /* #0D00A4 - Electric Blue */
     --primary-foreground: 0 0% 100%;
-
     /* Secondary - Dark tinted */
     --secondary: 220 15% 15%; /* Dark blue-gray */
     --secondary-foreground: 0 0% 98%;
-
     /* Muted - Subtle backgrounds */
     --muted: 220 10% 12%; /* Very dark gray */
     --muted-foreground: 220 10% 60%; /* Medium gray text */
-
     /* Accent - Vibrant Purple (your brand) */
     --accent: 268 100% 25%; /* #22007C - Vibrant Purple */
     --accent-foreground: 0 0% 100%;
-
     /* Destructive - Errors */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-
     /* Borders and inputs */
     --border: 220 15% 18%; /* Subtle borders */
     --input: 220 15% 15%; /* Input backgrounds */
-
     /* Focus ring */
     --ring: 244 100% 32%; /* Electric Blue */
-
     --radius: 0.75rem;
-
     /* Neon Accent Colors */
     --neon-purple: 268 100% 25%; /* #22007C */
     --neon-pink: 340 100% 60%;
     --neon-blue: 244 100% 32%; /* #0D00A4 */
     --neon-green: 150 100% 50%;
     --neon-cyan: 180 100% 50%;
-
     /* Glassmorphism */
     --glass: 220 15% 10%;
     --glass-border: 220 15% 20%;
-
     /* Typography */
     --font-display: "Bebas Neue", sans-serif;
     --font-body: "Inter", sans-serif;
-
     /* Gradients */
     --gradient-neon: linear-gradient(135deg, hsl(268 100% 25%), hsl(244 100% 32%));
     --gradient-cyber: linear-gradient(135deg, hsl(150 100% 50%), hsl(180 100% 50%));
     --gradient-vip: linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%));
     --gradient-dark: linear-gradient(180deg, hsl(0 0% 4%), hsl(0 0% 8%));
-
     /* Shadows */
     --shadow-neon: 0 0 20px hsl(244 100% 32% / 0.4);
     --shadow-glow: 0 0 40px hsl(268 100% 25% / 0.3);
     --shadow-green: 0 0 30px hsl(150 100% 50% / 0.4);
   }
 }
-
 @layer base {
   * {
     @apply border-border;
   }
-
   /* Force dark mode on html and body */
   html {
     color-scheme: dark;
   }
-
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body);
   }
-
   h1,
   h2,
   h3,
@@ -105,20 +83,16 @@
     letter-spacing: 0.02em;
   }
 }
-
 @layer components {
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;
   }
-
   .neon-glow {
     box-shadow: var(--shadow-neon);
   }
-
   .gradient-neon {
     background: var(--gradient-neon);
   }
-
   .text-gradient {
     background: var(--gradient-neon);
     -webkit-background-clip: text;
@@ -126,22 +100,27 @@
     background-clip: text;
   }
 }
-
 @layer utilities {
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
-
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-
   .safe-top {
     padding-top: env(safe-area-inset-top);
+  }
+
+  /* Discovery Page Gradients */
+  .gradient-overlay-card {
+    background: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%);
+  }
+
+  .gradient-header-fade {
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
   }
 }
