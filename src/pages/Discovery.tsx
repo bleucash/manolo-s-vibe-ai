@@ -69,12 +69,14 @@ const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => 
         videoUrl={talent.hero_reel_url}
         fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
         alt={talent.display_name}
-        className="w-full h-full opacity-60 z-0"
+        className="w-full h-full opacity-60 object-cover"
       />
       <div
-        className="absolute inset-0 gradient-overlay-card z-10"
+        className="absolute inset-0"
         style={{
-          background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
+          background:
+            "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%)",
+          zIndex: 10,
         }}
       />
 
@@ -129,24 +131,29 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-4 cursor-pointer"
+    className="h-[85dvh] w-full snap-center scroll-mt-36 relative overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
+    {/* Full-screen background image */}
     <HeroReel
       videoUrl={venue.hero_reel_url}
       fallbackImageUrl={venue.image_url || "/placeholder.svg"}
       alt={venue.name}
-      className="absolute inset-0 w-full h-full z-0"
+      className="absolute inset-0 w-full h-full object-cover"
     />
+
+    {/* Strong gradient overlay */}
     <div
-      className="absolute inset-0 gradient-overlay-card z-10"
+      className="absolute inset-0"
       style={{
-        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
+        background:
+          "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%)",
+        zIndex: 10,
       }}
     />
 
-    {/* Bottom content */}
-    <div className="relative p-10 pb-10 z-20 max-w-4xl">
+    {/* Bottom content - absolutely positioned */}
+    <div className="absolute bottom-0 left-0 right-0 p-10 pb-10 z-20 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {venue.is_active && <ActiveBadge />}
         <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full flex items-center gap-2">
@@ -186,24 +193,29 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-4 cursor-pointer"
+    className="h-[85dvh] w-full snap-center scroll-mt-36 relative overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
+    {/* Full-screen background image */}
     <HeroReel
       videoUrl={talent.hero_reel_url}
       fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
       alt={talent.display_name}
-      className="absolute inset-0 w-full h-full z-0"
+      className="absolute inset-0 w-full h-full object-cover"
     />
+
+    {/* Strong gradient overlay */}
     <div
-      className="absolute inset-0 gradient-overlay-card z-10"
+      className="absolute inset-0"
       style={{
-        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
+        background:
+          "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%)",
+        zIndex: 10,
       }}
     />
 
-    {/* Bottom content */}
-    <div className="relative p-10 pb-10 z-20 max-w-4xl">
+    {/* Bottom content - absolutely positioned */}
+    <div className="absolute bottom-0 left-0 right-0 p-10 pb-10 z-20 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {talent.sub_role && (
           <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
