@@ -131,7 +131,7 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="h-[82dvh] w-full snap-center scroll-mt-32 relative overflow-hidden cursor-pointer"
+    className="h-[82dvh] w-full snap-end scroll-mt-32 relative overflow-hidden cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     {/* Full-screen background image */}
@@ -193,7 +193,7 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="h-[82dvh] w-full snap-center scroll-mt-32 relative overflow-hidden cursor-pointer"
+    className="h-[82dvh] w-full snap-end scroll-mt-32 relative overflow-hidden cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     {/* Full-screen background image */}
@@ -570,7 +570,7 @@ const Discovery = () => {
         style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "auto" }}
       >
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[52dvh] w-full snap-center scroll-mt-32 relative flex flex-col justify-center bg-black pt-[30px] pb-[30px] px-[10px]">
+        <div className="min-h-[52dvh] w-full snap-end scroll-mt-32 relative flex flex-col justify-center bg-black pt-[30px] pb-[30px] px-[10px]">
           <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center">
             {loading ? (
               <>
