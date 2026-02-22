@@ -131,7 +131,7 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="h-[85dvh] w-full snap-center scroll-mt-36 relative overflow-hidden mb-4 cursor-pointer"
+    className="h-[82dvh] w-full snap-center scroll-mt-32 relative overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     {/* Full-screen background image */}
@@ -172,7 +172,7 @@ const VenueFeedCard = ({
         </div>
       </div>
 
-      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-4">
+      <h3 className="font-display text-[clamp(2rem,9vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] pr-20 whitespace-normal break-normal line-clamp-3 mb-4">
         {venue.name}
       </h3>
     </div>
@@ -193,7 +193,7 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="h-[85dvh] w-full snap-center scroll-mt-36 relative overflow-hidden mb-4 cursor-pointer"
+    className="h-[82dvh] w-full snap-end scroll-mt-40 relative overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     {/* Full-screen background image */}
@@ -234,7 +234,7 @@ const TalentFeedCard = ({
         </div>
       </div>
 
-      <h3 className="font-display text-[clamp(2.5rem,11.5vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.8] pr-20 whitespace-normal break-normal line-clamp-2 mb-2">
+      <h3 className="font-display text-[clamp(2rem,9vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] pr-20 whitespace-normal break-normal line-clamp-3 mb-2">
         {talent.display_name}
       </h3>
       <p className="text-[10px] text-neon-purple font-black uppercase tracking-widest">Talent</p>
@@ -564,9 +564,13 @@ const Discovery = () => {
       </div>
 
       {/* IMMERSIVE SNAP STREAM */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-36">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-40"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "auto" }}
+      >
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[52dvh] w-full snap-start scroll-mt-36 relative flex flex-col justify-center bg-black pt-[30px] pb-[30px] px-[10px]">
+        <div className="min-h-[52dvh] w-full snap-end scroll-mt-40 relative flex flex-col justify-center bg-black pt-[30px] pb-[30px] px-[10px]">
           <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center">
             {loading ? (
               <>
