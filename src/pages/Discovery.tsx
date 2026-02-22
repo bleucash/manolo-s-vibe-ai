@@ -570,8 +570,8 @@ const Discovery = () => {
         style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "auto" }}>
 
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="min-h-[52dvh] w-full snap-end scroll-mt-32 relative flex flex-col justify-center bg-black pt-[30px] pb-[30px] px-[10px]">
-          <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center">
+        <div className="min-h-[52dvh] w-full snap-end scroll-mt-32 relative flex flex-col justify-center bg-black px-[10px] pt-[50px] pb-[50px]">
+          <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center pt-[10px] pb-[10px]">
             {loading ?
             <>
                 {[1, 2, 3].map((i) =>
