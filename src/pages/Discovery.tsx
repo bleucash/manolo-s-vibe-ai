@@ -69,24 +69,24 @@ const SpotlightCard = ({ talent, onNavigate }: { talent: any; onNavigate: () => 
         videoUrl={talent.hero_reel_url}
         fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
         alt={talent.display_name}
-        className="w-full h-full opacity-60"
+        className="w-full h-full opacity-60 z-0"
       />
       <div
-        className="absolute inset-0 gradient-overlay-card"
+        className="absolute inset-0 gradient-overlay-card z-10"
         style={{
-          background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+          background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
         }}
       />
 
       {/* Active badge */}
       {talent.venue_id && (
-        <div className="absolute top-4 left-4">
+        <div className="absolute top-4 left-4 z-20">
           <ActiveBadge />
         </div>
       )}
 
       {/* Bottom info */}
-      <div className="absolute bottom-10 left-10">
+      <div className="absolute bottom-10 left-10 z-20">
         <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">
           {talent.display_name}
         </p>
@@ -129,24 +129,24 @@ const VenueFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
       videoUrl={venue.hero_reel_url}
       fallbackImageUrl={venue.image_url || "/placeholder.svg"}
       alt={venue.name}
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 w-full h-full z-0"
     />
     <div
-      className="absolute inset-0 gradient-overlay-card"
+      className="absolute inset-0 gradient-overlay-card z-10"
       style={{
-        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
       }}
     />
 
     {/* Bottom content */}
-    <div className="relative p-10 pb-16 z-10 max-w-4xl">
+    <div className="relative p-10 pb-10 z-20 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {venue.is_active && <ActiveBadge />}
         <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full flex items-center gap-2">
@@ -186,24 +186,24 @@ const TalentFeedCard = ({
 }) => (
   <div
     onClick={onNavigate}
-    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-16 cursor-pointer"
+    className="min-h-[78dvh] w-full snap-center scroll-mt-36 relative flex flex-col justify-end overflow-hidden mb-4 cursor-pointer"
     style={{ scrollSnapStop: "always" }}
   >
     <HeroReel
       videoUrl={talent.hero_reel_url}
       fallbackImageUrl={talent.avatar_url || "/placeholder.svg"}
       alt={talent.display_name}
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 w-full h-full z-0"
     />
     <div
-      className="absolute inset-0 gradient-overlay-card"
+      className="absolute inset-0 gradient-overlay-card z-10"
       style={{
-        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)",
+        background: "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%)",
       }}
     />
 
     {/* Bottom content */}
-    <div className="relative p-10 pb-16 z-10 max-w-4xl">
+    <div className="relative p-10 pb-10 z-20 max-w-4xl">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {talent.sub_role && (
           <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
@@ -554,8 +554,8 @@ const Discovery = () => {
       {/* IMMERSIVE SNAP STREAM */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-36">
         {/* TALENT SPOTLIGHT SECTION */}
-        <div className="w-full snap-start scroll-mt-36 relative flex flex-col justify-center bg-black pt-2 pb-4">
-          <div className="flex overflow-x-auto gap-6 px-8 hide-scrollbar scroll-smooth items-center">
+        <div className="min-h-[52dvh] w-full snap-start scroll-mt-36 relative flex flex-col justify-center bg-black pt-4 pb-6">
+          <div className="flex overflow-x-auto gap-8 px-10 hide-scrollbar scroll-smooth items-center">
             {loading ? (
               <>
                 {[1, 2, 3].map((i) => (
