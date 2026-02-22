@@ -21,6 +21,7 @@ import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
 import Venue from "./pages/Venue";
+import Events from "./pages/Events";
 import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -75,6 +76,7 @@ const AppContent = () => {
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/discovery" element={<Discovery />} />
+            <Route path="/events" element={<Events />} />
             <Route path="/venue/:id" element={<Venue />} />
 
             <Route
