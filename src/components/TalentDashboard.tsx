@@ -19,6 +19,9 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
   const [incomingInvites, setIncomingInvites] = useState<any[]>([]);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+  const [currentVenueId, setCurrentVenueId] = useState<string | null>(null);
+  const [togglingActive, setTogglingActive] = useState(false);
 
   // Static 10% commission calculation
   const availableBalance = metrics.grossSales * 0.1;
@@ -66,6 +69,9 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
         setActiveAffiliations(connections.filter((c) => c.status === "active"));
         setIncomingInvites(connections.filter((c) => c.status === "pending_talent_action"));
       }
+
+      // 3. Fetch Active Status
+      await fetchActiveStatus();
     } catch (err) {
       // Neural logging handled by error boundary
     } finally {
@@ -104,10 +110,137 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Fetch talent active status
+  const fetchActiveStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("is_active, current_venue_id")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+      setIsActive(data?.is_active || false);
+      setCurrentVenueId(data?.current_venue_id || null);
+    } catch (err) {
+      console.error("Error fetching active status:", err);
+    }
+  };
+
+  // Toggle talent active status
+  const handleToggleActive = async (venueId?: string) => {
+    if (togglingActive) return;
+
+    setTogglingActive(true);
+    const newActiveState = !isActive;
+
+    // If activating, must have a venue selected
+    if (newActiveState && !venueId) {
+      toast.error("Select a venue to go active");
+      setTogglingActive(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_active: newActiveState,
+          current_venue_id: newActiveState ? venueId : null,
+          active_at: newActiveState ? new Date().toISOString() : null,
+        })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      setIsActive(newActiveState);
+      setCurrentVenueId(newActiveState ? venueId || null : null);
+
+      const venueName = activeAffiliations.find((a) => a.venue_id === venueId)?.venues?.name;
+      toast.success(newActiveState ? `Now active at ${venueName || "venue"}` : "Status set to inactive");
+    } catch (err) {
+      console.error("Error toggling active status:", err);
+      toast.error("Failed to update active status");
+    } finally {
+      setTogglingActive(false);
+    }
+  };
+
   if (loading) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+      {/* GO ACTIVE SECTION */}
+      <Card className="bg-zinc-900/20 border-white/5 overflow-hidden">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Zap
+                className={`w-4 h-4 ${isActive ? "text-neon-green fill-neon-green animate-pulse" : "text-zinc-600"}`}
+              />
+              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Active Status</span>
+            </div>
+            {isActive && currentVenueId && (
+              <Badge className="bg-neon-green/10 text-neon-green border-neon-green/30 text-[9px] font-black uppercase tracking-widest">
+                Active
+              </Badge>
+            )}
+          </div>
+
+          {isActive && currentVenueId ? (
+            // Currently Active - Show where and deactivate button
+            <div className="space-y-3">
+              <div className="p-4 bg-black/40 rounded-lg border border-neon-green/20">
+                <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1">Active At</p>
+                <p className="text-white font-bold">
+                  {activeAffiliations.find((a) => a.venue_id === currentVenueId)?.venues?.name || "Venue"}
+                </p>
+              </div>
+              <Button
+                onClick={() => handleToggleActive()}
+                disabled={togglingActive}
+                className="w-full bg-zinc-900/50 border-white/5 text-zinc-400 hover:bg-zinc-800 font-black uppercase tracking-widest text-[10px]"
+                variant="outline"
+              >
+                {togglingActive ? "Updating..." : "Deactivate"}
+              </Button>
+            </div>
+          ) : (
+            // Not Active - Show venue selector and activate button
+            <div className="space-y-3">
+              {activeAffiliations.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  No active venue connections. Accept venue invites below to get started.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-2">Select Venue</p>
+                  <div className="grid gap-2">
+                    {activeAffiliations.map((affiliation) => (
+                      <Button
+                        key={affiliation.id}
+                        onClick={() => handleToggleActive(affiliation.venue_id)}
+                        disabled={togglingActive}
+                        className="w-full justify-start h-auto p-4 bg-neon-green/5 border-neon-green/20 text-white hover:bg-neon-green/10 font-bold"
+                        variant="outline"
+                      >
+                        <Building2 className="w-4 h-4 mr-3 text-neon-green" />
+                        <div className="text-left">
+                          <p className="font-bold">{affiliation.venues?.name}</p>
+                          {affiliation.venues?.location && (
+                            <p className="text-xs text-zinc-500">{affiliation.venues.location}</p>
+                          )}
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* PERFORMANCE METRICS */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="bg-zinc-900/20 border-white/5 relative overflow-hidden">
