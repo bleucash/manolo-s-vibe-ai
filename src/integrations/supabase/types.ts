@@ -164,6 +164,8 @@ export type Database = {
           created_at: string | null
           id: string
           interaction_type: string
+          referrer_id: string | null
+          referrer_type: string | null
           target_id: string
           target_type: string
           user_id: string | null
@@ -173,6 +175,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           interaction_type: string
+          referrer_id?: string | null
+          referrer_type?: string | null
           target_id: string
           target_type: string
           user_id?: string | null
@@ -182,6 +186,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           interaction_type?: string
+          referrer_id?: string | null
+          referrer_type?: string | null
           target_id?: string
           target_type?: string
           user_id?: string | null
@@ -498,14 +504,17 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active_at: string | null
           avatar_url: string | null
           banner_url: string | null
           bio: string | null
           city: string | null
+          current_venue_id: string | null
           display_name: string | null
           full_name: string | null
           hero_reel_url: string | null
           id: string
+          is_active: boolean | null
           location: string | null
           role_type: Database["public"]["Enums"]["app_role"]
           sub_role: string | null
@@ -516,14 +525,17 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          active_at?: string | null
           avatar_url?: string | null
           banner_url?: string | null
           bio?: string | null
           city?: string | null
+          current_venue_id?: string | null
           display_name?: string | null
           full_name?: string | null
           hero_reel_url?: string | null
           id: string
+          is_active?: boolean | null
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
           sub_role?: string | null
@@ -534,14 +546,17 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          active_at?: string | null
           avatar_url?: string | null
           banner_url?: string | null
           bio?: string | null
           city?: string | null
+          current_venue_id?: string | null
           display_name?: string | null
           full_name?: string | null
           hero_reel_url?: string | null
           id?: string
+          is_active?: boolean | null
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
           sub_role?: string | null
@@ -551,7 +566,15 @@ export type Database = {
           venue_id?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_current_venue_id_fkey"
+            columns: ["current_venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tickets: {
         Row: {
@@ -765,6 +788,7 @@ export type Database = {
       }
       venues: {
         Row: {
+          active_at: string | null
           address: string | null
           base_price: number | null
           capacity: number | null
@@ -793,6 +817,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          active_at?: string | null
           address?: string | null
           base_price?: number | null
           capacity?: number | null
@@ -821,6 +846,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          active_at?: string | null
           address?: string | null
           base_price?: number | null
           capacity?: number | null
