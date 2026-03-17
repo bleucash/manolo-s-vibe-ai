@@ -11,6 +11,7 @@ import { FollowButton } from "@/components/profile/FollowButton";
 import { useFollow } from "@/hooks/useFollow";
 import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 
 const TalentProfile = () => {
   const { id } = useParams();
@@ -148,11 +149,21 @@ const TalentProfile = () => {
       {/* HERO SECTION */}
       <div className="relative w-full overflow-hidden">
         <AspectRatio ratio={3 / 4} className="bg-zinc-900">
-          <img
-            src={profile.avatar_url || ""}
-            className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
-            alt="Vibe"
-          />
+          {isSelfView ? (
+            <InteractiveHeroReel
+              entityId={profile.id}
+              entityType="talent"
+              currentReelUrl={profile.hero_reel_url}
+              fallbackImageUrl={profile.avatar_url || "/placeholder.svg"}
+              isOwner={true}
+            />
+          ) : (
+            <img
+              src={profile.avatar_url || "/placeholder.svg"}
+              className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+              alt="Vibe"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
           <div className="absolute top-6 left-6 z-20">
             <Button
