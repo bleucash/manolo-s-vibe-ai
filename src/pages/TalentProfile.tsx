@@ -26,6 +26,7 @@ const TalentProfile = () => {
   const [inviting, setInviting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [initiatingChat, setInitiatingChat] = useState(false);
+  const [activeVenueName, setActiveVenueName] = useState<string | null>(null);
 
   const currentUserId = session?.user?.id || null;
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
@@ -45,7 +46,21 @@ const TalentProfile = () => {
   const fetchData = async () => {
     try {
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
-      if (profileData) setProfile(profileData);
+      if (profileData) {
+        setProfile(profileData);
+
+        // If talent is active, fetch the venue name
+        if (profileData.is_active && profileData.current_venue_id) {
+          const { data: venueData } = await supabase
+            .from("venues")
+            .select("name")
+            .eq("id", profileData.current_venue_id)
+            .single();
+          if (venueData) setActiveVenueName(venueData.name);
+        } else {
+          setActiveVenueName(null);
+        }
+      }
 
       const { data: staffData } = await supabase
         .from("venue_staff")
@@ -150,9 +165,17 @@ const TalentProfile = () => {
             </Button>
           </div>
           <div className="absolute bottom-12 left-8 right-8 z-10">
-            <Badge className="mb-4 bg-neon-pink text-white border-none uppercase tracking-[0.4em] text-[8px] font-black px-4 py-1 rounded-full">
-              {profile.sub_role || "Talent Entity"}
-            </Badge>
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <Badge className="bg-neon-pink text-white border-none uppercase tracking-[0.4em] text-[8px] font-black px-4 py-1 rounded-full">
+                {profile.sub_role || "Talent Entity"}
+              </Badge>
+              {profile.is_active && activeVenueName && (
+                <Badge className="bg-neon-green/15 backdrop-blur-md text-neon-green border-neon-green/30 uppercase text-[8px] font-black tracking-[0.3em] px-4 py-1 rounded-full flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                  Active at {activeVenueName}
+                </Badge>
+              )}
+            </div>
             <h1 className="text-6xl font-display text-white uppercase tracking-tighter leading-[0.8] italic">
               {profile.display_name || profile.username}
             </h1>
