@@ -74,7 +74,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         localStorage.setItem("userMode", actualRole);
 
         if (isMgr) {
-          const { data: venues } = await supabase.from("venues").select("id, name, image_url").eq("owner_id", userId);
+          const { data: venues } = await supabase.from("venues").select("id, name, image_url, hero_reel_url").eq("owner_id", userId);
 
           if (venues && venues.length > 0) {
             setUserVenues(venues);
