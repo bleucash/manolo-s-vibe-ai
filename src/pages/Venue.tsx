@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TicketPurchaseDialog } from "@/components/TicketPurchaseDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import LoadingState from "@/components/ui/LoadingState";
+import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import {
   Briefcase,
   ArrowLeft,
@@ -162,11 +163,21 @@ const Venue = () => {
 
       {/* VENUE HERO */}
       <div className="relative h-[55vh] w-full overflow-hidden">
-        <img
-          src={venue.image_url || "/placeholder.svg"}
-          alt={venue.name}
-          className="w-full h-full object-cover transition-transform duration-1000 scale-105"
-        />
+        {isOwner ? (
+          <InteractiveHeroReel
+            entityId={venue.id}
+            entityType="venue"
+            currentReelUrl={venue.hero_reel_url}
+            fallbackImageUrl={venue.image_url || "/placeholder.svg"}
+            isOwner={true}
+          />
+        ) : (
+          <img
+            src={venue.image_url || "/placeholder.svg"}
+            alt={venue.name}
+            className="w-full h-full object-cover transition-transform duration-1000 scale-105"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
         <div className="absolute bottom-12 left-8 right-8 z-20">
           <div className="flex items-center gap-2 mb-3">
