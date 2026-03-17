@@ -8,6 +8,7 @@ interface Venue {
   id: string;
   name: string;
   image_url: string | null;
+  hero_reel_url: string | null;
 }
 
 interface UserModeContextType {
