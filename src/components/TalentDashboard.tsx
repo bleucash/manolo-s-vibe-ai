@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { HeroReelUpload } from "@/components/HeroReelUpload";
 import { DollarSign, Link2, Building2, TrendingUp, Mail, Zap, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -240,6 +241,9 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
           )}
         </CardContent>
       </Card>
+
+      {/* HERO REEL UPLOAD */}
+      <HeroReelUpload entityId={userId} entityType="talent" />
 
       {/* PERFORMANCE METRICS */}
       <div className="grid grid-cols-2 gap-4">
