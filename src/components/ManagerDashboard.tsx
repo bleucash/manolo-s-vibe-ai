@@ -7,7 +7,6 @@ import ManagerApprovalPanel from "@/components/ManagerApprovalPanel";
 import VenuePriceEditor from "@/components/venue/VenuePriceEditor";
 import StaffCommissionEditor from "@/components/dashboard/StaffCommissionEditor";
 import PayoutsPanel from "@/components/dashboard/PayoutsPanel";
-import { HeroReelUpload } from "@/components/HeroReelUpload";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -334,11 +333,6 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
             </CardContent>
           </Card>
         </div>
-
-        {/* HERO REEL UPLOAD */}
-        {activeVenueId && (
-          <HeroReelUpload entityId={activeVenueId} entityType="venue" currentReelUrl={activeVenue?.hero_reel_url} />
-        )}
 
         {/* PERFORMANCE INDEX */}
         <Card className="bg-black border-white/5 overflow-hidden rounded-3xl shadow-2xl">
