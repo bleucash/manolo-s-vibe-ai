@@ -177,6 +177,12 @@ const Venue = () => {
             {venue.name}
           </h1>
           <div className="flex items-center gap-4">
+            {venue.is_active && (
+              <Badge className="bg-neon-green/15 backdrop-blur-md text-neon-green border-neon-green/30 uppercase text-[9px] font-black tracking-widest px-4 py-1.5 rounded-full flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                Active
+              </Badge>
+            )}
             <Badge className="bg-white/5 backdrop-blur-md text-white border-white/10 uppercase text-[9px] font-black tracking-widest px-4 py-1.5 rounded-full">
               <MapPin className="w-3 h-3 mr-2 text-zinc-500" /> {venue.location}
             </Badge>
