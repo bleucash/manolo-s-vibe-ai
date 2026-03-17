@@ -39,6 +39,8 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
   const [pendingCount, setPendingCount] = useState(0);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isVenueActive, setIsVenueActive] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
 
   const activeVenue = userVenues.find((v) => v.id === activeVenueId);
 
@@ -103,6 +105,7 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
     };
 
     fetchDashboardData();
+    fetchVenueActiveStatus();
 
     const ticketSub = supabase
       .channel("dashboard-refresh")
@@ -150,6 +153,47 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
     }
   };
 
+  // Fetch venue active status
+  const fetchVenueActiveStatus = async () => {
+    if (!activeVenueId) return;
+    try {
+      const { data, error } = await supabase.from("venues").select("is_active").eq("id", activeVenueId).single();
+
+      if (error) throw error;
+      setIsVenueActive(data?.is_active || false);
+    } catch (err) {
+      console.error("Error fetching venue active status:", err);
+    }
+  };
+
+  // Toggle venue active status
+  const handleToggleActive = async () => {
+    if (!activeVenueId || togglingActive) return;
+
+    setTogglingActive(true);
+    const newActiveState = !isVenueActive;
+
+    try {
+      const { error } = await supabase
+        .from("venues")
+        .update({
+          is_active: newActiveState,
+          active_at: newActiveState ? new Date().toISOString() : null,
+        })
+        .eq("id", activeVenueId);
+
+      if (error) throw error;
+
+      setIsVenueActive(newActiveState);
+      toast.success(newActiveState ? "Venue is now Active" : "Venue deactivated");
+    } catch (err) {
+      console.error("Error toggling active status:", err);
+      toast.error("Failed to update active status");
+    } finally {
+      setTogglingActive(false);
+    }
+  };
+
   if (isLoadingMetrics) return null;
 
   return (
@@ -159,6 +203,23 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
         <div className="flex-1 max-w-[240px]">
           <VenueSwitcher />
         </div>
+
+        {/* GO ACTIVE TOGGLE */}
+        <Button
+          onClick={handleToggleActive}
+          disabled={togglingActive || !activeVenueId}
+          className={`h-10 px-6 font-black uppercase tracking-widest text-[10px] transition-all ${
+            isVenueActive
+              ? "bg-neon-green/10 border-neon-green/30 text-neon-green hover:bg-neon-green/20 shadow-[0_0_20px_rgba(57,255,20,0.15)]"
+              : "bg-zinc-900/50 border-white/5 text-zinc-400 hover:bg-zinc-800"
+          }`}
+          variant="outline"
+        >
+          <div
+            className={`w-2 h-2 rounded-full mr-2 ${isVenueActive ? "bg-neon-green animate-pulse" : "bg-zinc-600"}`}
+          />
+          {togglingActive ? "Updating..." : isVenueActive ? "Active" : "Go Active"}
+        </Button>
 
         <div className="flex items-center gap-2">
           <Dialog>
