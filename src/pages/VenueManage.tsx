@@ -33,7 +33,7 @@ const VenueManage = () => {
     }
 
     fetchVenue();
-  }, [mode, activeVenueId]);
+  }, [mode, activeVenueId, navigate]);
 
   const fetchVenue = async () => {
     if (!activeVenueId) return;
