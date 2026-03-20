@@ -140,6 +140,15 @@ const AppContent = () => {
             />
 
             <Route
+              path="/talent/manage"
+              element={
+                <ProtectedRoute allowedModes={["talent"]}>
+                  <TalentManage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/dashboard"
               element={
                 <ProtectedRoute allowedModes={["manager"]}>
