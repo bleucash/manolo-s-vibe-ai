@@ -6,7 +6,7 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Film, CalendarDays, Settings, Zap } from "lucide-react";
+import { ArrowLeft, Film, Calendar, Settings, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 const VenueManage = () => {
@@ -18,8 +18,16 @@ const VenueManage = () => {
   const [activeTab, setActiveTab] = useState("hero-reel");
 
   useEffect(() => {
-    if (mode !== "manager" || !activeVenueId) {
+    // Redirect if not in manager mode
+    if (mode !== "manager") {
       toast.error("Manager mode required");
+      navigate("/profile");
+      return;
+    }
+
+    // Redirect if no active venue
+    if (!activeVenueId) {
+      toast.error("No active venue selected");
       navigate("/profile");
       return;
     }
@@ -31,8 +39,11 @@ const VenueManage = () => {
     if (!activeVenueId) return;
 
     try {
-      const { data } = await supabase.from("venues").select("*").eq("id", activeVenueId).single();
-      if (data) setVenue(data);
+      const { data: venueData } = await supabase.from("venues").select("*").eq("id", activeVenueId).single();
+
+      if (venueData) {
+        setVenue(venueData);
+      }
     } catch (error) {
       console.error("Error fetching venue:", error);
       toast.error("Failed to load venue");
@@ -86,7 +97,7 @@ const VenueManage = () => {
               value="events"
               className="rounded-xl data-[state=active]:bg-neon-blue data-[state=active]:text-black text-white/60 font-black uppercase text-[9px] tracking-widest"
             >
-              <CalendarDays className="w-3 h-3 mr-2" />
+              <Calendar className="w-3 h-3 mr-2" />
               Events
             </TabsTrigger>
             <TabsTrigger
@@ -104,7 +115,7 @@ const VenueManage = () => {
               <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
                 <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
                   <Film className="w-3 h-3 text-neon-blue" />
-                  Hero Reel Upload
+                  Venue Hero Reel Upload
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
@@ -139,7 +150,7 @@ const VenueManage = () => {
               </CardHeader>
               <CardContent className="p-6">
                 <p className="text-xs text-white/60 mb-4">
-                  This hero reel will display on your public venue page and Discovery cards.
+                  This hero reel will display on your public venue profile and Discovery cards.
                 </p>
                 <Button
                   onClick={() => navigate(`/venue/${venue.id}`)}
@@ -156,17 +167,15 @@ const VenueManage = () => {
             <Card className="bg-zinc-900/20 border-white/5 rounded-3xl overflow-hidden">
               <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
                 <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
-                  <CalendarDays className="w-3 h-3 text-neon-blue" />
+                  <Calendar className="w-3 h-3 text-neon-blue" />
                   Event Management
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="text-center py-12">
-                  <CalendarDays className="w-16 h-16 mx-auto mb-4 text-white/20" />
-                  <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">
-                    Events Coming Soon
-                  </h3>
-                  <p className="text-white/40 text-xs">Create and manage events for your venue.</p>
+                  <Calendar className="w-16 h-16 mx-auto mb-4 text-white/20" />
+                  <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">Events Coming Soon</h3>
+                  <p className="text-white/40 text-xs">Upload event flyers and manage your venue's calendar.</p>
                 </div>
               </CardContent>
             </Card>
@@ -187,7 +196,7 @@ const VenueManage = () => {
                   <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">
                     Settings Coming Soon
                   </h3>
-                  <p className="text-white/40 text-xs">Manage your venue profile settings and preferences.</p>
+                  <p className="text-white/40 text-xs">Manage your venue details, hours, and preferences.</p>
                 </div>
               </CardContent>
             </Card>
