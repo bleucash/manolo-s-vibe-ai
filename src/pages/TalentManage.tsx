@@ -119,7 +119,6 @@ const TalentManage = () => {
                     currentReelUrl={profile.hero_reel_url}
                     fallbackImageUrl={profile.avatar_url}
                     isOwner={true}
-                    className="w-full h-full"
                   />
                 </div>
 
