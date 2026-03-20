@@ -168,7 +168,7 @@ const GuestProfile = () => {
         {!isSelfView && (
           <div className="flex gap-3 mb-8">
             {/* Follow Button */}
-            <FollowButton talentId={id || ""} />
+            <FollowButton targetId={id || ""} />
 
             {/* Message Button */}
             {isFollowing && (
