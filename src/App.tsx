@@ -15,19 +15,19 @@ import Auth from "./pages/Auth";
 import Discovery from "./pages/Discovery";
 import TalentDirectory from "./pages/TalentDirectory";
 import TalentProfile from "./pages/TalentProfile";
+import TalentManage from "./pages/TalentManage";
+import GuestProfile from "./pages/GuestProfile";
 import Profile from "./pages/Profile";
 import Wallet from "./pages/Wallet";
 import Gigs from "./pages/Gigs";
 import Dashboard from "./pages/Dashboard";
 import Bouncer from "./pages/Bouncer";
 import Venue from "./pages/Venue";
+import VenueManage from "./pages/VenueManage";
 import Events from "./pages/Events";
 import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
-import GuestProfile from "./pages/GuestProfile";
 import NotFound from "./pages/NotFound";
-import TalentManage from "./pages/TalentManage";
-import VenueManage from "./pages/VenueManage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
@@ -81,6 +81,14 @@ const AppContent = () => {
             <Route path="/discovery" element={<Discovery />} />
             <Route path="/events" element={<Events />} />
             <Route path="/venue/:id" element={<Venue />} />
+            <Route
+              path="/venue/manage"
+              element={
+                <ProtectedRoute>
+                  <VenueManage />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/messages"
@@ -102,6 +110,14 @@ const AppContent = () => {
 
             <Route path="/talent-directory" element={<TalentDirectory />} />
             <Route path="/talent/:id" element={<TalentProfile />} />
+            <Route
+              path="/talent/manage"
+              element={
+                <ProtectedRoute>
+                  <TalentManage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/users/:id" element={<GuestProfile />} />
 
             <Route
@@ -136,24 +152,6 @@ const AppContent = () => {
               element={
                 <ProtectedRoute allowedModes={["talent"]}>
                   <Gigs />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/talent/manage"
-              element={
-                <ProtectedRoute allowedModes={["talent"]}>
-                  <TalentManage />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/venue/manage"
-              element={
-                <ProtectedRoute allowedModes={["manager"]}>
-                  <VenueManage />
                 </ProtectedRoute>
               }
             />
