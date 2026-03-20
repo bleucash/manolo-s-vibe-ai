@@ -26,6 +26,7 @@ import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import GuestProfile from "./pages/GuestProfile";
 import NotFound from "./pages/NotFound";
+import TalentManage from "./pages/TalentManage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
