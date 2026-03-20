@@ -30,7 +30,7 @@ const TalentManage = () => {
     if (currentUserId) {
       fetchProfile();
     }
-  }, [mode, currentUserId]);
+  }, [mode, currentUserId, navigate]);
 
   const fetchProfile = async () => {
     if (!currentUserId) return;
