@@ -1,185 +1,203 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ArrowLeft, User, Users, MessageSquare } from "lucide-react";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { useFollow } from "@/hooks/useFollow";
-import { ArrowLeft, User, Users, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 
-interface GuestProfileData {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-}
-
 const GuestProfile = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const navigate = useNavigate();
   const { session } = useUserMode();
-  const [profile, setProfile] = useState<GuestProfileData | null>(null);
-  const [followingCount, setFollowingCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const { isFollowing } = useFollow(id || "");
 
-  const isSelf = session?.user?.id === id;
+  const { isFollowing } = useFollow(id || "");
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [initiatingChat, setInitiatingChat] = useState(false);
+
+  const currentUserId = session?.user?.id || null;
+  const isSelfView = currentUserId === id;
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      const [profileRes, followingRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, display_name, username, avatar_url, bio")
-          .eq("id", id)
-          .single(),
-        supabase
-          .from("followers")
-          .select("id", { count: "exact", head: true })
-          .eq("follower_id", id),
-      ]);
-
-      if (profileRes.data) setProfile(profileRes.data);
-      if (followingRes.count !== null) setFollowingCount(followingRes.count);
-      setLoading(false);
-    };
-
-    fetchData();
+    fetchProfile();
   }, [id]);
 
-  const handleMessage = async () => {
-    if (!session?.user?.id || !id) {
-      toast.error("Sign in to send messages");
-      return;
-    }
+  const fetchProfile = async () => {
     try {
-      const { data, error } = await supabase.rpc("start_conversation", {
-        target_user_id: id,
-      });
-      if (error) throw error;
-      navigate("/messages");
-    } catch (err: any) {
-      toast.error(err.message || "Could not start conversation");
+      // Fetch profile data
+      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+
+      if (profileData) {
+        setProfile(profileData);
+
+        // Fetch following count
+        const { count } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("follower_id", id);
+
+        setFollowingCount(count || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching guest profile:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const handleMessage = async () => {
+    if (!currentUserId || !id || isSelfView) return;
+
+    setInitiatingChat(true);
+
+    try {
+      // Check for existing conversation
+      const { data: existingConversations } = await supabase
+        .from("conversations")
+        .select("id")
+        .or(`and(user1_id.eq.${currentUserId},user2_id.eq.${id}),and(user1_id.eq.${id},user2_id.eq.${currentUserId})`)
+        .maybeSingle();
+
+      if (existingConversations) {
+        navigate(`/messages?conversation=${existingConversations.id}`);
+        return;
+      }
+
+      // Create new conversation
+      const { data: newConvo, error } = await supabase
+        .from("conversations")
+        .insert({
+          user1_id: currentUserId,
+          user2_id: id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      navigate(`/messages?conversation=${newConvo.id}`);
+    } catch (error: any) {
+      console.error("Message error:", error);
+      toast.error("Failed to start conversation");
+    } finally {
+      setInitiatingChat(false);
+    }
+  };
+
+  if (loading) return null;
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white/40 gap-4">
-        <Users className="w-12 h-12" />
-        <p className="text-sm">User not found</p>
+      <div className="h-screen flex items-center justify-center bg-black text-white font-display uppercase tracking-[0.5em] text-[10px]">
+        User Not Found
       </div>
     );
   }
 
-  const displayName = profile.display_name || "Anonymous";
-  const fallbackLetter = displayName.charAt(0).toUpperCase();
-
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Banner */}
-      <div className="relative h-48 overflow-hidden">
+    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
+      {/* BANNER IMAGE */}
+      <div className="relative w-full h-48 overflow-hidden bg-zinc-900">
         {profile.avatar_url && (
-          <img
-            src={profile.avatar_url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110"
-          />
+          <img src={profile.avatar_url} alt="Banner" className="w-full h-full object-cover opacity-30 blur-sm" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 rounded-full backdrop-blur-md bg-black/30 text-white z-10"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        {/* Back Button */}
+        <div className="absolute top-6 left-6 z-20">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
-      {/* Avatar + Info */}
+      {/* PROFILE INFO */}
       <div className="px-8 -mt-16 relative z-10">
-        <Avatar className="w-32 h-32 border-[6px] border-black">
-          <AvatarImage src={profile.avatar_url || undefined} alt={displayName} />
-          <AvatarFallback className="bg-zinc-800 text-white text-3xl font-bold">
-            {fallbackLetter}
-          </AvatarFallback>
-        </Avatar>
+        {/* Avatar */}
+        <div className="relative inline-block mb-6">
+          <Avatar className="w-32 h-32 border-[6px] border-black shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <AvatarImage src={profile.avatar_url} />
+            <AvatarFallback className="bg-zinc-900 text-zinc-600 text-3xl font-display italic">
+              {profile.display_name?.charAt(0)?.toUpperCase() || profile.username?.charAt(0)?.toUpperCase() || "G"}
+            </AvatarFallback>
+          </Avatar>
+        </div>
 
-        <h1 className="text-4xl font-display text-white uppercase tracking-tighter italic mt-4">
-          {displayName}
-        </h1>
+        {/* Name & Username */}
+        <div className="mb-6">
+          <h1 className="text-4xl font-display text-white uppercase tracking-tighter italic leading-none mb-2">
+            {profile.display_name || profile.username || "Guest User"}
+          </h1>
+          {profile.username && <p className="text-sm text-white/40 font-mono">@{profile.username}</p>}
+        </div>
 
-        {profile.username && (
-          <p className="text-sm text-white/40 font-mono">@{profile.username}</p>
-        )}
-
-        <div className="flex gap-3 mt-3">
-          <Badge variant="secondary" className="bg-white/5 border-white/10 text-white/60 gap-1.5">
-            <Users className="w-3 h-3" />
+        {/* Stats & Actions */}
+        <div className="flex items-center gap-3 mb-6">
+          {/* Following Count */}
+          <Badge className="bg-white/5 backdrop-blur-md text-white/60 border-white/10 uppercase text-[9px] font-black tracking-widest px-4 py-2 rounded-full">
+            <Users className="w-3 h-3 mr-2" />
             {followingCount} Following
           </Badge>
-          <Badge variant="secondary" className="bg-white/5 border-white/10 text-white/60 gap-1.5">
-            <User className="w-3 h-3" />
+
+          {/* Guest Badge */}
+          <Badge className="bg-zinc-900/40 backdrop-blur-md text-white/40 border-white/10 uppercase text-[9px] font-black tracking-widest px-4 py-2 rounded-full">
+            <User className="w-3 h-3 mr-2" />
             Guest
           </Badge>
         </div>
 
+        {/* Bio */}
         {profile.bio && (
-          <p className="text-white/70 text-sm mt-4 leading-relaxed">{profile.bio}</p>
+          <div className="mb-8">
+            <p className="text-white/70 text-sm leading-relaxed">{profile.bio}</p>
+          </div>
         )}
 
-        {/* Actions */}
-        {!isSelf && (
-          <div className="flex gap-3 mt-6">
-            <FollowButton targetId={id} targetName={displayName} />
+        {/* Action Buttons */}
+        {!isSelfView && (
+          <div className="flex gap-3 mb-8">
+            {/* Follow Button */}
+            <FollowButton talentId={id || ""} />
+
+            {/* Message Button */}
             {isFollowing && (
               <Button
-                variant="outline"
-                size="sm"
                 onClick={handleMessage}
-                className="border-white/10 text-white/70 hover:bg-white/5 gap-2"
+                disabled={initiatingChat}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full font-black uppercase text-[10px] tracking-widest transition-all"
               >
-                <MessageSquare className="w-4 h-4" />
-                Message
+                <MessageSquare className="w-3.5 h-3.5 mr-2" />
+                {initiatingChat ? "Opening..." : "Message"}
               </Button>
             )}
           </div>
         )}
 
-        {/* Self-view card */}
-        {isSelf && (
-          <Card className="bg-zinc-900/20 border-white/5 rounded-2xl p-8 mt-6 flex flex-col items-center text-center gap-3">
-            <User className="w-12 h-12 text-white/20" />
-            <h3 className="text-white font-semibold text-lg">Your Public Profile</h3>
-            <p className="text-white/50 text-sm">
-              This is what others see when they visit your page.
-            </p>
-          </Card>
+        {/* Self-View Message */}
+        {isSelfView && (
+          <div className="bg-zinc-900/20 border border-white/5 rounded-2xl p-6 text-center">
+            <User className="w-12 h-12 mx-auto mb-4 text-white/20" />
+            <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">Your Public Profile</h3>
+            <p className="text-white/40 text-xs leading-relaxed">This is what others see when they visit your page.</p>
+          </div>
         )}
 
-        {/* Empty state for non-self */}
-        {!isSelf && !profile.bio && (
-          <div className="flex flex-col items-center text-center mt-12 gap-3 text-white/30">
-            <Users className="w-10 h-10" />
-            <p className="text-sm">This user is exploring the nightlife scene</p>
+        {/* Empty State for Non-Self View */}
+        {!isSelfView && (
+          <div className="bg-zinc-900/20 border border-white/5 rounded-2xl p-6 text-center mt-8">
+            <Users className="w-12 h-12 mx-auto mb-4 text-white/20" />
+            <p className="text-white/40 text-xs">This user is exploring the nightlife scene.</p>
           </div>
         )}
       </div>
