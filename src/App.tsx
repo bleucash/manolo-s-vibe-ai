@@ -150,6 +150,15 @@ const AppContent = () => {
             />
 
             <Route
+              path="/venue/manage"
+              element={
+                <ProtectedRoute allowedModes={["manager"]}>
+                  <VenueManage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/dashboard"
               element={
                 <ProtectedRoute allowedModes={["manager"]}>
