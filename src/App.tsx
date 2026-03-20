@@ -100,7 +100,7 @@ const AppContent = () => {
 
             <Route path="/talent-directory" element={<TalentDirectory />} />
             <Route path="/talent/:id" element={<TalentProfile />} />
-            <Route path="/users/:id" element={<TalentProfile />} />
+            <Route path="/users/:id" element={<GuestProfile />} />
 
             <Route
               path="/profile"
