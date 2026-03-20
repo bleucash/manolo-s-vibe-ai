@@ -24,6 +24,7 @@ import Venue from "./pages/Venue";
 import Events from "./pages/Events";
 import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
+import GuestProfile from "./pages/GuestProfile";
 import NotFound from "./pages/NotFound";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -99,7 +100,7 @@ const AppContent = () => {
 
             <Route path="/talent-directory" element={<TalentDirectory />} />
             <Route path="/talent/:id" element={<TalentProfile />} />
-            <Route path="/users/:id" element={<TalentProfile />} />
+            <Route path="/users/:id" element={<GuestProfile />} />
 
             <Route
               path="/profile"
