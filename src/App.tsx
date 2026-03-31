@@ -12,6 +12,8 @@ import Dashboard from "./pages/Dashboard";
 import TalentManage from "./pages/TalentManage";
 import CEODashboard from "./pages/CEODashboard";
 import Auth from "./pages/Auth";
+import Messages from "./pages/Messages";
+import Wallet from "./pages/Wallet";
 
 // 🛡️ THE CEO GATE: Ironclad identity check
 const CEORoute = ({ children }: { children: React.ReactNode }) => {
@@ -44,6 +46,10 @@ const App = () => (
 
           {/* GUEST & IDENTITY SETTINGS */}
           <Route path="/profile" element={<Profile />} />
+          <Route path="/wallet" element={<Wallet />} />
+
+          {/* SOCIAL SECTOR */}
+          <Route path="/messages" element={<Messages />} />
 
           {/* TALENT PROFESSIONAL SECTOR */}
           <Route path="/gigs" element={<Gigs />} />

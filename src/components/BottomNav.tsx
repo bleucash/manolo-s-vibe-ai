@@ -85,13 +85,6 @@ const BottomNav = () => {
                   isActive ? `${item.color} ${item.glow}` : "text-zinc-800 group-hover:text-zinc-400",
                 )}
               />
-              {isActive && (
-                <div className={cn(
-                  "absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full",
-                  item.color,
-                  "shadow-[0_0_8px_currentColor]"
-                )} />
-              )}
             </button>
           );
         })}

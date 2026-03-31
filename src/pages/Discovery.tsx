@@ -169,7 +169,7 @@ const Discovery = () => {
   return (
     <div className="h-screen bg-black overflow-hidden flex flex-col relative">
       {/* HUD HEADER */}
-      <div className="fixed top-0 left-0 right-0 z-[150] glass pt-4 overflow-visible">
+      <div className="fixed top-0 left-0 right-0 z-[150] glass pt-4 shadow-[0_4px_20px_rgba(0,0,0,0.5)] overflow-visible">
         <div className="px-8 flex justify-between items-center h-16">
           <div className="flex items-center gap-3"><Target className="w-4 h-4 text-neon-blue" /><h1 className="font-display text-2xl text-white uppercase tracking-wider italic pt-1 leading-none">Discovery</h1></div>
           <button onClick={() => setIsSearchOpen(true)} className="text-white/40"><Search className="w-5 h-5" /></button>
