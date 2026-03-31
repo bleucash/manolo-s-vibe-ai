@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Ticket, MapPin, ArrowLeft, Users, ShieldCheck, MessageSquare, Instagram, Zap, Loader2 } from "lucide-react";
+import { Ticket, MapPin, Users, ShieldCheck, MessageSquare, Instagram, Zap, Loader2 } from "lucide-react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
@@ -63,11 +63,6 @@ const Venue = () => {
             isOwner={isTempManager}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-          <div className="absolute top-6 left-6 z-20">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </div>
         </AspectRatio>
       </div>
 

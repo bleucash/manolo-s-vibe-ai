@@ -3,12 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { DashboardGuard } from "@/components/DashboardGuard";
-import { 
-  ShieldCheck, 
-  Users, 
-  Ticket, 
-  TrendingUp, 
-  Settings, 
+import {
+  ShieldCheck,
+  Users,
+  Ticket,
+  TrendingUp,
   ChevronRight,
   Zap,
   Calendar
@@ -48,18 +47,13 @@ const Dashboard = () => {
       <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-1000">
         {/* DASHBOARD HEADER */}
         <div className="px-8 pt-12 pb-8 border-b border-white/5 bg-zinc-900/20">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h1 className="font-display text-4xl text-white uppercase italic tracking-tighter leading-none">
-                Operation Control
-              </h1>
-              <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mt-2">
-                Sector: {targetVenueId?.slice(0, 8)}... [VERIFIED]
-              </p>
-            </div>
-            <Button variant="outline" size="icon" className="rounded-full border-white/10 bg-white/5">
-              <Settings className="w-4 h-4 text-white" />
-            </Button>
+          <div className="mb-8">
+            <h1 className="font-display text-4xl text-white uppercase italic tracking-tighter leading-none">
+              Operation Control
+            </h1>
+            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mt-2">
+              Sector: {targetVenueId?.slice(0, 8)}... [VERIFIED]
+            </p>
           </div>
 
           {/* QUICK STATS GRID */}

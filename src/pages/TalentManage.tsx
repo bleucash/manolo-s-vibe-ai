@@ -5,7 +5,7 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Instagram, Zap, ShieldCheck, Loader2, ArrowLeft, Video } from "lucide-react";
+import { Instagram, Zap, ShieldCheck, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 
@@ -79,9 +79,6 @@ const TalentManage = () => {
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
       {/* 1. HUD HEADER */}
       <div className="px-8 pt-8 flex items-center justify-between mb-8">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full bg-white/5">
-          <ArrowLeft className="w-4 h-4 text-white" />
-        </Button>
         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">Backstage / Talent Studio</span>
         <div className="w-10" />
       </div>

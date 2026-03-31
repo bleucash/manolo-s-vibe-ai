@@ -6,7 +6,7 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Film, Calendar, Settings, Zap } from "lucide-react";
+import { Film, Calendar, Settings, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 const VenueManage = () => {
@@ -66,19 +66,9 @@ const VenueManage = () => {
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/profile")}
-            className="rounded-full text-white border border-white/10"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-display text-white uppercase tracking-tighter italic">Venue Studio</h1>
-            <p className="text-[9px] text-white/40 uppercase tracking-widest font-black">{venue.name} Management</p>
-          </div>
+        <div className="flex items-center justify-center relative">
+          <h1 className="text-xl font-display text-white uppercase tracking-tighter italic">Venue Studio</h1>
+          <p className="text-[9px] text-white/40 uppercase tracking-widest font-black absolute -bottom-2 left-0 right-0 text-center">{venue.name} Management</p>
         </div>
       </div>
 
