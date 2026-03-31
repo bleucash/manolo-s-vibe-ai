@@ -68,6 +68,7 @@ const TalentProfile = () => {
   };
 
   if (loading || followLoading) return null;
+  if (!profile) return null; // Guard against null profile
 
   return (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
