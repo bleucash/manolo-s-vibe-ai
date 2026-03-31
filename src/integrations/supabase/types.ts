@@ -924,6 +924,7 @@ export type Database = {
           sub_role: string
           talent_id: string
           venue_id: string
+          is_active: boolean
         }[]
       }
       get_unpaid_commissions: {
