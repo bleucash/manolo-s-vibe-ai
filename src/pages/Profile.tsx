@@ -28,17 +28,8 @@ const Profile = () => {
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("about");
 
-  // ✅ NEURAL FORWARD: High-priority redirection logic
-  // This prevents Business users from being "trapped" in the Guest settings view.
-  useEffect(() => {
-    if (contextLoading) return;
-
-    if (mode === "talent") {
-      navigate("/talent-manage", { replace: true });
-    } else if (mode === "manager") {
-      navigate("/venue/manage", { replace: true });
-    }
-  }, [mode, contextLoading, navigate]);
+  // No auto-redirect - users stay on Profile to access mode switch
+  // Mode changes will trigger navigation via toggleUserMode
 
   useEffect(() => {
     fetchProfileData();
@@ -74,17 +65,20 @@ const Profile = () => {
       if (isTalent) {
         setMode("talent");
         toast.success("Talent Mode Initialized");
+        navigate("/talent-manage");
       } else if (isManager) {
         setMode("manager");
         toast.success("Manager Control Active");
+        navigate("/venue/manage");
       } else {
-        toast.error("Verified Role Required", { 
-          description: "Complete onboarding to unlock business tools." 
+        toast.error("Verified Role Required", {
+          description: "Complete onboarding to unlock business tools."
         });
       }
     } else {
       setMode("guest");
       toast.success("Guest Mode Active");
+      navigate("/profile");
     }
   };
 
