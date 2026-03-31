@@ -15,18 +15,30 @@ import { cn } from "@/lib/utils";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { mode, setMode, isManager, isTalent, activeVenueId, isLoading: contextLoading } = useUserMode();
+  const { 
+    mode, 
+    setMode, 
+    isManager, 
+    isTalent, 
+    activeVenueId, 
+    isLoading: contextLoading 
+  } = useUserMode();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("about");
 
-  // Sync active tab with current mode on mount or mode change
+  // ✅ NEURAL FORWARD: High-priority redirection logic
+  // This prevents Business users from being "trapped" in the Guest settings view.
   useEffect(() => {
-    if (mode === "manager") setActiveTab("venue");
-    else if (mode === "talent") setActiveTab("portfolio");
-    else setActiveTab("about");
-  }, [mode]);
+    if (contextLoading) return;
+
+    if (mode === "talent") {
+      navigate("/talent/manage", { replace: true });
+    } else if (mode === "manager") {
+      navigate("/venue/manage", { replace: true });
+    }
+  }, [mode, contextLoading, navigate]);
 
   useEffect(() => {
     fetchProfileData();
@@ -37,12 +49,18 @@ const Profile = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      
       if (!user) {
         navigate("/auth");
         return;
       }
 
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+        
       if (profileData) setProfile(profileData);
     } catch (error) {
       console.error("Profile Fetch Error:", error);
@@ -60,7 +78,9 @@ const Profile = () => {
         setMode("manager");
         toast.success("Manager Control Active");
       } else {
-        toast.error("Verified Role Required", { description: "Complete onboarding to unlock." });
+        toast.error("Verified Role Required", { 
+          description: "Complete onboarding to unlock business tools." 
+        });
       }
     } else {
       setMode("guest");
@@ -73,25 +93,27 @@ const Profile = () => {
     navigate("/auth");
   };
 
-  // ✅ LOCALIZED LOADING: Prevents the "Blackout" flicker
+  // ✅ UNIFIED LOADING STRATEGY
   if (loading || contextLoading) {
     return <LoadingState />;
   }
 
   return (
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
-      {/* SYSTEM BANNER */}
+      {/* SYSTEM BANNER - Guest View */}
       <div className="relative w-full h-56">
         <HeroReel
           fallbackImageUrl="https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070"
-          alt="Test banner"
+          alt="System Banner"
           className="w-full h-full"
         />
 
         {/* NEURAL MODE SWITCH */}
         <div className="absolute top-8 left-6 z-20">
           <div className="flex flex-col gap-2">
-            <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] ml-1">System State</span>
+            <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] ml-1">
+              System State
+            </span>
             <button
               onClick={toggleUserMode}
               className={cn(
@@ -107,7 +129,7 @@ const Profile = () => {
                   mode !== "guest" ? "translate-x-[96px] bg-neon-green" : "translate-x-0 bg-white",
                 )}
               >
-                <Zap className={cn("w-4 h-4", mode !== "guest" ? "text-black" : "text-black")} />
+                <Zap className="w-4 h-4 text-black" />
               </div>
               <span
                 className={cn(
@@ -150,71 +172,38 @@ const Profile = () => {
       <div className="mt-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full bg-transparent border-b border-white/5 h-14 px-8 justify-start gap-10">
-            {mode === "manager" && (
-              <TabsTrigger
-                value="venue"
-                className="data-[state=active]:text-neon-green data-[state=active]:border-b-2 data-[state=active]:border-neon-green px-0 pb-4 text-zinc-600 uppercase text-[10px] font-black tracking-widest transition-all"
-              >
-                <Activity className="w-3.5 h-3.5 mr-2" /> Sector
-              </TabsTrigger>
-            )}
-            {mode === "talent" && (
-              <TabsTrigger
-                value="portfolio"
-                className="data-[state=active]:text-neon-purple data-[state=active]:border-b-2 data-[state=active]:border-neon-purple px-0 pb-4 text-zinc-600 uppercase text-[10px] font-black tracking-widest transition-all"
-              >
-                <Grid3X3 className="w-3.5 h-3.5 mr-2" /> Gigs
-              </TabsTrigger>
-            )}
             <TabsTrigger
               value="about"
               className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white px-0 pb-4 text-zinc-600 uppercase text-[10px] font-black tracking-widest transition-all"
             >
-              <Settings className="w-3.5 h-3.5 mr-2" /> System
+              <Settings className="w-3.5 h-3.5 mr-2" /> System Settings
             </TabsTrigger>
           </TabsList>
-
-          {/* MANAGER CONTENT */}
-          <TabsContent value="venue" className="p-8 animate-in slide-in-from-bottom-2 duration-500">
-            <Card className="bg-zinc-900/20 border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-neon-green opacity-50" />
-              <h3 className="text-white font-display text-2xl uppercase italic tracking-tight mb-2">Venue Control</h3>
-              <p className="text-sm text-zinc-500 font-medium leading-relaxed mb-8">
-                Manage your live environment, pricing, and neural metrics.
-              </p>
-              <Button
-                className="w-full h-16 bg-white text-black font-black uppercase tracking-widest text-[10px] rounded-2xl hover:bg-neon-green transition-all shadow-xl"
-                onClick={() => navigate(`/venue/${activeVenueId}`)}
-              >
-                Access Public Sector
-              </Button>
-            </Card>
-          </TabsContent>
-
-          {/* TALENT CONTENT */}
-          <TabsContent value="portfolio" className="p-8 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="py-20 text-center border border-dashed border-zinc-800 rounded-[2.5rem] bg-zinc-900/10">
-              <Zap className="w-8 h-8 text-zinc-800 mx-auto mb-4" />
-              <p className="text-zinc-700 italic text-[10px] uppercase font-black tracking-[0.5em]">
-                Neural Sync in Progress
-              </p>
-            </div>
-          </TabsContent>
 
           {/* SETTINGS CONTENT */}
           <TabsContent value="about" className="p-8 space-y-8 animate-in slide-in-from-bottom-2 duration-500">
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-1 h-1 bg-zinc-700 rounded-full" />
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Neural Link Management</p>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                  Neural Link Management
+                </p>
               </div>
-              <Button
-                variant="outline"
-                className="w-full h-16 border-white/5 bg-zinc-900/30 text-zinc-400 hover:border-red-500/50 hover:text-red-500 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
-                onClick={handleLogout}
-              >
-                <LogOut className="w-4 h-4 mr-3" /> Terminate Session
-              </Button>
+              
+              <Card className="bg-zinc-900/20 border-white/5 p-6 rounded-[2rem]">
+                <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
+                  You are currently in Guest Mode. This allows you to follow talent, 
+                  message venues, and purchase secure entry tickets. 
+                  Switch modes using the toggle above to access business tools.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full h-16 border-white/5 bg-zinc-900/30 text-zinc-400 hover:border-red-500/50 hover:text-red-500 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="w-4 h-4 mr-3" /> Terminate Session
+                </Button>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>

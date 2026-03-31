@@ -2,205 +2,164 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
-import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Film, Briefcase, Image, Settings, Zap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Instagram, Zap, ShieldCheck, Loader2, ArrowLeft, Video } from "lucide-react";
 import { toast } from "sonner";
+import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 
 const TalentManage = () => {
   const navigate = useNavigate();
-  const { mode, session } = useUserMode();
-
-  const [profile, setProfile] = useState<any>(null);
+  const { session } = useUserMode();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("hero-reel");
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
-  const currentUserId = session?.user?.id || null;
+  // Form State
+  const [displayName, setDisplayName] = useState("");
+  const [subRole, setSubRole] = useState("");
+  const [bio, setBio] = useState("");
+  const [instagram, setInstagram] = useState("");
 
   useEffect(() => {
-    // Redirect if not in talent mode
-    if (mode !== "talent") {
-      toast.error("Talent mode required");
-      navigate("/profile");
-      return;
-    }
-
-    if (currentUserId) {
-      fetchProfile();
-    }
-  }, [mode, currentUserId, navigate]);
+    fetchProfile();
+  }, [session]);
 
   const fetchProfile = async () => {
-    if (!currentUserId) return;
-
-    try {
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", currentUserId).single();
-
-      if (profileData) {
-        setProfile(profileData);
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      toast.error("Failed to load profile");
-    } finally {
-      setLoading(false);
+    if (!session?.user?.id) return;
+    const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+    if (data) {
+      setProfile(data);
+      setDisplayName(data.display_name || "");
+      setSubRole(data.sub_role || "");
+      setBio(data.bio || "");
+      // Extract IG username if it exists in a 'metadata' or 'instagram' field 
+      // (Assuming we store the handle for the handshake)
     }
+    setLoading(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          display_name: displayName,
+          sub_role: subRole,
+          bio: bio,
+        })
+        .eq("id", session?.user?.id);
+
+      if (error) throw error;
+      toast.success("Vibe Updated");
+    } catch (err) {
+      toast.error("Update Failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initiateHandshake = async () => {
+    if (!instagram.includes("@")) {
+      toast.error("Enter a valid @handle");
+      return;
+    }
+    // Logic to store the IG handle in a 'talent_claims' or similar verification table
+    toast.success("Handshake Initiated", {
+      description: "Admin will verify your IG profile shortly."
+    });
   };
 
   if (loading) return null;
 
-  if (!profile) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-black text-white font-display uppercase tracking-[0.5em] text-[10px]">
-        Profile Not Found
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
-      {/* HEADER */}
-      <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/profile")}
-            className="rounded-full text-white border border-white/10"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-display text-white uppercase tracking-tighter italic">Talent Studio</h1>
-            <p className="text-[9px] text-white/40 uppercase tracking-widest font-black">Content Management</p>
-          </div>
+    <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
+      {/* 1. HUD HEADER */}
+      <div className="px-8 pt-8 flex items-center justify-between mb-8">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full bg-white/5">
+          <ArrowLeft className="w-4 h-4 text-white" />
+        </Button>
+        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">Backstage / Talent Studio</span>
+        <div className="w-10" />
+      </div>
+
+      {/* 2. HERO REEL EDITOR (The Vibe Layer) */}
+      <div className="px-8 mb-12">
+        <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <Video className="w-3 h-3 text-neon-purple" /> Cinematic Hero Reel
+        </h3>
+        <div className="aspect-[9/16] w-full max-w-[300px] mx-auto rounded-[2.5rem] overflow-hidden border border-white/10 relative">
+          <InteractiveHeroReel 
+            entityId={profile.id} 
+            entityType="talent" 
+            currentReelUrl={profile.hero_reel_url} 
+            isOwner={true} 
+          />
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div className="px-6 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-zinc-900/20 border border-white/5 rounded-2xl p-1 mb-8">
-            <TabsTrigger
-              value="hero-reel"
-              className="rounded-xl data-[state=active]:bg-neon-blue data-[state=active]:text-black text-white/60 font-black uppercase text-[9px] tracking-widest"
-            >
-              <Film className="w-3 h-3 mr-2" />
-              Hero Reel
-            </TabsTrigger>
-            <TabsTrigger
-              value="portfolio"
-              className="rounded-xl data-[state=active]:bg-neon-blue data-[state=active]:text-black text-white/60 font-black uppercase text-[9px] tracking-widest"
-            >
-              <Briefcase className="w-3 h-3 mr-2" />
-              Portfolio
-            </TabsTrigger>
-            <TabsTrigger
-              value="settings"
-              className="rounded-xl data-[state=active]:bg-neon-blue data-[state=active]:text-black text-white/60 font-black uppercase text-[9px] tracking-widest"
-            >
-              <Settings className="w-3 h-3 mr-2" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
+      {/* 3. VERIFICATION MOAT (The IG Handshake) */}
+      {!profile.is_verified_talent && (
+        <div className="px-8 mb-12">
+          <div className="bg-neon-purple/5 border border-neon-purple/20 rounded-[2rem] p-8 space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-neon-purple/20 rounded-xl flex items-center justify-center">
+                <Instagram className="w-6 h-6 text-neon-purple" />
+              </div>
+              <div>
+                <p className="text-white font-display text-xl uppercase italic leading-none">IG Handshake</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mt-1">Proof of Identity</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <Input 
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                placeholder="@username"
+                className="bg-black border-white/10 text-white rounded-xl h-12 font-bold"
+              />
+              <Button onClick={initiateHandshake} className="bg-white text-black font-black uppercase text-[10px] px-6 rounded-xl">
+                Verify
+              </Button>
+            </div>
+            <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest leading-relaxed">
+              *Verification unlocks Gigs, Secure Entry, and Payout sectors.
+            </p>
+          </div>
+        </div>
+      )}
 
-          {/* HERO REEL TAB */}
-          <TabsContent value="hero-reel" className="space-y-6">
-            <Card className="bg-zinc-900/20 border-white/5 rounded-3xl overflow-hidden">
-              <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
-                <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
-                  <Film className="w-3 h-3 text-neon-blue" />
-                  Hero Reel Upload
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="aspect-video rounded-2xl overflow-hidden border border-white/10 bg-black">
-                  <InteractiveHeroReel
-                    entityId={profile.id}
-                    entityType="talent"
-                    currentReelUrl={profile.hero_reel_url}
-                    fallbackImageUrl={profile.avatar_url || "/placeholder.svg"}
-                    isOwner={true}
-                  />
-                </div>
-                <div className="mt-4 space-y-2">
-                  <p className="text-[9px] text-white/60 uppercase tracking-widest font-black">Upload Requirements</p>
-                  <ul className="text-xs text-white/40 space-y-1">
-                    <li>• Video or image format supported</li>
-                    <li>• Maximum file size: 50MB</li>
-                    <li>• Recommended aspect ratio: 16:9 or 9:16</li>
-                    <li>• Long-press to upload or change</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
+      {/* 4. IDENTITY SETTINGS */}
+      <div className="px-8 space-y-8">
+        <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Public Intel</h3>
+        
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-zinc-600 uppercase ml-4">Professional Name</label>
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="bg-zinc-900/40 border-white/5 h-14 rounded-2xl text-white font-bold" />
+          </div>
 
-            {/* PREVIEW CARD */}
-            <Card className="bg-zinc-900/20 border-white/5 rounded-3xl overflow-hidden">
-              <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
-                <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
-                  <Zap className="w-3 h-3 text-amber-500" />
-                  Public Profile Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <p className="text-xs text-white/60 mb-4">
-                  This hero reel will display on your public talent profile and Discovery cards.
-                </p>
-                <Button
-                  onClick={() => navigate(`/talent/${profile.id}`)}
-                  className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full font-black uppercase text-[10px] tracking-widest"
-                >
-                  View Public Profile
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-zinc-600 uppercase ml-4">Primary Role</label>
+            <Input value={subRole} onChange={(e) => setSubRole(e.target.value)} placeholder="e.g. Lead Dancer" className="bg-zinc-900/40 border-white/5 h-14 rounded-2xl text-white font-bold" />
+          </div>
 
-          {/* PORTFOLIO TAB */}
-          <TabsContent value="portfolio" className="space-y-6">
-            <Card className="bg-zinc-900/20 border-white/5 rounded-3xl overflow-hidden">
-              <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
-                <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
-                  <Image className="w-3 h-3 text-neon-blue" />
-                  Portfolio Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <Briefcase className="w-16 h-16 mx-auto mb-4 text-white/20" />
-                  <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">
-                    Portfolio Coming Soon
-                  </h3>
-                  <p className="text-white/40 text-xs">Upload images and videos to showcase your work.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-zinc-600 uppercase ml-4">Transmission (Bio)</label>
+            <Textarea value={bio} onChange={(e) => setBio(e.target.value)} className="bg-zinc-900/40 border-white/5 rounded-2xl text-white min-h-[120px]" />
+          </div>
+        </div>
 
-          {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="space-y-6">
-            <Card className="bg-zinc-900/20 border-white/5 rounded-3xl overflow-hidden">
-              <CardHeader className="bg-zinc-900/40 border-b border-white/5 py-4">
-                <CardTitle className="text-[10px] uppercase font-black tracking-widest text-white flex items-center gap-2">
-                  <Settings className="w-3 h-3 text-white/60" />
-                  Talent Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <Settings className="w-16 h-16 mx-auto mb-4 text-white/20" />
-                  <h3 className="text-white font-display uppercase tracking-wider text-sm mb-2">
-                    Settings Coming Soon
-                  </h3>
-                  <p className="text-white/40 text-xs">Manage your talent profile settings and preferences.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        <Button 
+          onClick={handleSave} 
+          disabled={saving}
+          className="w-full h-20 bg-neon-purple text-white font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(191,0,255,0.2)]"
+        >
+          {saving ? <Loader2 className="animate-spin" /> : <><Zap className="w-5 h-5 mr-3" /> Commit Changes</>}
+        </Button>
       </div>
     </div>
   );

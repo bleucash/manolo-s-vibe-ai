@@ -1,102 +1,111 @@
-import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
-
-interface PortfolioItem {
-  id: string;
-  media_url: string;
-  media_type: "image" | "video";
-  caption?: string;
-}
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Image as ImageIcon, Lock, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface PortfolioGalleryProps {
-  items: PortfolioItem[];
-  className?: string;
+  userId: string;
+  isEditable?: boolean;
 }
 
-export const PortfolioGallery = ({ items, className = "" }: PortfolioGalleryProps) => {
-  const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
-  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
+export const PortfolioGallery = ({ userId, isEditable = false }: PortfolioGalleryProps) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!items || items.length === 0) {
+  useEffect(() => {
+    if (userId) fetchPortfolio();
+  }, [userId]);
+
+  const fetchPortfolio = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("portfolio_items")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setItems(data || []);
+    } catch (err) {
+      console.error("Portfolio Sync Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    if (!isEditable) return;
+    try {
+      const { error } = await supabase.from("portfolio_items").delete().eq("id", itemId);
+      if (error) throw error;
+      setItems(items.filter(item => item.id !== itemId));
+      toast.success("Content purged from portfolio");
+    } catch (err) {
+      toast.error("Deletion failed");
+    }
+  };
+
+  if (loading) {
     return (
-      <div className={`flex items-center justify-center py-12 ${className}`}>
-        <p className="text-muted-foreground text-sm">No Portfolio Items</p>
+      <div className="flex gap-4 overflow-hidden px-8">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="min-w-[300px] h-[45vh] rounded-[2.5rem] bg-zinc-900" />
+        ))}
       </div>
     );
   }
 
+  if (items.length === 0 && !isEditable) return null;
+
   return (
-    <>
-      <div className={`flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-none ${className}`}>
-        {items.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => setSelectedItem(item)}
-            className="relative shrink-0 w-48 h-64 rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 snap-center group cursor-pointer"
-          >
-            {loading[item.id] && (
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
-                <Loader2 className="w-6 h-6 text-zinc-600 animate-spin" />
-              </div>
-            )}
-
-            {item.media_type === "video" ? (
-              <video
-                src={item.media_url}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                muted
-                loop
-                playsInline
-                onLoadedData={() => setLoading((prev) => ({ ...prev, [item.id]: false }))}
-              />
-            ) : (
-              <img
-                src={item.media_url}
-                alt={item.caption || "Portfolio item"}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                onLoad={() => setLoading((prev) => ({ ...prev, [item.id]: false }))}
-              />
-            )}
-
-            {item.caption && (
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <p className="text-white text-xs truncate">{item.caption}</p>
-              </div>
-            )}
-          </div>
-        ))}
+    <div className="w-full space-y-4">
+      {/* SECTION HEADER */}
+      <div className="px-8 flex justify-between items-center">
+        <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em] flex items-center gap-2">
+          <ImageIcon className="w-3 h-3" /> Professional Portfolio
+        </h3>
       </div>
 
-      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
-        <DialogContent className="max-w-2xl p-0 bg-zinc-900 border-zinc-800 overflow-hidden">
-          {selectedItem && (
-            <div className="relative w-full">
-              {selectedItem.media_type === "video" ? (
-                <video
-                  src={selectedItem.media_url}
-                  className="w-full max-h-[80vh] object-contain"
-                  controls
-                  autoPlay
-                  loop
-                  muted
-                />
-              ) : (
-                <img
-                  src={selectedItem.media_url}
-                  alt={selectedItem.caption || "Portfolio item"}
-                  className="w-full max-h-[80vh] object-contain"
-                />
-              )}
-              {selectedItem.caption && (
-                <div className="p-4 bg-zinc-900">
-                  <p className="text-sm text-muted-foreground">{selectedItem.caption}</p>
-                </div>
+      {/* HORIZONTAL SCROLL AREA */}
+      <div className="flex gap-6 overflow-x-auto px-8 pb-8 no-scrollbar snap-x snap-mandatory">
+        {items.map((item) => (
+          <div 
+            key={item.id} 
+            className="relative min-w-[70vw] md:min-w-[350px] h-[45vh] snap-center group"
+          >
+            <div className="w-full h-full overflow-hidden rounded-[2.5rem] border border-white/5 bg-zinc-900 shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]">
+              <img
+                src={item.image_url}
+                alt="Portfolio content"
+                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+              />
+              
+              {/* EDIT OVERLAY */}
+              {isEditable && (
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="absolute top-6 right-6 p-3 bg-black/60 backdrop-blur-md rounded-full text-red-500 border border-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        ))}
+
+        {/* EMPTY STATE FOR OWNER */}
+        {isEditable && items.length === 0 && (
+          <div className="min-w-[70vw] md:min-w-[350px] h-[45vh] rounded-[2.5rem] border border-dashed border-white/10 flex flex-col items-center justify-center bg-zinc-900/20">
+            <ImageIcon className="w-8 h-8 text-zinc-700 mb-4" />
+            <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest text-center px-12">
+              Portfolio Empty. Use the Dashboard to upload professional content.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
