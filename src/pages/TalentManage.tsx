@@ -73,6 +73,7 @@ const TalentManage = () => {
   };
 
   if (loading) return null;
+  if (!profile) return null; // Guard against null profile
 
   return (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
@@ -91,11 +92,11 @@ const TalentManage = () => {
           <Video className="w-3 h-3 text-neon-purple" /> Cinematic Hero Reel
         </h3>
         <div className="aspect-[9/16] w-full max-w-[300px] mx-auto rounded-[2.5rem] overflow-hidden border border-white/10 relative">
-          <InteractiveHeroReel 
-            entityId={profile.id} 
-            entityType="talent" 
-            currentReelUrl={profile.hero_reel_url} 
-            isOwner={true} 
+          <InteractiveHeroReel
+            entityId={profile.id}
+            entityType="talent"
+            currentReelUrl={profile.hero_reel_url}
+            isOwner={true}
           />
         </div>
       </div>
