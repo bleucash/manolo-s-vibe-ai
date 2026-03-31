@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { 
-  ShieldAlert, 
-  Users, 
-  Building2, 
-  CheckCircle, 
-  XCircle, 
-  Instagram, 
+import { Badge } from "@/components/ui/badge";
+import {
+  ShieldAlert,
+  Users,
+  Building2,
+  CheckCircle,
+  XCircle,
+  Instagram,
   ExternalLink,
   Zap,
   Loader2,

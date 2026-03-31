@@ -1,5 +1,5 @@
 import { TalentGuard } from "@/components/TalentGuard";
-import { TalentDashboard } from "@/components/TalentDashboard";
+import TalentDashboard from "@/components/TalentDashboard";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";

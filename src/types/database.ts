@@ -66,6 +66,21 @@ export interface Ticket {
   created_at: string;
 }
 
+export interface Post {
+  id: string;
+  user_id: string;
+  venue_id: string | null;
+  content: string | null;
+  media_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostWithVenue extends Post {
+  profiles: Profile;
+  venues: Venue | null;
+}
+
 export interface Database {
   public: {
     Tables: {
