@@ -63,10 +63,11 @@ const Index = () => {
       const { data: postData } = await supabase
         .from("posts")
         .select(
-          `*, profiles:user_id (id, display_name, username, avatar_url, sub_role), venues:venue_id (id, name, location)`,
+          `*, profiles:user_id (*), venues:venue_id (*)`,
         )
         .in("user_id", followingIds)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 19); // Limit to 20 most recent posts
       if (postData) setPosts(postData as PostWithVenue[]);
     }
   };

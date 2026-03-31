@@ -267,10 +267,10 @@ const Discovery = () => {
       setLoading(true);
       try {
         // Build venue query with active-first sorting
-        let venueQuery = supabase.from("venues").select("*").order("is_active", { ascending: false });
+        let venueQuery = supabase.from("venues").select("*").order("is_active", { ascending: false }).limit(20);
 
         if (activeCategory !== "All Vibes") {
-          venueQuery = venueQuery.ilike("category", `%${activeCategory}%`);
+          venueQuery = venueQuery.eq("category", activeCategory);
         }
 
         const queries = [
@@ -283,7 +283,7 @@ const Discovery = () => {
             .select("id, display_name, username, avatar_url, hero_reel_url, is_active, current_venue_id, sub_role")
             .eq("role_type", "talent")
             .order("is_active", { ascending: false, nullsFirst: false })
-            .limit(12),
+            .limit(20),
         ];
 
         // If logged in, fetch follows
