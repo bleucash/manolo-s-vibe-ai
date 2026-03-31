@@ -62,9 +62,7 @@ const Index = () => {
     if (followingIds.length > 0) {
       const { data: postData } = await supabase
         .from("posts")
-        .select(
-          `*, profiles:user_id (*), venues:venue_id (*)`,
-        )
+        .select(`*, profiles:user_id (*), venues:venue_id (*)`)
         .in("user_id", followingIds)
         .order("created_at", { ascending: false })
         .range(0, 19); // Limit to 20 most recent posts
@@ -105,7 +103,9 @@ const Index = () => {
       <div className="pt-24 pb-6">
         <div className="px-8 flex items-center gap-2 mb-6">
           <Radio className="w-3 h-3 text-neon-green animate-pulse" />
-          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">Live Intelligence</h2>
+          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">
+            Active Intelligence
+          </h2>
         </div>
 
         <div
