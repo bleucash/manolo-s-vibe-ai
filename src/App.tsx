@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { UserModeProvider, useUserMode } from "@/contexts/UserModeContext";
+import BottomNav from "@/components/BottomNav";
 import Discovery from "./pages/Discovery";
 import Venue from "./pages/Venue";
 import TalentProfile from "./pages/TalentProfile";
@@ -29,38 +30,43 @@ const CEORoute = ({ children }: { children: React.ReactNode }) => {
 const App = () => (
   <BrowserRouter>
     <UserModeProvider>
-      <Routes>
-        {/* PUBLIC SECTOR */}
-        <Route path="/" element={<Navigate to="/discovery" />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/discovery" element={<Discovery />} />
-        <Route path="/venue/:id" element={<Venue />} />
-        <Route path="/talent/:id" element={<TalentProfile />} />
-        
-        {/* GUEST & IDENTITY SETTINGS */}
-        <Route path="/profile" element={<Profile />} />
-        
-        {/* TALENT PROFESSIONAL SECTOR */}
-        <Route path="/gigs" element={<Gigs />} />
-        <Route path="/talent-manage" element={<TalentManage />} />
-        
-        {/* MANAGER/VENUE PROFESSIONAL SECTOR */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/dashboard/:id" element={<Dashboard />} />
+      <div className="min-h-screen bg-background pb-20">
+        {" "}
+        {/* pb-20 prevents BottomNav overlap */}
+        <Routes>
+          {/* PUBLIC SECTOR */}
+          <Route path="/" element={<Navigate to="/discovery" />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/discovery" element={<Discovery />} />
+          <Route path="/venue/:id" element={<Venue />} />
+          <Route path="/talent/:id" element={<TalentProfile />} />
 
-        {/* 🔐 CEO COMMAND & CONTROL (HIDDEN) */}
-        <Route 
-          path="/ceo" 
-          element={
-            <CEORoute>
-              <CEODashboard />
-            </CEORoute>
-          } 
-        />
+          {/* GUEST & IDENTITY SETTINGS */}
+          <Route path="/profile" element={<Profile />} />
 
-        {/* FALLBACK */}
-        <Route path="*" element={<Navigate to="/discovery" />} />
-      </Routes>
+          {/* TALENT PROFESSIONAL SECTOR */}
+          <Route path="/gigs" element={<Gigs />} />
+          <Route path="/talent-manage" element={<TalentManage />} />
+
+          {/* MANAGER/VENUE PROFESSIONAL SECTOR */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/:id" element={<Dashboard />} />
+
+          {/* 🔐 CEO COMMAND & CONTROL (HIDDEN) */}
+          <Route
+            path="/ceo"
+            element={
+              <CEORoute>
+                <CEODashboard />
+              </CEORoute>
+            }
+          />
+
+          {/* FALLBACK */}
+          <Route path="*" element={<Navigate to="/discovery" />} />
+        </Routes>
+        <BottomNav />
+      </div>
       <Toaster />
     </UserModeProvider>
   </BrowserRouter>
