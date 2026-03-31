@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { UserModeProvider, useUserMode } from "@/contexts/UserModeContext";
 import BottomNav from "@/components/BottomNav";
+import Index from "./pages/Index";
 import Discovery from "./pages/Discovery";
 import Venue from "./pages/Venue";
 import TalentProfile from "./pages/TalentProfile";
@@ -35,7 +36,7 @@ const App = () => (
         {/* pb-20 prevents BottomNav overlap */}
         <Routes>
           {/* PUBLIC SECTOR */}
-          <Route path="/" element={<Navigate to="/discovery" />} />
+          <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/venue/:id" element={<Venue />} />
