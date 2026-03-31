@@ -34,7 +34,7 @@ const Profile = () => {
     if (contextLoading) return;
 
     if (mode === "talent") {
-      navigate("/talent/manage", { replace: true });
+      navigate("/talent-manage", { replace: true });
     } else if (mode === "manager") {
       navigate("/venue/manage", { replace: true });
     }
