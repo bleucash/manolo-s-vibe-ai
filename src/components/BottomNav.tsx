@@ -10,12 +10,10 @@ const BottomNav = () => {
 
   if (location.pathname === "/auth") return null;
 
-  // ✅ USER ICON LOGIC: Unified Profile vs Settings
+  // ✅ USER ICON LOGIC: Always go to private Profile page (mode switch lives there)
   const getProfilePath = () => {
     if (!session?.user?.id) return "/auth";
-    if (mode === "talent") return `/talent/${session.user.id}`;
-    if (mode === "manager" && activeVenueId) return `/venue/${activeVenueId}`;
-    return "/profile"; // Guest Mode
+    return "/profile";
   };
 
   // ✅ ACTION ICON LOGIC: Wallet vs Business Dashboard
