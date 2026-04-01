@@ -10,10 +10,12 @@ const BottomNav = () => {
 
   if (location.pathname === "/auth") return null;
 
-  // ✅ USER ICON LOGIC: Always go to private Profile page (mode switch lives there)
+  // ✅ USER ICON LOGIC: Mode-aware profile navigation
   const getProfilePath = () => {
     if (!session?.user?.id) return "/auth";
-    return "/profile";
+    if (mode === "talent") return "/talent-manage";
+    if (mode === "manager") return "/venue/manage";
+    return `/users/${session.user.id}`; // Guest mode → own public profile
   };
 
   // ✅ ACTION ICON LOGIC: Wallet vs Business Dashboard

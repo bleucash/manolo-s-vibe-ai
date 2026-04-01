@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import Messages from "./pages/Messages";
 import Wallet from "./pages/Wallet";
 import VenueManage from "./pages/VenueManage";
+import GuestProfile from "./pages/GuestProfile";
 
 // 🛡️ THE CEO GATE: Ironclad identity check
 const CEORoute = ({ children }: { children: React.ReactNode }) => {
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/venue/manage" element={<VenueManage />} />
           <Route path="/venue/:id" element={<Venue />} />
           <Route path="/talent/:id" element={<TalentProfile />} />
+          <Route path="/users/:id" element={<GuestProfile />} />
 
           {/* GUEST & IDENTITY SETTINGS */}
           <Route path="/profile" element={<Profile />} />

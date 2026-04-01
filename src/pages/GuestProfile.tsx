@@ -38,7 +38,7 @@ const GuestProfile = () => {
 
         // Fetch following count
         const { count } = await supabase
-          .from("follows")
+          .from("followers")
           .select("*", { count: "exact", head: true })
           .eq("follower_id", id);
 
