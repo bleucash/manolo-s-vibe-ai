@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Instagram, Zap, ShieldCheck, Loader2, Video, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
+import { cn } from "@/lib/utils";
 
 const TalentManage = () => {
   const navigate = useNavigate();
