@@ -28,8 +28,16 @@ const Profile = () => {
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("about");
 
-  // No auto-redirect - users stay on Profile to access mode switch
-  // Mode changes will trigger navigation via toggleUserMode
+  // Redirect non-guest users to their appropriate studio
+  useEffect(() => {
+    if (contextLoading) return;
+
+    if (mode === "talent") {
+      navigate("/talent-manage", { replace: true });
+    } else if (mode === "manager") {
+      navigate("/venue/manage", { replace: true });
+    }
+  }, [mode, contextLoading, navigate]);
 
   useEffect(() => {
     fetchProfileData();

@@ -10,12 +10,13 @@ const BottomNav = () => {
 
   if (location.pathname === "/auth") return null;
 
-  // ✅ USER ICON LOGIC: Mode-aware profile navigation
+  // ✅ USER ICON LOGIC: Mode-aware private profile navigation
+  // BottomNav always goes to your PRIVATE profile/studio (not public view)
   const getProfilePath = () => {
     if (!session?.user?.id) return "/auth";
     if (mode === "talent") return "/talent-manage";
     if (mode === "manager") return "/venue/manage";
-    return `/users/${session.user.id}`; // Guest mode → own public profile
+    return "/profile"; // Guest mode → private profile/settings
   };
 
   // ✅ ACTION ICON LOGIC: Wallet vs Business Dashboard

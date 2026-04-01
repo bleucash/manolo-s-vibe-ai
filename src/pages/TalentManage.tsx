@@ -5,13 +5,13 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Instagram, Zap, ShieldCheck, Loader2, Video } from "lucide-react";
+import { Instagram, Zap, ShieldCheck, Loader2, Video, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 
 const TalentManage = () => {
   const navigate = useNavigate();
-  const { session } = useUserMode();
+  const { session, mode, setMode, isTalent, isManager } = useUserMode();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -72,6 +72,26 @@ const TalentManage = () => {
     });
   };
 
+  const toggleUserMode = () => {
+    if (mode === "guest") {
+      if (isTalent) {
+        setMode("talent");
+        toast.success("Talent Mode Initialized");
+      } else if (isManager) {
+        setMode("manager");
+        toast.success("Manager Control Active");
+      } else {
+        toast.error("Verified Role Required", {
+          description: "Complete onboarding to unlock business tools."
+        });
+      }
+    } else {
+      setMode("guest");
+      toast.success("Guest Mode Active");
+      navigate("/profile");
+    }
+  };
+
   if (loading) return null;
   if (!profile) return null; // Guard against null profile
 
@@ -79,7 +99,38 @@ const TalentManage = () => {
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
       {/* 1. HUD HEADER */}
       <div className="px-8 pt-8 flex items-center justify-between mb-8">
-        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">Backstage / Talent Studio</span>
+        {/* Mode Switcher */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] ml-1">
+            Neural Link
+          </span>
+          <button
+            onClick={toggleUserMode}
+            className={cn(
+              "h-10 w-36 rounded-full border backdrop-blur-xl transition-all duration-500 flex items-center px-1 relative overflow-hidden",
+              mode !== "guest"
+                ? "bg-neon-green/10 border-neon-green/30 shadow-[0_0_20px_rgba(57,255,20,0.15)]"
+                : "bg-white/5 border-white/10"
+            )}
+          >
+            <div
+              className={cn(
+                "w-8 h-8 rounded-full shadow-2xl transform transition-all duration-500 ease-spring z-10 flex items-center justify-center",
+                mode !== "guest" ? "translate-x-[96px] bg-neon-green" : "translate-x-0 bg-white"
+              )}
+            >
+              <Zap className="w-4 h-4 text-black" />
+            </div>
+            <span
+              className={cn(
+                "absolute w-full text-center text-[9px] font-black uppercase tracking-widest transition-colors",
+                mode !== "guest" ? "text-neon-green pr-8" : "text-white pl-8"
+              )}
+            >
+              {mode}
+            </span>
+          </button>
+        </div>
         <div className="w-10" />
       </div>
 

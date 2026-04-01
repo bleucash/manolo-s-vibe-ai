@@ -6,12 +6,13 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Calendar, Settings, Zap } from "lucide-react";
+import { Film, Calendar, Settings, Zap, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const VenueManage = () => {
   const navigate = useNavigate();
-  const { mode, activeVenueId } = useUserMode();
+  const { mode, activeVenueId, setMode, isTalent, isManager } = useUserMode();
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,26 @@ const VenueManage = () => {
     }
   };
 
+  const toggleUserMode = () => {
+    if (mode === "guest") {
+      if (isTalent) {
+        setMode("talent");
+        toast.success("Talent Mode Initialized");
+      } else if (isManager) {
+        setMode("manager");
+        toast.success("Manager Control Active");
+      } else {
+        toast.error("Verified Role Required", {
+          description: "Complete onboarding to unlock business tools."
+        });
+      }
+    } else {
+      setMode("guest");
+      toast.success("Guest Mode Active");
+      navigate("/profile");
+    }
+  };
+
   if (loading) return null;
 
   if (!venue) {
@@ -66,9 +87,47 @@ const VenueManage = () => {
     <div className="min-h-screen bg-black pb-32 animate-in fade-in duration-700">
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-        <div className="flex items-center justify-center relative">
-          <h1 className="text-xl font-display text-white uppercase tracking-tighter italic">Venue Studio</h1>
-          <p className="text-[9px] text-white/40 uppercase tracking-widest font-black absolute -bottom-2 left-0 right-0 text-center">{venue.name} Management</p>
+        <div className="flex items-center justify-between">
+          {/* Mode Switcher */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] ml-1">
+              Neural Link
+            </span>
+            <button
+              onClick={toggleUserMode}
+              className={cn(
+                "h-10 w-36 rounded-full border backdrop-blur-xl transition-all duration-500 flex items-center px-1 relative overflow-hidden",
+                mode !== "guest"
+                  ? "bg-neon-green/10 border-neon-green/30 shadow-[0_0_20px_rgba(57,255,20,0.15)]"
+                  : "bg-white/5 border-white/10"
+              )}
+            >
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full shadow-2xl transform transition-all duration-500 ease-spring z-10 flex items-center justify-center",
+                  mode !== "guest" ? "translate-x-[96px] bg-neon-green" : "translate-x-0 bg-white"
+                )}
+              >
+                <Zap className="w-4 h-4 text-black" />
+              </div>
+              <span
+                className={cn(
+                  "absolute w-full text-center text-[9px] font-black uppercase tracking-widest transition-colors",
+                  mode !== "guest" ? "text-neon-green pr-8" : "text-white pl-8"
+                )}
+              >
+                {mode}
+              </span>
+            </button>
+          </div>
+
+          {/* Title */}
+          <div className="text-center">
+            <h1 className="text-xl font-display text-white uppercase tracking-tighter italic">Venue Studio</h1>
+            <p className="text-[9px] text-white/40 uppercase tracking-widest font-black">{venue.name} Management</p>
+          </div>
+
+          <div className="w-36" /> {/* Balance flex */}
         </div>
       </div>
 
