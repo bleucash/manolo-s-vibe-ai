@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { HeroReel } from "@/components/HeroReel";
