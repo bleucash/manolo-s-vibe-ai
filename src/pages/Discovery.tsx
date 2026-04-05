@@ -184,9 +184,20 @@ const Discovery = () => {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-32">
         <div className="min-h-[52dvh] w-full snap-end scroll-mt-32 relative flex flex-col justify-center bg-black px-[10px] pt-[50px] pb-[50px]">
           <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center">
-            {loading ? <Skeleton className="shrink-0 w-[75vw] h-[48dvh] rounded-[2.5rem] bg-zinc-950" /> : spotlightTalent.map((t) => (
-              <SpotlightCard key={t.talent_id} talent={t} onNavigate={() => handleCardClick(t.talent_id, "talent", `/talent/${t.talent_id}`)} />
-            ))}
+            {loading || spotlightTalent.length === 0 ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="shrink-0 w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 animate-pulse overflow-hidden relative">
+                  <div className="absolute bottom-10 left-8 space-y-3">
+                    <div className="w-32 h-6 bg-white/10 rounded-full" />
+                    <div className="w-20 h-3 bg-white/5 rounded-full" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              spotlightTalent.map((t) => (
+                <SpotlightCard key={t.talent_id} talent={t} onNavigate={() => handleCardClick(t.talent_id, "talent", `/talent/${t.talent_id}`)} />
+              ))
+            )}
             <DirectoryCard onNavigate={() => navigate("/talent-directory")} />
           </div>
         </div>
