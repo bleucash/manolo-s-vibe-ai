@@ -37,7 +37,7 @@ const Gigs = () => {
         </div>
 
         {/* INJECTED DASHBOARD COMPONENT */}
-        <TalentDashboard />
+        <TalentDashboard userId={session?.user?.id ?? ""} />
       </div>
     </TalentGuard>
   );
