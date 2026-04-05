@@ -924,7 +924,6 @@ export type Database = {
           sub_role: string
           talent_id: string
           venue_id: string
-          is_active: boolean
         }[]
       }
       get_unpaid_commissions: {
@@ -948,6 +947,8 @@ export type Database = {
         Args: { _role_type: string; _user_id: string }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       start_conversation: { Args: { target_user_id: string }; Returns: string }
       update_user_profile:
         | {
