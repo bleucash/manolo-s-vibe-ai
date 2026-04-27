@@ -62,7 +62,6 @@ const App = () => (
           {/* MANAGER/VENUE PROFESSIONAL SECTOR */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/:id" element={<Dashboard />} />
-          <Route path="/venue/manage" element={<VenueManage />} />
 
           {/* 🔐 CEO COMMAND & CONTROL (HIDDEN) */}
           <Route
