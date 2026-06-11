@@ -54,16 +54,18 @@ const CEODashboard = () => {
   };
 
   const handleVenueApproval = async (claimId: string, venueId: string, userId: string, approve: boolean) => {
-    const status = approve ? 'approved' : 'rejected';
     try {
-      await supabase.from("venue_claims").update({ status }).eq("id", claimId);
-      if (approve) {
-        await supabase.from("venues").update({ owner_id: userId, verified: true }).eq("id", venueId);
-        await supabase.from("profiles").update({ is_verified_manager: true, role_type: 'manager' }).eq("id", userId);
-        toast.success("Sector Link Verified");
-      } else {
-        toast.error("Claim Denied");
+      const { data, error } = await supabase.functions.invoke("admin-actions", {
+        body: approve
+          ? { action: "approve_venue_claim", payload: { claim_id: claimId, venue_id: venueId, user_id: userId } }
+          : { action: "reject_venue_claim", payload: { claim_id: claimId } },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Handshake Error");
+        return;
       }
+      if (approve) toast.success("Sector Link Verified");
+      else toast.error("Claim Denied");
       fetchOversightData();
     } catch (err) {
       toast.error("Handshake Error");
@@ -72,14 +74,17 @@ const CEODashboard = () => {
 
   const handleTalentApproval = async (userId: string, approve: boolean) => {
     try {
-      if (approve) {
-        await supabase.from("profiles").update({ is_verified_talent: true }).eq("id", userId);
-        toast.success("Talent Verified");
-      } else {
-        // Option to reset them to guest if fake
-        await supabase.from("profiles").update({ role_type: 'guest' }).eq("id", userId);
-        toast.error("Talent Credentials Rejected");
+      const { data, error } = await supabase.functions.invoke("admin-actions", {
+        body: approve
+          ? { action: "approve_talent", payload: { user_id: userId } }
+          : { action: "reject_talent", payload: { user_id: userId } },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Verification Error");
+        return;
       }
+      if (approve) toast.success("Talent Verified");
+      else toast.error("Talent Credentials Rejected");
       fetchOversightData();
     } catch (err) {
       toast.error("Verification Error");

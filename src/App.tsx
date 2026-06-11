@@ -17,18 +17,19 @@ import Wallet from "./pages/Wallet";
 import VenueManage from "./pages/VenueManage";
 import GuestProfile from "./pages/GuestProfile";
 
-// 🛡️ THE CEO GATE: Ironclad identity check
+// 🛡️ CEO ROUTE: UI convenience only — hides the dashboard from non-CEO users.
+// The real security boundary lives server-side in the `admin-actions` edge function,
+// which validates the caller's JWT against the ADMIN_USER_ID secret before any write.
 const CEORoute = ({ children }: { children: React.ReactNode }) => {
   const { session } = useUserMode();
-  // Ensure this matches your official login email
-  const isCEO = session?.user?.email === "jbray131@gmail.com"; 
+  const isCEO = session?.user?.email === "jbray131@gmail.com";
 
   if (!session) return <Navigate to="/auth" />;
   if (!isCEO) {
     console.error("Access Denied: Neural credentials do not match CEO signature.");
     return <Navigate to="/discovery" />;
   }
-  
+
   return <>{children}</>;
 };
 
