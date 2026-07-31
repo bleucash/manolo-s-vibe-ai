@@ -13,6 +13,10 @@ const Auth = () => {
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
 
+  // Preserve a same-origin relative redirect (used by the OAuth consent flow).
+  const nextParam = new URLSearchParams(window.location.search).get("next");
+  const redirectTo = nextParam && /^\/(?!\/)/.test(nextParam) ? nextParam : "/";
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -29,11 +33,12 @@ const Auth = () => {
         if (error) throw error;
 
         // Use a hard reload to ensure Context re-initializes with fresh data
-        window.location.href = "/";
+        window.location.href = redirectTo;
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: { emailRedirectTo: `${window.location.origin}${redirectTo}` },
         });
         if (error) throw error;
         alert("Check your email for the confirmation link!");
