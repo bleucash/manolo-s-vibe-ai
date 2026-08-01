@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { UserModeProvider, useUserMode } from "@/contexts/UserModeContext";
+import { DashboardGuard } from "@/components/DashboardGuard";
+import LoadingState from "@/components/ui/LoadingState";
 import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index";
 import Discovery from "./pages/Discovery";
@@ -17,6 +19,10 @@ import Wallet from "./pages/Wallet";
 import VenueManage from "./pages/VenueManage";
 import GuestProfile from "./pages/GuestProfile";
 import OAuthConsent from "./pages/OAuthConsent";
+import Bouncer from "./pages/Bouncer";
+import Events from "./pages/Events";
+import Notifications from "./pages/Notifications";
+import TalentDirectory from "./pages/TalentDirectory";
 
 // 🛡️ CEO ROUTE: UI convenience only — hides the dashboard from non-CEO users.
 // The real security boundary lives server-side in the `admin-actions` edge function,
@@ -34,6 +40,29 @@ const CEORoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// 🔒 REQUIRE AUTH: gates a route behind a logged-in session.
+const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+  const { session, isLoading } = useUserMode();
+
+  if (isLoading) return <LoadingState fullPage />;
+  if (!session) return <Navigate to="/auth" />;
+
+  return <>{children}</>;
+};
+
+// 🛡️ BOUNCER ROUTE: reuses DashboardGuard's ownership check rather than
+// inventing a new one — activeVenueId only ever resolves to a venue the
+// user owns (see UserModeContext), but DashboardGuard re-verifies that
+// server-side via useVenueStatus regardless.
+const BouncerRoute = ({ children }: { children: React.ReactNode }) => {
+  const { activeVenueId, isLoading } = useUserMode();
+
+  if (isLoading) return <LoadingState fullPage />;
+  if (!activeVenueId) return <Navigate to="/dashboard" />;
+
+  return <DashboardGuard venueId={activeVenueId}>{children}</DashboardGuard>;
+};
+
 const App = () => (
   <BrowserRouter>
     <UserModeProvider>
@@ -49,7 +78,9 @@ const App = () => (
           <Route path="/venue/manage" element={<VenueManage />} />
           <Route path="/venue/:id" element={<Venue />} />
           <Route path="/talent/:id" element={<TalentProfile />} />
+          <Route path="/talent-directory" element={<TalentDirectory />} />
           <Route path="/users/:id" element={<GuestProfile />} />
+          <Route path="/events" element={<Events />} />
 
           {/* GUEST & IDENTITY SETTINGS */}
           <Route path="/profile" element={<Profile />} />
@@ -57,6 +88,14 @@ const App = () => (
 
           {/* SOCIAL SECTOR */}
           <Route path="/messages" element={<Messages />} />
+          <Route
+            path="/notifications"
+            element={
+              <RequireAuth>
+                <Notifications />
+              </RequireAuth>
+            }
+          />
 
           {/* TALENT PROFESSIONAL SECTOR */}
           <Route path="/gigs" element={<Gigs />} />
@@ -65,6 +104,14 @@ const App = () => (
           {/* MANAGER/VENUE PROFESSIONAL SECTOR */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/:id" element={<Dashboard />} />
+          <Route
+            path="/bouncer"
+            element={
+              <BouncerRoute>
+                <Bouncer />
+              </BouncerRoute>
+            }
+          />
 
           {/* 🔐 CEO COMMAND & CONTROL (HIDDEN) */}
           <Route
