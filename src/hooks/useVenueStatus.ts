@@ -3,12 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 
 export const useVenueStatus = (venueId: string) => {
-  const { session } = useUserMode();
+  const { session, isLoading: contextLoading } = useUserMode();
   const [isOwner, setIsOwner] = useState(false);
   const [hasPendingClaim, setHasPendingClaim] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (contextLoading) return; // wait for the shared auth context to hydrate first
+
     const checkStatus = async () => {
       if (!session?.user?.id || !venueId) {
         setLoading(false);
@@ -34,7 +36,7 @@ export const useVenueStatus = (venueId: string) => {
     };
 
     checkStatus();
-  }, [venueId, session]);
+  }, [venueId, session, contextLoading]);
 
   // "Temporary Manager" is someone who has a pending claim OR is the official owner
   const isTempManager = isOwner || hasPendingClaim;

@@ -11,11 +11,13 @@ interface TalentGuardProps {
 
 export const TalentGuard = ({ children }: TalentGuardProps) => {
   const navigate = useNavigate();
-  const { session } = useUserMode();
+  const { session, isLoading: contextLoading } = useUserMode();
   const [loading, setLoading] = useState(true);
   const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
+    if (contextLoading) return; // wait for the shared auth context to hydrate first
+
     const checkVerification = async () => {
       if (!session?.user?.id) {
         setLoading(false);
@@ -35,7 +37,7 @@ export const TalentGuard = ({ children }: TalentGuardProps) => {
     };
 
     checkVerification();
-  }, [session]);
+  }, [session, contextLoading]);
 
   if (loading) {
     return (

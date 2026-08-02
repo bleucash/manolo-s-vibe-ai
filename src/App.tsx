@@ -28,9 +28,10 @@ import TalentDirectory from "./pages/TalentDirectory";
 // The real security boundary lives server-side in the `admin-actions` edge function,
 // which validates the caller's JWT against the ADMIN_USER_ID secret before any write.
 const CEORoute = ({ children }: { children: React.ReactNode }) => {
-  const { session } = useUserMode();
+  const { session, isLoading } = useUserMode();
   const isCEO = session?.user?.email === "jbray131@gmail.com";
 
+  if (isLoading) return <LoadingState fullPage />;
   if (!session) return <Navigate to="/auth" />;
   if (!isCEO) {
     console.error("Access Denied: Neural credentials do not match CEO signature.");

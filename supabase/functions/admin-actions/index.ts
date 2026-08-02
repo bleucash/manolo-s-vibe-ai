@@ -73,9 +73,9 @@ Deno.serve(async (req) => {
         const { claim_id, venue_id, user_id } = parsed.data.payload;
         const r1 = await admin.from("venue_claims").update({ status: "approved" }).eq("id", claim_id);
         if (r1.error) return json({ error: r1.error.message }, 500);
-        const r2 = await admin.from("venues").update({ owner_id: user_id, verified: true }).eq("id", venue_id);
+        const r2 = await admin.from("venues").update({ owner_id: user_id }).eq("id", venue_id);
         if (r2.error) return json({ error: r2.error.message }, 500);
-        const r3 = await admin.from("profiles").update({ is_verified_manager: true, is_verified_talent: false, role_type: "manager" }).eq("id", user_id);
+        const r3 = await admin.from("profiles").update({ role_type: "manager" }).eq("id", user_id);
         if (r3.error) return json({ error: r3.error.message }, 500);
         return json({ ok: true });
       }
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       }
       case "approve_talent": {
         const { user_id } = parsed.data.payload;
-        const r = await admin.from("profiles").update({ is_verified_talent: true, is_verified_manager: false, role_type: "talent" }).eq("id", user_id);
+        const r = await admin.from("profiles").update({ role_type: "talent" }).eq("id", user_id);
         if (r.error) return json({ error: r.error.message }, 500);
         return json({ ok: true });
       }

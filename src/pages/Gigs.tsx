@@ -7,15 +7,15 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Gigs = () => {
-  const { mode, session } = useUserMode();
+  const { mode, session, isLoading } = useUserMode();
   const navigate = useNavigate();
 
-  // Redirect if not in talent mode or not logged in
+  // Redirect if not in talent mode or not logged in, once loading resolves
   useEffect(() => {
-    if (!session) {
+    if (!isLoading && !session) {
       navigate("/auth");
     }
-  }, [session, navigate]);
+  }, [session, isLoading, navigate]);
 
   return (
     <TalentGuard>

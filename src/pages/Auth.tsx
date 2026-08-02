@@ -22,8 +22,10 @@ const Auth = () => {
     setLoading(true);
     setError("");
 
-    // 🛡️ CLEAN SLATE: Wipe ALL localStorage before signing in
-    localStorage.clear();
+    // 🛡️ CLEAN SLATE: Clear only this app's own mode state before signing in.
+    // Supabase's own sb-* session keys are left untouched.
+    localStorage.removeItem("userMode");
+    localStorage.removeItem("activeVenueId");
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({
