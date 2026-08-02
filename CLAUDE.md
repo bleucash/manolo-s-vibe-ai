@@ -15,6 +15,10 @@ Three roles only: `guest`, `talent`, `manager`. `role_type` (enum `app_role`) is
 
 Live enum currently has 6 values: `manager`, `staff`, `user`, `venue_manager`, `talent`, `guest`. `staff`/`user`/`venue_manager` are cruft, collapse to the three real values and migrate existing rows. Do not add new enum values without updating this file.
 
+`src/contexts/UserModeContext.tsx` hard-codes `role === "manager" || role === "venue_manager"` as its manager check, this is a confirmed, concrete file the enum collapse touches, not theoretical.
+
+The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `localStorage.getItem("userMode")` on mount for a fast paint, then `syncProfileAndVenues()` overwrites it with the real `profiles.role_type` from the DB moments later. It self-corrects, it's not trusting stale client state long-term. But that brief window before reconciliation is the same loading-race shape as the bugs already fixed in `CEORoute`, `Gigs.tsx`, `TalentGuard.tsx`, `useVenueStatus.ts`. This file wasn't part of that pass, put it on the same list as `BottomNav.tsx:16`.
+
 - Talent and manager are **mutually exclusive**. A user is never both.
 - **Staff is not a role.** It's a relationship, a `venue_staff` row linking a person to a venue. Don't gate features on `role_type = 'staff'`.
 - Manager status comes from venue **ownership** (`venues.owner_id`), not a separate flag.
@@ -42,6 +46,8 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 ## Live vs verified — resolved, not a conflict
 
 `venues.is_active` + `active_at` is already the correct "doors open right now" toggle. `ManagerDashboard.tsx` and `TalentDashboard.tsx` both flip these together, this is real, working code, not a gap. Don't add a second "live" column. The actual gap is that Tier 2 verification doesn't yet gate who can touch this toggle.
+
+**Naming collision, not a logic conflict:** `is_active` exists as a column on three separate tables with three separate meanings. `venues.is_active` (venue open tonight), `profiles.is_active` (talent on the clock tonight, confirmed, `TalentDashboard.tsx` writes it identically to how `ManagerDashboard.tsx` writes the venue one), and `posts.is_active` (whether a post still shows in feed, likely tied to the fade/decay concept). None of these read or write each other, but the shared name is a real trap when reading code out of context, always confirm which table before assuming which meaning. `mode` (the frontend guest/talent/manager label) is unrelated to all three, it's never persisted to any table, it just gates *access* to the toggles on `venues`/`profiles`, it isn't one of them.
 
 ## Talent onboarding — doesn't exist, needs building
 
