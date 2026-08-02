@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { UserPlus, UserCheck, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { useFollow } from "@/hooks/useFollow";
 
 interface FollowButtonProps {
   targetId?: string;
@@ -11,31 +10,29 @@ interface FollowButtonProps {
 }
 
 export const FollowButton = ({ targetId, targetName = "User", userId, className }: FollowButtonProps) => {
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const id = targetId || userId || "";
+  const { isFollowing, isLoading, toggleFollow } = useFollow(id);
 
-  const id = targetId || userId;
-
-  const handleToggleFollow = async () => {
-    if (!id) return;
-    setLoading(true);
-    // Placeholder for actual follow/unfollow logic
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    
-    if (isFollowing) {
-      setIsFollowing(false);
-      toast.success(`Unfollowed ${targetName}`);
-    } else {
-      setIsFollowing(true);
-      toast.success(`Following ${targetName}`);
-    }
-    setLoading(false);
-  };
+  // No id yet (e.g. profile still loading) — useFollow("") never resolves
+  // its loading state, so render a static disabled button instead of
+  // spinning forever.
+  if (!id) {
+    return (
+      <Button
+        disabled
+        size="sm"
+        className={`font-bold uppercase tracking-widest text-[10px] transition-all bg-neon-pink text-white ${className}`}
+      >
+        <UserPlus className="h-4 w-4 mr-2" />
+        Follow
+      </Button>
+    );
+  }
 
   return (
     <Button
-      onClick={handleToggleFollow}
-      disabled={loading}
+      onClick={toggleFollow}
+      disabled={isLoading}
       size="sm"
       className={`font-bold uppercase tracking-widest text-[10px] transition-all ${
         isFollowing
@@ -43,7 +40,7 @@ export const FollowButton = ({ targetId, targetName = "User", userId, className 
           : "bg-neon-pink text-white"
       } ${className}`}
     >
-      {loading ? (
+      {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : isFollowing ? (
         <>

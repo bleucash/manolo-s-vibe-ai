@@ -32,10 +32,12 @@ export const ContactsList = ({ onChatStart }: ContactsListProps) => {
         setCurrentUserId(user.id);
 
         // 1. Fetch Social Follows
-        const { data: followsData } = await supabase
-          .from("follows")
+        const { data: followsData, error: followsError } = await supabase
+          .from("followers")
           .select("following_id")
           .eq("follower_id", user.id);
+
+        if (followsError) throw followsError;
 
         const socialIds = followsData?.map(f => f.following_id) || [];
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, User, Users, MessageSquare } from "lucide-react";
-import { FollowButton } from "@/components/profile/FollowButton";
+import { FollowButton } from "@/components/FollowButton";
 import { useFollow } from "@/hooks/useFollow";
 import { toast } from "sonner";
 

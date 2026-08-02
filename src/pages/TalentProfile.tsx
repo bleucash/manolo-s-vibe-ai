@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Loader2, ArrowLeft, MapPin, MessageSquare, Lock, Calendar } from "lucide-react";
-import { FollowButton } from "@/components/profile/FollowButton";
+import { FollowButton } from "@/components/FollowButton";
 import { useFollow } from "@/hooks/useFollow";
 import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
