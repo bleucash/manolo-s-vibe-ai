@@ -24,14 +24,16 @@ export const TalentGuard = ({ children }: TalentGuardProps) => {
         return;
       }
 
+      // role_type is the single source of truth for talent status; there is
+      // no separate verification flag (is_verified_talent does not exist).
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_verified_talent")
+        .select("role_type")
         .eq("id", session.user.id)
         .single();
 
       if (data) {
-        setIsVerified(data.is_verified_talent);
+        setIsVerified(data.role_type === "talent");
       }
       setLoading(false);
     };

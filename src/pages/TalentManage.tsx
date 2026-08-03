@@ -5,7 +5,7 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Instagram, Zap, ShieldCheck, Loader2, Video, ArrowLeft } from "lucide-react";
+import { Zap, ShieldCheck, Loader2, Video, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,6 @@ const TalentManage = () => {
   const [displayName, setDisplayName] = useState("");
   const [subRole, setSubRole] = useState("");
   const [bio, setBio] = useState("");
-  const [instagram, setInstagram] = useState("");
 
   useEffect(() => {
     fetchProfile();
@@ -60,17 +59,6 @@ const TalentManage = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const initiateHandshake = async () => {
-    if (!instagram.includes("@")) {
-      toast.error("Enter a valid @handle");
-      return;
-    }
-    // Logic to store the IG handle in a 'talent_claims' or similar verification table
-    toast.success("Handshake Initiated", {
-      description: "Admin will verify your IG profile shortly."
-    });
   };
 
   const toggleUserMode = () => {
@@ -149,38 +137,6 @@ const TalentManage = () => {
           />
         </div>
       </div>
-
-      {/* 3. VERIFICATION MOAT (The IG Handshake) */}
-      {!profile.is_verified_talent && (
-        <div className="px-8 mb-12">
-          <div className="bg-neon-purple/5 border border-neon-purple/20 rounded-[2rem] p-8 space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-neon-purple/20 rounded-xl flex items-center justify-center">
-                <Instagram className="w-6 h-6 text-neon-purple" />
-              </div>
-              <div>
-                <p className="text-white font-display text-xl uppercase italic leading-none">IG Handshake</p>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mt-1">Proof of Identity</p>
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <Input 
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-                placeholder="@username"
-                className="bg-black border-white/10 text-white rounded-xl h-12 font-bold"
-              />
-              <Button onClick={initiateHandshake} className="bg-white text-black font-black uppercase text-[10px] px-6 rounded-xl">
-                Verify
-              </Button>
-            </div>
-            <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest leading-relaxed">
-              *Verification unlocks Gigs, Secure Entry, and Payout sectors.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* 4. IDENTITY SETTINGS */}
       <div className="px-8 space-y-8">

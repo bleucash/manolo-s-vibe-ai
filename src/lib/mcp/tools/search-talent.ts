@@ -19,7 +19,7 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     let request = supabase
       .from("profiles")
-      .select("id, username, display_name, bio, sub_role, is_verified_talent")
+      .select("id, username, display_name, bio, sub_role")
       .eq("role_type", "talent")
       .limit(limit ?? 10);
 

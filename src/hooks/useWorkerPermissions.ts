@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type RoleType = "venue_manager" | "talent" | "guest" | "manager" | null;
+export type RoleType = "talent" | "guest" | "manager" | null;
 
 interface VenueStaffEntry {
   venue_id: string;
@@ -27,7 +27,6 @@ export function useWorkerPermissions(userId: string | null): WorkerPermissions {
   // to prevent the "Guest Lockout" during the first few milliseconds of a page load.
   const [roleType, setRoleType] = useState<RoleType>(() => {
     const cached = localStorage.getItem("userMode");
-    if (cached === "manager") return "venue_manager";
     return (cached as RoleType) || null;
   });
 
@@ -78,7 +77,7 @@ export function useWorkerPermissions(userId: string | null): WorkerPermissions {
   const isTalentRole = roleType === "talent" || TALENT_SUB_ROLES.includes(subRole?.toLowerCase() || "");
 
   const isStaffRole =
-    roleType === "venue_manager" || roleType === "manager" || STAFF_SUB_ROLES.includes(subRole?.toLowerCase() || "");
+    roleType === "manager" || STAFF_SUB_ROLES.includes(subRole?.toLowerCase() || "");
 
   const hasActiveVenueStaff = venueStaffEntries.some(
     (entry) => entry.status === "confirmed" || entry.status === "active",

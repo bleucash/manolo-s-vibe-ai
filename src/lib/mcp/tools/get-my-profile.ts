@@ -4,7 +4,7 @@ import { supabaseForUser } from "../supabase";
 export default defineTool({
   name: "get_my_profile",
   title: "Get my profile",
-  description: "Return the signed-in user's Manolo profile: role, verification status, and bio.",
+  description: "Return the signed-in user's Manolo profile: role and bio.",
   inputSchema: {},
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {
@@ -14,7 +14,7 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, username, display_name, bio, role_type, sub_role, is_verified_talent, is_verified_manager")
+      .select("id, username, display_name, bio, role_type, sub_role")
       .eq("id", ctx.getUserId())
       .maybeSingle();
 

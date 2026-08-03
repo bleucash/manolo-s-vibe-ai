@@ -17,9 +17,6 @@ export interface Profile {
   sub_role: string | null;
   is_active: boolean;
   current_venue_id: string | null;
-  // 🛡️ VERIFICATION MOAT
-  is_verified_manager: boolean; 
-  is_verified_talent: boolean;  
   created_at: string;
   updated_at: string;
 }

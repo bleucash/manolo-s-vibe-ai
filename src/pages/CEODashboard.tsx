@@ -36,16 +36,13 @@ const CEODashboard = () => {
         .select("*, venues(name, location), profiles(display_name, username)")
         .eq("status", "pending");
 
-      // 2. Fetch Unverified Talent
-      const { data: tPending } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("role_type", "talent")
-        .eq("is_verified_talent", false)
-        .order("created_at", { ascending: false });
+      // 2. Talent Verification tab is intentionally empty.
+      // is_verified_talent does not exist as a column, and there is no
+      // pending/approved distinction until talent onboarding (build order
+      // item 4) exists to feed it. Do not query/display all current talent
+      // as a stand-in - that would misrepresent them as awaiting review.
 
       if (vClaims) setVenueClaims(vClaims);
-      if (tPending) setPendingTalent(tPending);
     } catch (err) {
       console.error(err);
     } finally {
@@ -147,21 +144,15 @@ const CEODashboard = () => {
 
           {/* TALENT CONTENT */}
           <TabsContent value="talent" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {pendingTalent.map((t) => (
-                <Card key={t.id} className="bg-zinc-900/40 border-white/5 p-6 rounded-[2rem] text-center">
-                  <div className="w-20 h-20 rounded-full mx-auto mb-4 border-2 border-neon-purple p-1">
-                    <img src={t.avatar_url || "/placeholder.svg"} className="w-full h-full rounded-full object-cover" />
-                  </div>
-                  <h4 className="text-xl font-display italic text-white uppercase">{t.display_name || t.username}</h4>
-                  <p className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-6">{t.sub_role || "TALENT"}</p>
-                  
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleTalentApproval(t.id, true)} className="flex-1 bg-white text-black text-[9px] font-black uppercase rounded-lg h-10">Verify</Button>
-                    <Button onClick={() => handleTalentApproval(t.id, false)} variant="ghost" className="text-zinc-700 hover:text-red-500">Reject</Button>
-                  </div>
-                </Card>
-              ))}
+            {/*
+              Intentionally empty: talent onboarding (build order item 4)
+              doesn't exist yet, so there is no pending/approved distinction
+              to review here. This is not broken, it's blocked on item 4.
+            */}
+            <div className="text-center py-16 text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em]">
+              Talent Verification is on hold pending onboarding (build order item 4).
+              <br />
+              Nothing to review yet.
             </div>
           </TabsContent>
         </Tabs>

@@ -62,7 +62,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (profile) {
         const role = profile.role_type || "guest";
-        const isMgr = role === "manager" || role === "venue_manager";
+        const isMgr = role === "manager";
         const isTal = role === "talent";
 
         setIsManager(isMgr);
