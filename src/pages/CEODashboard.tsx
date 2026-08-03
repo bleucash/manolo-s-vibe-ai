@@ -131,9 +131,11 @@ const CEODashboard = () => {
                   </div>
 
                   <div className="mt-12 flex gap-3">
-                    <Button asChild variant="outline" className="flex-1 h-12 rounded-xl border-white/10 bg-white/5 text-[9px] font-black uppercase">
-                      <a href={claim.evidence_link} target="_blank" rel="noreferrer"><Instagram className="w-3 h-3 mr-2 text-neon-pink" /> Verify IG</a>
-                    </Button>
+                    {claim.instagram_handle && (
+                      <Button asChild variant="outline" className="flex-1 h-12 rounded-xl border-white/10 bg-white/5 text-[9px] font-black uppercase">
+                        <a href={`https://instagram.com/${claim.instagram_handle}`} target="_blank" rel="noreferrer"><Instagram className="w-3 h-3 mr-2 text-neon-pink" /> Verify IG</a>
+                      </Button>
+                    )}
                     <Button onClick={() => handleVenueApproval(claim.id, claim.venue_id, claim.user_id, true)} className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase"><CheckCircle className="w-3 h-3 mr-2" /> Approve</Button>
                     <Button onClick={() => handleVenueApproval(claim.id, claim.venue_id, claim.user_id, false)} variant="ghost" className="h-12 w-12 rounded-xl text-zinc-700 hover:text-red-500 transition-colors"><XCircle className="w-5 h-5" /></Button>
                   </div>

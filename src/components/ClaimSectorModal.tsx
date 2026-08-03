@@ -30,7 +30,7 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
       const { error } = await supabase.from("venue_claims").insert({
         user_id: session?.user?.id,
         venue_id: venueId,
-        evidence_link: `https://instagram.com/${instagram.replace("@", "")}`,
+        instagram_handle: instagram.replace("@", ""),
         status: "pending"
       });
 

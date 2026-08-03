@@ -40,7 +40,11 @@ export interface VenueClaim {
   user_id: string;
   venue_id: string;
   status: "pending" | "approved" | "rejected";
-  evidence_link: string | null; // Proof of Authority (IG/Site)
+  instagram_handle: string | null; // Tier 1: Instagram handshake
+  legal_name: string | null; // Tier 2: business verification
+  business_email: string | null; // Tier 2: business verification
+  business_phone: string | null; // Tier 2: business verification
+  position_title: string | null; // Tier 2: business verification
   created_at: string;
 }
 
