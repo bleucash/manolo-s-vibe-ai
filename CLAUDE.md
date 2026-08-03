@@ -65,6 +65,10 @@ All three legs now land. (1) `ClaimSectorModal.tsx` sends `instagram_handle`, a 
 
 Two things folded into that same fix, both real, neither a bug: `ManagerDashboard.tsx` takes no `venueId` prop, it reads `activeVenueId` from `useUserMode()` context directly, so `/dashboard/:id` (a specific venue) and bare `/dashboard` (whatever's active) needed reconciling. Resolved by syncing the URL's venue id into `activeVenueId`, but only from inside `ManagerDashboardPanel`, which `DashboardGuard` only mounts after ownership already resolved true, a user who doesn't own the venue never causes that sync to fire. Consequence worth knowing: visiting `/dashboard/:id` persists that venue as active everywhere, `VenueSwitcher`, bare `/dashboard`, `localStorage`, not just this route, until the manager switches again. `ManagerDashboard.tsx`'s `userId` prop is still passed in, still unused internally, harmless, not worth a separate fix.
 
+## Confirmed live bug (2026-08-03): manager mode + zero owned venues = infinite redirect loop
+
+Found live, mid-testing item 3's fix with a real account: a `mode === "manager"` user who owns no venue yet (e.g. between submitting a Tier 1 claim and it being approved) gets stuck bouncing forever between `/profile` and `/venue/manage`, `toast.error("No active venue selected")` firing every cycle. `Profile.tsx`'s redirect effect sends any manager-mode user to `/venue/manage` with no check for whether they actually own one; `VenueManage.tsx` sends them straight back to `/profile` the instant `activeVenueId` is falsy. Neither side has a stable landing state for this specific combination. Not fixed yet. Needs one of the two to recognize "manager, no venue" and land somewhere that isn't a redirect to the other.
+
 ## Charge / Heat / Spotlight
 
 - **Live today:** `get_talent_spotlight` RPC (migration `20260331_create_talent_spotlight_rpc.sql`) ranks talent by a raw lifetime `COUNT(*)` of `post_likes`, gated on `is_active = true`. **No decay.** Whoever got hot first stays on top forever, this contradicts the product's own "always feels fresh" premise.
