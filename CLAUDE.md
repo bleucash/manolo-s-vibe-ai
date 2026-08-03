@@ -13,11 +13,11 @@ Launch is intentionally small and hand-gatekept: two cities the owner has real r
 
 Three roles only: `guest`, `talent`, `manager`. `role_type` (enum `app_role`) is authoritative.
 
-Live enum currently has 6 values: `manager`, `staff`, `user`, `venue_manager`, `talent`, `guest`. `staff`/`user`/`venue_manager` are cruft, collapse to the three real values and migrate existing rows. Do not add new enum values without updating this file.
+Live enum currently has 6 values: `manager`, `staff`, `user`, `venue_manager`, `talent`, `guest`. `staff`/`user`/`venue_manager` are cruft. **Full type collapse is deferred, not scheduled**, confirmed live counts (2026-08-02): zero rows hold `staff` or `user`, one row holds `venue_manager`. Recreating the `app_role` type to physically remove unused values would require dropping/recreating `has_role(uuid, app_role)` and `idx_profiles_active_talent` (both depend on the type directly), disproportionate risk on a no-rollback production DB for a purely cosmetic cleanup. Instead: the single `venue_manager` row gets remapped to `manager` (`supabase/migrations/20260802_remap_venue_manager_role.sql`, full rationale in its header comment), the type itself keeps all 6 values, dormant but present. Revisit the full collapse only if a real reason to touch `app_role`'s shape comes up on its own.
 
 `src/contexts/UserModeContext.tsx` hard-codes `role === "manager" || role === "venue_manager"` as its manager check, this is a confirmed, concrete file the enum collapse touches, not theoretical.
 
-The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `localStorage.getItem("userMode")` on mount for a fast paint, then `syncProfileAndVenues()` overwrites it with the real `profiles.role_type` from the DB moments later. It self-corrects, it's not trusting stale client state long-term. But that brief window before reconciliation is the same loading-race shape as the bugs already fixed in `CEORoute`, `Gigs.tsx`, `TalentGuard.tsx`, `useVenueStatus.ts`. This file wasn't part of that pass, put it on the same list as `BottomNav.tsx:16`.
+The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `localStorage.getItem("userMode")` on mount for a fast paint, then `syncProfileAndVenues()` overwrites it with the real `profiles.role_type` from the DB moments later. It self-corrects, it's not trusting stale client state long-term. But that brief window before reconciliation is the same loading-race shape as the bugs already fixed in `CEORoute`, `Gigs.tsx`, `TalentGuard.tsx`, `useVenueStatus.ts`. This file wasn't part of that pass, put it on the same list as `BottomNav.tsx:16`. `useWorkerPermissions.ts` independently reads the same `localStorage.getItem("userMode")` key for its own separate instant hydration, confirmed via direct file review, same race window, different file, add it to this list too.
 
 - Talent and manager are **mutually exclusive**. A user is never both.
 - **Staff is not a role.** It's a relationship, a `venue_staff` row linking a person to a venue. Don't gate features on `role_type = 'staff'`.
@@ -27,18 +27,20 @@ The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `loca
 
 - **What you are** (public, follows the person): `profiles.sub_role`, free text by design, not a rigid enum. Values in use: dancer, DJ, host, promoter. Expect more (bartender, event host, musician) — don't lock this down.
 - **What you do at one venue** (operational, tied to the relationship): `venue_staff.staff_role`. This column already exists, don't add a duplicate.
-- **Known collision:** `useWorkerPermissions` currently reads `sub_role` to grant permissions. `sub_role` is a discovery label, not a permission source. Permissions belong on the `venue_staff` row. Fix this before building more on top of the hook.
+- **Known collision, confirmed still live via direct file review (2026-08-02):** `useWorkerPermissions` computes `isStaffRole` from `role_type === "manager"` OR `sub_role` matching a hardcoded list that includes `"bouncer"`, the exact thing this file argues against, bouncer isn't talent, it's a venue relationship. Correctly out of scope for the `is_verified_*` purge, a separate problem, just confirming it wasn't accidentally fixed along the way. `sub_role` is a discovery label, not a permission source. Permissions belong on the `venue_staff` row. Fix this before building more on top of the hook.
 - Bouncer/door access is a link-based invite (intentional, lets venues staff up without app friction). Eventually needs to be venue-scoped, revocable, and expiring. Not urgent, but don't harden it into something permanent-by-default.
 
 ## Phantom columns — never re-add without a real migration
 
 These are referenced in old code/docs but do not exist in the live DB: `profiles.is_verified_talent`, `profiles.is_verified_manager`, `venues.verified`, `venue_claims.evidence_link`. A verification system was half-built then reverted on the DB side while frontend kept references. If you see these names anywhere, it's leftover, not spec.
 
-`prevent_profile_privilege_escalation` trigger (SECURITY DEFINER, live) still references `is_verified_talent`/`is_verified_manager`. It's a landmine: harmless today only because nothing updates `profiles` yet. Will throw at runtime the moment profile self-edit ships. Fix drafted, needs to be run before building profile editing.
+`prevent_profile_privilege_escalation` trigger (SECURITY DEFINER, live) is **already patched**, it no longer references `is_verified_talent`/`is_verified_manager`, that fix landed on the live DB at some point without a matching migration file, another instance of the drift this file warns about. Current live body only guards `role_type` and `sub_role` changing, and exempts `auth.role() = 'service_role'`.
+
+**Real, general blocker, confirmed:** `auth.role()` reads `request.jwt.claim.role`, a session setting PostgREST populates per API request. Direct connections, `supabase db push`, psql, any migration, never go through PostgREST, so that setting is never set and `auth.role()` returns `NULL`, not `'service_role'`. **Any migration that updates `profiles.role_type` or `profiles.sub_role` will unconditionally trip this trigger and fail** with "Not authorized to change role_type," regardless of what the actual change is. Not a bug in the trigger, it's doing its job, correctly blocking an un-authenticated-looking write, it just can't tell a migration apart from a malicious client. **Required pattern for any such migration:** wrap the write in `ALTER TABLE profiles DISABLE TRIGGER profiles_prevent_privilege_escalation;` before and `ALTER TABLE profiles ENABLE TRIGGER profiles_prevent_privilege_escalation;` after, in the same migration file. Same pattern already proven safe for `venues_prevent_owner_change` during the venue ownership reset.
 
 ## Venue claim / two-tier verification
 
-- **Tier 1 (Instagram handshake):** grants presence, profile, hero reel, posting. `ClaimSectorModal.tsx` already collects an Instagram handle from the user but wraps it into a URL and inserts it as `evidence_link`, which doesn't exist. **Fix:** add `instagram_handle` column, send the raw handle, not a constructed URL.
+- **Tier 1 (Instagram handshake):** grants presence, profile, hero reel, posting. **Fixed and live (2026-08-02):** `ClaimSectorModal.tsx` now sends `instagram_handle`, real column, no longer the constructed-URL `evidence_link` phantom reference. `CEODashboard.tsx`'s claim card updated to match, `database.ts`'s `VenueClaim` interface now matches the live schema, all 5 real fields, `id` was never the problem. Also discovered and fixed in the same migration: `legal_name` and `business_email` were `NOT NULL` with no default despite belonging to Tier 2, which would have made a Tier-1-only claim structurally impossible even after the column fix, both are nullable now, confirmed via `information_schema` post-migration, not assumed. `business_phone`/`position_title` were already nullable.
 - **Tier 2 (business verification):** `legal_name`, `business_email`, `business_phone`, `position_title` already exist on `venue_claims`. Grants operations: the Live/`is_active` toggle, staff approval, commission rates, prices, payouts. **Nothing currently gates access to these behind Tier 2.** Any owner can flip Live right now regardless of verification. Needs enforcement, not a schema change.
 - Business verification is **per-venue**, not per-user. Lives on venues/venue_claims. A manager can be verified for one venue and not another.
 - Subscription (`subscription_tier`, `ticketing_enabled`, both unused columns) is a separate gate from verification. Don't conflate "allowed to" with "paid for."
@@ -88,7 +90,7 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 
 **Closed:** open insert on `venue_staff`, unscoped "Managers can scan all tickets" policy, direct venue-claim bypass policy. All three confirmed dropped and verified.
 
-**Still open, drafted but not run:** `venue_followers` status mismatch (`active` vs `approved`, never matches, managers have never seen followers), `posts` missing UPDATE/DELETE (can't delete own posts), duplicate ticket policies (15 policies doing overlapping work), possible recursive RLS on `conversation_participants` SELECT (unverified, needs a SECURITY DEFINER helper if confirmed).
+**Still open, drafted but not run:** `venue_followers` status mismatch (`active` vs `approved`, never matches, managers have never seen followers; `useWorkerPermissions.ts` checks a third value, `confirmed`, confirmed via direct review, three inconsistent strings in live use, not two), `posts` missing UPDATE/DELETE (can't delete own posts), duplicate ticket policies (15 policies doing overlapping work), possible recursive RLS on `conversation_participants` SELECT (unverified, needs a SECURITY DEFINER helper if confirmed).
 
 ## Hard operating rules
 
@@ -100,8 +102,8 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 
 ## Build order (dependency-driven)
 
-1. Purge phantom `is_verified_*` references, collapse `role_type` enum to three values.
-2. Fix `ClaimSectorModal` field bug (unblocks venue reclaiming end to end).
+1. **Closed (2026-08-02).** Purge phantom `is_verified_*` references, application code side. Confirmed fixed: `TalentGuard.tsx`, `TalentManage.tsx` (this one was the actual gate blocking every talent user from `/gigs`, not just cleanup). Directly reviewed and confirmed correct: `CEODashboard.tsx` (flipped to showing an honest empty pending-talent state, not a fake populated one), `search-talent.ts`, `get-my-profile.ts`, `database.ts` (correctly left `venues.verified`/`venue_claims.evidence_link` alone, out of scope), `UserModeContext.tsx`. `useWorkerPermissions.ts` also purged of `is_verified_*` correctly, but still carries the separate `sub_role`-as-permissions collision and its own copy of the hydration race, both noted above, neither was this item's job to fix. Full `role_type` enum collapse deferred, see above, only the one `venue_manager` row got remapped, live and verified, commit `415ff0e`.
+2. **Closed (2026-08-02).** Claim modal field fix, see Tier 1 note above. Commit `3fcea79`.
 3. Wire `Dashboard.tsx` to branch on `role_type` and render `ManagerDashboard`.
 4. Build talent onboarding (application + existing approve path).
 5. Lock `posts` INSERT to talent/manager only.
