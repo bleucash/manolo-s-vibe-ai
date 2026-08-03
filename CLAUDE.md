@@ -17,7 +17,9 @@ Live enum currently has 6 values: `manager`, `staff`, `user`, `venue_manager`, `
 
 `src/contexts/UserModeContext.tsx` hard-codes `role === "manager" || role === "venue_manager"` as its manager check, this is a confirmed, concrete file the enum collapse touches, not theoretical.
 
-The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `localStorage.getItem("userMode")` on mount for a fast paint, then `syncProfileAndVenues()` overwrites it with the real `profiles.role_type` from the DB moments later. It self-corrects, it's not trusting stale client state long-term. But that brief window before reconciliation is the same loading-race shape as the bugs already fixed in `CEORoute`, `Gigs.tsx`, `TalentGuard.tsx`, `useVenueStatus.ts`. This file wasn't part of that pass, put it on the same list as `BottomNav.tsx:16`. `useWorkerPermissions.ts` independently reads the same `localStorage.getItem("userMode")` key for its own separate instant hydration, confirmed via direct file review, same race window, different file, add it to this list too.
+The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `localStorage.getItem("userMode")` on mount for a fast paint, then `syncProfileAndVenues()` overwrites it with the real `profiles.role_type` from the DB moments later. It self-corrects, it's not trusting stale client state long-term. But that brief window before reconciliation is the same loading-race shape as the bugs already fixed in `CEORoute`, `Gigs.tsx`, `TalentGuard.tsx`, `useVenueStatus.ts`, `Dashboard.tsx` (2026-08-02, see Manager onboarding below). This file wasn't part of that pass, put it on the same list as `BottomNav.tsx:16`. `useWorkerPermissions.ts` independently reads the same `localStorage.getItem("userMode")` key for its own separate instant hydration, confirmed via direct file review, same race window, different file, add it to this list too.
+
+**Minor, cosmetic, not a bug:** `CEORoute`/`RequireAuth`/`BouncerRoute` (all in `App.tsx`) and `Dashboard.tsx` share the same loading branch, `<LoadingState fullPage />` from `components/ui/LoadingState.tsx`. `TalentGuard.tsx` hand-rolls its own spinner div instead of using that shared component. Confirmed by direct file comparison, not assumed. Worth conforming next time that file's touched, not worth a detour on its own.
 
 - Talent and manager are **mutually exclusive**. A user is never both.
 - **Staff is not a role.** It's a relationship, a `venue_staff` row linking a person to a venue. Don't gate features on `role_type = 'staff'`.
@@ -57,11 +59,11 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 No path today for a user to request talent status. Design: application with Instagram handle, status field (pending/approved/rejected), manually approved at launch (owner reviews, same pattern as venue claims). Wire it to `admin-actions`'s `approve_talent` action, which already writes `role_type: "talent"` correctly, it just has nothing feeding it. Scale path later: threshold/bio-verification automation, then delegate approval to trusted venues. Don't skip straight to automation at launch.
 
-## Manager onboarding — three separate fixes, ship together
+## Manager onboarding — closed (2026-08-02)
 
-1. `ClaimSectorModal.tsx` field bug above (applicant side).
-2. `CEODashboard.tsx` already has a real, correctly-wired approval UI, queries pending `venue_claims`, calls `approve_venue_claim`/`approve_talent` correctly. It looks broken only because claims never land due to (1). Don't rebuild this, just unblock it.
-3. **`Dashboard.tsx` does zero branching on `role_type`.** `ManagerDashboard.tsx` is a complete 380-line component, imported nowhere. An approved manager currently has nowhere to land. This is the real remaining wall, not the approval logic.
+All three legs now land. (1) `ClaimSectorModal.tsx` sends `instagram_handle`, a real column, commit `3fcea79`. (2) `CEODashboard.tsx`'s approval UI was always correctly wired, just starved by (1), untouched. (3) `Dashboard.tsx` no longer stubs a fake page for every owner regardless of anything, it's `DashboardGuard` wrapping a small `ManagerDashboardPanel` that renders `ManagerDashboard.tsx` (previously orphaned, now live), commit `25725bb`.
+
+Two things folded into that same fix, both real, neither a bug: `ManagerDashboard.tsx` takes no `venueId` prop, it reads `activeVenueId` from `useUserMode()` context directly, so `/dashboard/:id` (a specific venue) and bare `/dashboard` (whatever's active) needed reconciling. Resolved by syncing the URL's venue id into `activeVenueId`, but only from inside `ManagerDashboardPanel`, which `DashboardGuard` only mounts after ownership already resolved true, a user who doesn't own the venue never causes that sync to fire. Consequence worth knowing: visiting `/dashboard/:id` persists that venue as active everywhere, `VenueSwitcher`, bare `/dashboard`, `localStorage`, not just this route, until the manager switches again. `ManagerDashboard.tsx`'s `userId` prop is still passed in, still unused internally, harmless, not worth a separate fix.
 
 ## Charge / Heat / Spotlight
 
@@ -104,7 +106,7 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 
 1. **Closed (2026-08-02).** Purge phantom `is_verified_*` references, application code side. Confirmed fixed: `TalentGuard.tsx`, `TalentManage.tsx` (this one was the actual gate blocking every talent user from `/gigs`, not just cleanup). Directly reviewed and confirmed correct: `CEODashboard.tsx` (flipped to showing an honest empty pending-talent state, not a fake populated one), `search-talent.ts`, `get-my-profile.ts`, `database.ts` (correctly left `venues.verified`/`venue_claims.evidence_link` alone, out of scope), `UserModeContext.tsx`. `useWorkerPermissions.ts` also purged of `is_verified_*` correctly, but still carries the separate `sub_role`-as-permissions collision and its own copy of the hydration race, both noted above, neither was this item's job to fix. Full `role_type` enum collapse deferred, see above, only the one `venue_manager` row got remapped, live and verified, commit `415ff0e`.
 2. **Closed (2026-08-02).** Claim modal field fix, see Tier 1 note above. Commit `3fcea79`.
-3. Wire `Dashboard.tsx` to branch on `role_type` and render `ManagerDashboard`.
+3. **Closed (2026-08-02).** `Dashboard.tsx` wired to `ManagerDashboard`, see Manager onboarding above. Commit `25725bb`.
 4. Build talent onboarding (application + existing approve path).
 5. Lock `posts` INSERT to talent/manager only.
 6. Build Tier 2 enforcement around the existing Live toggle.
