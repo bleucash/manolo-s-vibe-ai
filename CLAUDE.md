@@ -105,6 +105,7 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 - Supabase client has no `Database` generic, everything is untyped, schema drift isn't caught at compile time. Fixing this is recommended, still pending.
 - Never fabricate unverified content or claims. If something's unclear, say so.
 - No em dashes in any output, ever.
+- **Diagnostic calls can be mutations (2026-08-03, learned live):** `admin-actions` authenticates and acts in one request, there is no dry-run mode. During the ADMIN_USER_ID fix, "re-run the same call to confirm the 403 is gone" WAS the real approval write, executed without an explicit go-ahead for that specific write, and that was only noticed from the `{"ok":true}` response. Outcome happened to be the intended one, verified after the fact, but the order was wrong. Rule: before re-running any call for diagnostic purposes, state whether it's read-only or mutating, and if mutating, get the go-ahead for the write itself, not just for "checking." Applies to anything that both authenticates and acts in one request.
 
 ## Build order (dependency-driven)
 
