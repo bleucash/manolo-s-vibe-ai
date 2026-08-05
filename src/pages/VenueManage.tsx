@@ -6,17 +6,19 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Calendar, Settings, Zap, ArrowLeft } from "lucide-react";
+import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const VenueManage = () => {
   const navigate = useNavigate();
-  const { mode, activeVenueId, setMode, isTalent, isManager } = useUserMode();
+  const { mode, activeVenueId, setMode, isTalent, isManager, session } = useUserMode();
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("hero-reel");
+  const [pendingClaimVenue, setPendingClaimVenue] = useState<string | null>(null);
+  const [checkingClaim, setCheckingClaim] = useState(true);
 
   useEffect(() => {
     // Redirect if not in manager mode
@@ -26,15 +28,34 @@ const VenueManage = () => {
       return;
     }
 
-    // Redirect if no active venue
+    // A manager with no active venue is a legitimate state (claim submitted but
+    // not yet approved, or nothing claimed yet). Render a stable screen for it
+    // rather than redirecting: Profile.tsx sends every manager-mode user here,
+    // so redirecting back produced an infinite loop with a toast every cycle.
     if (!activeVenueId) {
-      toast.error("No active venue selected");
-      navigate("/profile");
+      const checkPendingClaim = async () => {
+        try {
+          const { data } = await supabase
+            .from("venue_claims")
+            .select("venues(name)")
+            .eq("user_id", session?.user?.id)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          setPendingClaimVenue((data?.venues as any)?.name ?? null);
+        } finally {
+          setCheckingClaim(false);
+        }
+      };
+
+      checkPendingClaim();
       return;
     }
 
     fetchVenue();
-  }, [mode, activeVenueId, navigate]);
+  }, [mode, activeVenueId, navigate, session]);
 
   const fetchVenue = async () => {
     if (!activeVenueId) return;
@@ -72,6 +93,69 @@ const VenueManage = () => {
       navigate("/profile");
     }
   };
+
+  // Manager, but no venue resolved yet. Stable states, no redirect, no toast.
+  if (!activeVenueId) {
+    if (checkingClaim) return null;
+
+    if (pendingClaimVenue) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-black px-12 text-center animate-in fade-in duration-700">
+          <div className="w-20 h-20 bg-neon-blue/10 rounded-[2rem] flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(0,183,255,0.1)]">
+            <ShieldCheck className="w-10 h-10 text-neon-blue" />
+          </div>
+
+          <h2 className="font-display text-3xl text-white uppercase italic tracking-tighter leading-none">
+            Neural Link: Pending
+          </h2>
+
+          <div className="mt-6 space-y-4 max-w-sm">
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] leading-relaxed">
+              Your claim on {pendingClaimVenue} is under review.
+            </p>
+            <p className="text-zinc-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed border-t border-white/5 pt-4">
+              Venue Studio unlocks once an Admin verifies your IG Handshake.
+            </p>
+          </div>
+
+          <Button
+            onClick={() => navigate("/discovery")}
+            className="mt-12 h-16 w-full max-w-xs bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-neon-blue transition-all"
+          >
+            Exit to Discovery
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black px-12 text-center animate-in fade-in duration-700">
+        <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center mb-8">
+          <Settings className="w-10 h-10 text-zinc-600" />
+        </div>
+
+        <h2 className="font-display text-3xl text-white uppercase italic tracking-tighter leading-none">
+          No Sector Claimed
+        </h2>
+
+        <div className="mt-6 space-y-4 max-w-sm">
+          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] leading-relaxed">
+            Venue Studio activates once you claim a venue.
+          </p>
+          <p className="text-zinc-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed border-t border-white/5 pt-4">
+            Find your venue in Discovery and start the IG Handshake.
+          </p>
+        </div>
+
+        <Button
+          onClick={() => navigate("/discovery")}
+          className="mt-12 h-16 w-full max-w-xs bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-neon-blue transition-all"
+        >
+          Browse Discovery
+        </Button>
+      </div>
+    );
+  }
 
   if (loading) return null;
 
