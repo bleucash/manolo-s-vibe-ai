@@ -98,7 +98,7 @@ Confirmed live (2026-08-03): **zero triggers on `auth.users`**, **no function an
 
 **Decision:** guests do not post at launch. Full stop, not conditionally. Ticketing (see below) is also not launching, so the presence-based gating ideas (ticket scan-in, geofencing) discussed earlier don't apply yet, there's nothing to gate against.
 
-**Fix needed:** `posts` INSERT RLS currently allows any authenticated user. Tighten to `role_type IN ('talent', 'manager')` only. Flat role check, no venue association, no geofencing, no ticket check. Revisit if/when ticketing ships.
+**Enforced at the DB (2026-08-03, migration `20260803_posts_insert_talent_manager_only.sql`).** `posts` INSERT is now `auth.uid() = user_id AND (has_role_type(auth.uid(),'talent') OR has_role_type(auth.uid(),'manager'))`. It replaced "Authenticated users can post", which was self-scoped but had no role check at all, so any guest could post. RLS was already enabled on `posts` (unlike `venue_claims`), so this swapped a policy rather than turning security on. Preemptive: nothing in the repo inserts into `posts` yet (`CreatePostDialog.tsx` is still a `setTimeout` stub), so nothing changed behaviorally. Role check goes through the SECURITY DEFINER `has_role_type()` helper, not a subquery on `profiles`: `profiles` SELECT is `USING (true)` today so a subquery would work, but it would silently deny every insert if anyone ever tightened that. Verified post-run via `pg_policies` + `relrowsecurity`.
 
 `venues` has no latitude/longitude columns at all. Geofencing is not buildable today regardless of the above, would need new columns plus a geocoding pass on existing addresses.
 
@@ -135,7 +135,7 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 2. **Closed (2026-08-02).** Claim modal field fix, see Tier 1 note above. Commit `3fcea79`.
 3. **Closed (2026-08-02).** `Dashboard.tsx` wired to `ManagerDashboard`, see Manager onboarding above. Commit `25725bb`.
 4. Build talent onboarding (application + existing approve path).
-5. Lock `posts` INSERT to talent/manager only.
+5. **Closed (2026-08-03).** `posts` INSERT locked to talent/manager, see Guest posting above. Commit `ec81999`.
 6. Build Tier 2 enforcement around the existing Live toggle.
 7. Rebuild spotlight with real decay, extend to venues, resolve the orphaned Discovery charge button.
 8. Messaging follow-gate.
