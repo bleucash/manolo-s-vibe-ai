@@ -55,6 +55,12 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 **Real bug, confirmed:** `venues.is_active` and `profiles.is_active` are independently maintained with no constraint or trigger tying them together, but `Discovery.tsx` renders both through the identical `<ActiveBadge />` as if they're one signal (`venue.is_active && <ActiveBadge />`, `talent.is_active && <ActiveBadge />`). Nothing stops a talent's live badge from showing at a venue that's already closed for the night, or surviving after they've left. Fix direction: either derive talent "live" as `is_active AND current_venue_id's venue is also is_active` at query time, or a trigger that clears a talent's `is_active` when their venue goes inactive. Not yet fixed, not yet scheduled.
 
+## Accepted risk: nothing prevents a user holding a pending talent application AND a pending venue claim
+
+`talent_applications` and `venue_claims` are separate tables with no cross-check, so one user can have an open row in both at once even though talent and manager are mutually exclusive. If both were approved, the second approval silently overwrites the first's `role_type`. **Accepted at launch scale (2026-08-03):** every approval is manually reviewed by one person who would notice. Not fixed. Revisit when approval is delegated or automated, which is exactly when nobody is eyeballing both queues anymore. Fix direction if needed: have each approve path reject the competing pending row, or a constraint spanning both.
+
+**Separate pre-existing bug found while mirroring (`venue_claims` only, unfixed):** `unique_venue_claim UNIQUE (venue_id, status)` permits only one row per (venue, status) pair, so a venue can never have two rejected claims. Once one applicant is rejected for a venue, a second applicant's rejection fails. `talent_applications` deliberately does NOT copy this shape, it uses a partial unique index on `(user_id) WHERE status = 'pending'` instead, which allows re-application after rejection.
+
 ## Talent onboarding — doesn't exist, needs building
 
 No path today for a user to request talent status. Design: application with Instagram handle, status field (pending/approved/rejected), manually approved at launch (owner reviews, same pattern as venue claims). Wire it to `admin-actions`'s `approve_talent` action, which already writes `role_type: "talent"` correctly, it just has nothing feeding it. Scale path later: threshold/bio-verification automation, then delegate approval to trusted venues. Don't skip straight to automation at launch.

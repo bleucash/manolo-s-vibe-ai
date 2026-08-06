@@ -6,11 +6,12 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Grid3X3, User, Activity, Zap, Shield, Settings } from "lucide-react";
+import { LogOut, Grid3X3, User, Activity, Zap, Shield, Settings, Sparkles, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import LoadingState from "@/components/ui/LoadingState";
+import { BecomeTalentModal } from "@/components/BecomeTalentModal";
 import { cn } from "@/lib/utils";
 
 const Profile = () => {
@@ -27,6 +28,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("about");
+  const [talentModalOpen, setTalentModalOpen] = useState(false);
+  const [hasPendingApplication, setHasPendingApplication] = useState(false);
 
   // Redirect non-guest users to their appropriate studio
   useEffect(() => {
@@ -59,8 +62,19 @@ const Profile = () => {
         .select("*")
         .eq("id", user.id)
         .single();
-        
+
       if (profileData) setProfile(profileData);
+
+      // Drives whether the card offers "Become Talent" or shows the
+      // application as already under review. Self-scoped by RLS.
+      const { data: application } = await supabase
+        .from("talent_applications")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .maybeSingle();
+
+      setHasPendingApplication(!!application);
     } catch (error) {
       console.error("Profile Fetch Error:", error);
     } finally {
@@ -79,8 +93,12 @@ const Profile = () => {
         toast.success("Manager Control Active");
         navigate("/venue/manage");
       } else {
+        // Previously promised an onboarding flow that did not exist. Now
+        // points at the real entry point in the card below.
         toast.error("Verified Role Required", {
-          description: "Complete onboarding to unlock business tools."
+          description: hasPendingApplication
+            ? "Your talent application is still under review."
+            : "Apply as talent in System Settings to unlock business tools."
         });
       }
     } else {
@@ -194,10 +212,28 @@ const Profile = () => {
               
               <Card className="bg-zinc-900/20 border-white/5 p-6 rounded-[2rem]">
                 <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
-                  You are currently in Guest Mode. This allows you to follow talent, 
-                  message venues, and purchase secure entry tickets. 
+                  You are currently in Guest Mode. This allows you to follow talent,
+                  message venues, and purchase secure entry tickets.
                   Switch modes using the toggle above to access business tools.
                 </p>
+
+                {hasPendingApplication ? (
+                  <div className="w-full h-16 mb-3 border border-neon-purple/20 bg-neon-purple/5 rounded-2xl flex items-center justify-center gap-3">
+                    <Clock className="w-4 h-4 text-neon-purple" />
+                    <span className="text-[10px] font-black text-neon-purple uppercase tracking-widest">
+                      Talent Application Under Review
+                    </span>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full h-16 mb-3 border-neon-purple/20 bg-neon-purple/5 text-neon-purple hover:bg-neon-purple/10 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
+                    onClick={() => setTalentModalOpen(true)}
+                  >
+                    <Sparkles className="w-4 h-4 mr-3" /> Become Talent
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   className="w-full h-16 border-white/5 bg-zinc-900/30 text-zinc-400 hover:border-red-500/50 hover:text-red-500 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
@@ -210,6 +246,12 @@ const Profile = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <BecomeTalentModal
+        isOpen={talentModalOpen}
+        onClose={() => setTalentModalOpen(false)}
+        onSubmitted={() => setHasPendingApplication(true)}
+      />
     </div>
   );
 };

@@ -87,14 +87,34 @@ Deno.serve(async (req) => {
       }
       case "approve_talent": {
         const { user_id } = parsed.data.payload;
+        // Role first, then close the application. If the second write fails,
+        // the applicant still shows as pending and the admin can retry
+        // (re-approving is harmless). The reverse order would drop them out
+        // of the review queue while leaving them without the role - a silent
+        // failure nobody would notice.
         const r = await admin.from("profiles").update({ role_type: "talent" }).eq("id", user_id);
         if (r.error) return json({ error: r.error.message }, 500);
+        // talent_applications_one_pending_per_user guarantees at most one
+        // pending row per user, so this filtered update targets exactly that
+        // row without a separate lookup.
+        const app = await admin
+          .from("talent_applications")
+          .update({ status: "approved" })
+          .eq("user_id", user_id)
+          .eq("status", "pending");
+        if (app.error) return json({ error: app.error.message }, 500);
         return json({ ok: true });
       }
       case "reject_talent": {
         const { user_id } = parsed.data.payload;
         const r = await admin.from("profiles").update({ role_type: "guest" }).eq("id", user_id);
         if (r.error) return json({ error: r.error.message }, 500);
+        const app = await admin
+          .from("talent_applications")
+          .update({ status: "rejected" })
+          .eq("user_id", user_id)
+          .eq("status", "pending");
+        if (app.error) return json({ error: app.error.message }, 500);
         return json({ ok: true });
       }
     }
