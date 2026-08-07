@@ -69,9 +69,19 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 **Separate pre-existing bug found while mirroring (`venue_claims` only, unfixed):** `unique_venue_claim UNIQUE (venue_id, status)` permits only one row per (venue, status) pair, so a venue can never have two rejected claims. Once one applicant is rejected for a venue, a second applicant's rejection fails. `talent_applications` deliberately does NOT copy this shape, it uses a partial unique index on `(user_id) WHERE status = 'pending'` instead, which allows re-application after rejection.
 
-## Talent onboarding — doesn't exist, needs building
+## Talent onboarding — closed (2026-08-03, verified end to end 2026-08-07)
 
-No path today for a user to request talent status. Design: application with Instagram handle, status field (pending/approved/rejected), manually approved at launch (owner reviews, same pattern as venue claims). Wire it to `admin-actions`'s `approve_talent` action, which already writes `role_type: "talent"` correctly, it just has nothing feeding it. Scale path later: threshold/bio-verification automation, then delegate approval to trusted venues. Don't skip straight to automation at launch.
+Request-and-approve, manually reviewed at launch. `talent_applications` (migration `20260803_talent_applications.sql`) holds `user_id`, `instagram_handle`, `status`. Entry point is a **Become Talent** button in `Profile.tsx`'s "Neural Link Management" card, guest-only by construction since talent/manager modes redirect away from `Profile.tsx` entirely. `BecomeTalentModal.tsx` inserts the row; `CEODashboard.tsx` queries pending rows into the existing `handleTalentApproval` handler; `admin-actions`'s `approve_talent`/`reject_talent` write `role_type` first, then close the application row. Commit `78dfaa9`.
+
+**Order is deliberate:** role write first, application close second. If the second write fails, the recoverable state is "approved but still shows pending," not a silently dropped applicant.
+
+**Duplicate applications are blocked at two layers, and the UI layer is the real one.** The partial unique index `talent_applications_one_pending_per_user ON (user_id) WHERE status = 'pending'` allows at most one open application while leaving history unconstrained, so re-applying after rejection works (deliberately unlike `venue_claims`, see Accepted risk above). But in practice the button itself disables to a "pending application" state, so a second submit can't be attempted through the UI at all. The modal's `23505` handler ("Application Already Open") is a race-condition backstop, not the primary guard.
+
+**Verified end to end against production (2026-08-07), not just structurally.** Real UI run: guest signs up, applies, appears in the CEO queue, approved, `role_type` flips to `talent` AND `status` flips to `approved`. Both writes landed, the partial-failure mode did not occur. Test rows deleted afterward by UUID, counts returned to 5/5/0 with no orphans, which also reconfirmed both cascade hops (`profiles` → `auth.users`, `talent_applications` → `profiles`, both `ON DELETE CASCADE`). `handle_new_user` passed implicitly, the profile row existed at `guest` before approval flipped it.
+
+Scale path later: threshold/bio-verification automation, then delegate approval to trusted venues. Don't skip straight to automation at launch.
+
+**Noted during the verification run, not fixed:** `instagram_handle` stores a bare handle (`@` stripped, no constructed URL), which is the correct shape and the thing `ClaimSectorModal.tsx` gets wrong. That modal's `if (!instagram.includes("@") && instagram.length < 3)` short-circuits so a bare `"@"` passes validation. Separate pre-existing bug, still open.
 
 ## Manager onboarding — closed (2026-08-02)
 
@@ -164,7 +174,7 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 1. **Closed (2026-08-02).** Purge phantom `is_verified_*` references, application code side. Confirmed fixed: `TalentGuard.tsx`, `TalentManage.tsx` (this one was the actual gate blocking every talent user from `/gigs`, not just cleanup). Directly reviewed and confirmed correct: `CEODashboard.tsx` (flipped to showing an honest empty pending-talent state, not a fake populated one), `search-talent.ts`, `get-my-profile.ts`, `database.ts` (correctly left `venues.verified`/`venue_claims.evidence_link` alone, out of scope), `UserModeContext.tsx`. `useWorkerPermissions.ts` also purged of `is_verified_*` correctly, but still carries the separate `sub_role`-as-permissions collision and its own copy of the hydration race, both noted above, neither was this item's job to fix. Full `role_type` enum collapse deferred, see above, only the one `venue_manager` row got remapped, live and verified, commit `415ff0e`.
 2. **Closed (2026-08-02).** Claim modal field fix, see Tier 1 note above. Commit `3fcea79`.
 3. **Closed (2026-08-02).** `Dashboard.tsx` wired to `ManagerDashboard`, see Manager onboarding above. Commit `25725bb`.
-4. Build talent onboarding (application + existing approve path).
+4. **Closed (2026-08-03, verified end to end 2026-08-07).** Talent onboarding, application + approve path, see Talent onboarding above. Commit `78dfaa9`.
 5. **Closed (2026-08-03).** `posts` INSERT locked to talent/manager, see Guest posting above. Commit `ec81999`.
 6. Build Tier 2 enforcement around the existing Live toggle.
 7. Rebuild spotlight with real decay, extend to venues, resolve the orphaned Discovery charge button.
