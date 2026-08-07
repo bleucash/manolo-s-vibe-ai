@@ -55,6 +55,14 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 **Real bug, confirmed:** `venues.is_active` and `profiles.is_active` are independently maintained with no constraint or trigger tying them together, but `Discovery.tsx` renders both through the identical `<ActiveBadge />` as if they're one signal (`venue.is_active && <ActiveBadge />`, `talent.is_active && <ActiveBadge />`). Nothing stops a talent's live badge from showing at a venue that's already closed for the night, or surviving after they've left. Fix direction: either derive talent "live" as `is_active AND current_venue_id's venue is also is_active` at query time, or a trigger that clears a talent's `is_active` when their venue goes inactive. Not yet fixed, not yet scheduled.
 
+## Active Nodes — name doesn't match implementation
+
+`Index.tsx`'s `activeNodes` (the row at the top of Home) queries `profiles` where `role_type = 'talent'`, limit 6, no `is_active` filter, no ordering. It shows six arbitrary talent regardless of whether any of them are actually active anywhere. Not fixed yet.
+
+**Intended (owner, 2026-08-07):** only talent currently active at a venue (`is_active` + `current_venue_id`, the existing working mechanism from Live vs verified above) should show as a node, styled and timed like Instagram Stories, meaning time-boxed with an expiry, not a static list. Exact duration undecided, needs its own discussion. `active_at` already exists on both `profiles` and `venues`, set by `TalentDashboard.tsx`/`ManagerDashboard.tsx` when the toggle flips, that's the groundwork an expiry window computes against, no new column needed.
+
+**"Live" is being renamed to "Active" everywhere, deliberately, for extensibility.** Decided in an earlier session per the owner. This file had no record of it until now, that's exactly the drift this file exists to prevent.
+
 ## Accepted risk: nothing prevents a user holding a pending talent application AND a pending venue claim
 
 `talent_applications` and `venue_claims` are separate tables with no cross-check, so one user can have an open row in both at once even though talent and manager are mutually exclusive. If both were approved, the second approval silently overwrites the first's `role_type`. **Accepted at launch scale (2026-08-03):** every approval is manually reviewed by one person who would notice. Not fixed. Revisit when approval is delegated or automated, which is exactly when nobody is eyeballing both queues anymore. Fix direction if needed: have each approve path reject the competing pending row, or a constraint spanning both.
@@ -99,12 +107,20 @@ Every signup used to land profile-less: zero triggers on `auth.users`, nothing a
 
 **Next session:** `has_role()` and `has_role_type()` are both SECURITY DEFINER but neither sets `search_path`, unlike `handle_new_user` and `prevent_profile_privilege_escalation` which both do. That's a search_path hijacking surface on two functions that RLS policies depend on (`has_role_type` gates `posts` INSERT). Pre-existing, not urgent, not fixed tonight, but should be `SET search_path = public` for consistency and safety.
 
+## Following — built for talent, not for venues
+
+Confirmed live: `useFollow.ts` + `FollowButton.tsx`, renders on `Discovery.tsx`, `GuestProfile.tsx`, `TalentProfile.tsx`, writes to `followers`. `Index.tsx`'s Home feed already builds on top of it via `fetchFollowerFeed`. This was previously misdescribed in a chat session as dead code, it is not, that was a bad grep pattern searching for a table literally named `follows` instead of the real name.
+
+**Gap:** `venue_followers` is read-only. Discovery reads it (`followedVenues`) but nothing inserts into it anywhere, no button, no action. If guests are meant to follow venues the same way they follow talent, this needs its own write path built, mirroring `useFollow.ts`.
+
 ## Charge / Heat / Spotlight
 
 - **Live today:** `get_talent_spotlight` RPC (migration `20260331_create_talent_spotlight_rpc.sql`) ranks talent by a raw lifetime `COUNT(*)` of `post_likes`, gated on `is_active = true`. **No decay.** Whoever got hot first stays on top forever, this contradicts the product's own "always feels fresh" premise.
 - Two disconnected "charge" pathways exist: Home page's "Charge Node" button writes to `post_likes` (this is what actually feeds the spotlight). Discovery's own charge button writes to a separate `interactions` table that **nothing reads**. It currently does nothing. Either wire it in or remove it, don't leave it as dead UI.
 - **Target v2 spec** (recovered from a prior session, not yet built): gravity-decay model, `score = Σ 1/(hours_since_charge + 2)^1.5`, 12-hour contribution cutoff, dedicated `post_charges` table, `charge_count` on posts, `heat_score` on both `venues` and `profiles` (spotlight currently only covers talent, docs describe venue spotlight too, never built), scheduled recalculation via RPC/cron. Full SQL for this exists in project history if asked to implement.
 - `posts.expires_at` already exists as a column, likely the intended mechanism for feed-visibility fade (separate concept from heat-score decay, don't merge them, one is UI freshness, one is ranking math).
+- **Two charge touchpoints are intentional, not redundant (owner, 2026-08-07):** Home feed charging a post feeds Talent Spotlight, the live path above. Discovery charging a venue/talent card directly, without requiring a follow, is meant to feed a separate score, most likely venue `heat_score`. Exact formula and the split between the two is undecided, owner has flagged this needs its own dedicated session, don't guess at it.
+- **Heat score's purpose (owner, 2026-08-07):** highlight venues actively posting engaging content, more engagement drives more heat, higher heat surfaces a venue first on Discovery. Confirms the `heat_score` intent already described in the v2 spec above, still not built.
 
 ## Guest posting — deferred, not gated
 
@@ -121,6 +137,8 @@ Stripe, QR generation, `check_in_guest` (SECURITY DEFINER), `tickets.scanned_at`
 ## Messaging — decided, not built
 
 Talent and managers message freely into anyone's inbox (business context). Guests can message anyone, but land in a request queue unless the recipient follows them back, Instagram's model, filter lives on the receiving end, not a follow-to-unlock gate (a follow-gate is trivially bypassed by just following first). Currently only conversation membership is checked, none of this exists yet.
+
+**Refinement (owner, 2026-08-07):** managers should be exempt from the follow-required friction on the receiving end. A guest messaging a manager should reach them directly, businesses don't want friction turning away potential customers. Talent likely still wants the filter. Not built either way yet.
 
 ## RLS / security state (as of last audit)
 
