@@ -48,10 +48,21 @@ const Index = () => {
   };
 
   const fetchActiveNodes = async () => {
+    // A talent is an Active Node only if they are personally active AND the
+    // venue they are checked into is also active. The !inner embed makes the
+    // venue condition part of the join, so a talent at a closed venue is
+    // excluded by the query rather than filtered in JS. The FK is named
+    // explicitly rather than using the short `venues!inner` form: profiles has
+    // both venue_id and current_venue_id, and only current_venue_id carries an
+    // FK today. If an FK is ever added on venue_id, the short form would start
+    // failing at runtime with an ambiguity error, silently emptying this
+    // guest-facing row. The explicit form is immune to that.
     const { data: talent } = await supabase
       .from("profiles")
-      .select("id, display_name, avatar_url, sub_role")
+      .select("id, display_name, avatar_url, sub_role, venues!profiles_current_venue_id_fkey!inner(is_active)")
       .eq("role_type", "talent")
+      .eq("is_active", true)
+      .eq("venues.is_active", true)
       .limit(6);
     if (talent) setActiveNodes(talent);
   };

@@ -32,6 +32,15 @@ The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `loca
 - **Known collision, confirmed still live via direct file review (2026-08-02):** `useWorkerPermissions` computes `isStaffRole` from `role_type === "manager"` OR `sub_role` matching a hardcoded list that includes `"bouncer"`, the exact thing this file argues against, bouncer isn't talent, it's a venue relationship. Correctly out of scope for the `is_verified_*` purge, a separate problem, just confirming it wasn't accidentally fixed along the way. `sub_role` is a discovery label, not a permission source. Permissions belong on the `venue_staff` row. Fix this before building more on top of the hook.
 - Bouncer/door access is a link-based invite (intentional, lets venues staff up without app friction). Eventually needs to be venue-scoped, revocable, and expiring. Not urgent, but don't harden it into something permanent-by-default.
 
+## Missing FK constraints — found 2026-08-03, unfixed, logged only
+
+Two columns that look like foreign keys and behave like foreign keys in the code, but have no constraint behind them. Found while verifying the PostgREST embed for the Active Nodes fix, where the FK graph is what the query actually resolves through.
+
+- **`profiles.venue_id` references nothing formally.** `profiles` has both `venue_id` and `current_venue_id`; only `current_venue_id` carries `profiles_current_venue_id_fkey`. `venue_id` has no constraint, so nothing stops it holding a venue id that doesn't exist. It is also invisible to PostgREST, which is the only reason a `venues!inner(...)` embed from `profiles` is unambiguous today. `Index.tsx`'s Active Nodes query names the FK explicitly (`venues!profiles_current_venue_id_fkey!inner`) precisely so that adding an FK to `venue_id` later cannot silently break it.
+- **`venues.owner_id` has no FK to `profiles`**, despite ownership being what confers manager status (see role model above). Nothing at the DB level guarantees an owner_id points at a real profile.
+
+Neither is causing a known live bug. Not fixed, deliberately: adding constraints to a production table with existing rows can fail on pre-existing violations, so it needs a data audit first, not a blind `ALTER TABLE`.
+
 ## Phantom columns — never re-add without a real migration
 
 These are referenced in old code/docs but do not exist in the live DB: `profiles.is_verified_talent`, `profiles.is_verified_manager`, `venues.verified`, `venue_claims.evidence_link`. A verification system was half-built then reverted on the DB side while frontend kept references. If you see these names anywhere, it's leftover, not spec.
