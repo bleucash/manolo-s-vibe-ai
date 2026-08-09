@@ -207,7 +207,7 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
                 className="w-full bg-zinc-900/50 border-white/5 text-zinc-400 hover:bg-zinc-800 font-black uppercase tracking-widest text-[10px]"
                 variant="outline"
               >
-                {togglingActive ? "Updating..." : "Deactivate"}
+                {togglingActive ? "Updating..." : "Tap Out"}
               </Button>
             </div>
           ) : (
@@ -226,16 +226,23 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
                         key={affiliation.id}
                         onClick={() => handleToggleActive(affiliation.venue_id)}
                         disabled={togglingActive}
-                        className="w-full justify-start h-auto p-4 bg-neon-blue/5 border-neon-blue/20 text-white hover:bg-neon-blue/10 hover:border-neon-blue/40 font-bold transition-all"
+                        className="w-full justify-between h-auto p-4 bg-neon-blue/5 border-neon-blue/20 text-white hover:bg-neon-blue/10 hover:border-neon-blue/40 font-bold transition-all"
                         variant="outline"
                       >
-                        <Building2 className="w-4 h-4 mr-3 text-neon-blue" />
-                        <div className="text-left">
-                          <p className="font-bold">{affiliation.venues?.name}</p>
-                          {affiliation.venues?.location && (
-                            <p className="text-xs text-zinc-500">{affiliation.venues.location}</p>
-                          )}
-                        </div>
+                        <span className="flex items-center gap-3 min-w-0">
+                          <Building2 className="w-4 h-4 text-neon-blue shrink-0" />
+                          <span className="text-left min-w-0">
+                            <span className="block font-bold truncate">{affiliation.venues?.name}</span>
+                            {affiliation.venues?.location && (
+                              <span className="block text-xs text-zinc-500 truncate">
+                                {affiliation.venues.location}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        <span className="text-neon-blue font-black uppercase tracking-widest text-[10px] shrink-0 ml-3">
+                          Tap In
+                        </span>
                       </Button>
                     ))}
                   </div>
