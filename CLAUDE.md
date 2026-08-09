@@ -64,13 +64,21 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 **Real bug, confirmed:** `venues.is_active` and `profiles.is_active` are independently maintained with no constraint or trigger tying them together, but `Discovery.tsx` renders both through the identical `<ActiveBadge />` as if they're one signal (`venue.is_active && <ActiveBadge />`, `talent.is_active && <ActiveBadge />`). Nothing stops a talent's live badge from showing at a venue that's already closed for the night, or surviving after they've left. Fix direction: either derive talent "live" as `is_active AND current_venue_id's venue is also is_active` at query time, or a trigger that clears a talent's `is_active` when their venue goes inactive. Not yet fixed, not yet scheduled.
 
-## Active Nodes — name doesn't match implementation
+## Active Nodes — closed (2026-08-09, verified end to end)
 
-`Index.tsx`'s `activeNodes` (the row at the top of Home) queries `profiles` where `role_type = 'talent'`, limit 6, no `is_active` filter, no ordering. It shows six arbitrary talent regardless of whether any of them are actually active anywhere. Not fixed yet.
+`Index.tsx`'s `fetchActiveNodes` used to query `profiles` where `role_type = 'talent'` limit 6 with no `is_active` filter at all, so the guest-facing row showed six arbitrary talent regardless of whether anyone was active anywhere. Now a talent appears only if `profiles.is_active` is true AND their `current_venue_id` points at a venue that is itself `is_active`. Commit `851a3e2`.
 
-**Intended (owner, 2026-08-07):** only talent currently active at a venue (`is_active` + `current_venue_id`, the existing working mechanism from Live vs verified above) should show as a node, styled and timed like Instagram Stories, meaning time-boxed with an expiry, not a static list. Exact duration undecided, needs its own discussion. `active_at` already exists on both `profiles` and `venues`, set by `TalentDashboard.tsx`/`ManagerDashboard.tsx` when the toggle flips, that's the groundwork an expiry window computes against, no new column needed.
+**The venue condition is an inner join, not a JS filter**, so closed-venue rows are excluded by the query. The FK is named explicitly (`venues!profiles_current_venue_id_fkey!inner`) rather than the short `venues!inner`; full reasoning is in the code comment and in Missing FK constraints above, short version: only `current_venue_id` carries an FK today, and that alone is what makes the short form unambiguous.
 
-**"Live" is being renamed to "Active" everywhere, deliberately, for extensibility.** Decided in an earlier session per the owner. This file had no record of it until now, that's exactly the drift this file exists to prevent.
+**Scope limitation, deliberate:** this query only ever touches `profiles` filtered to `role_type = 'talent'`. **Venues can never appear as Active Nodes**, whatever their own `is_active` state. Venue nodes would be a separate query and a separate design decision, not a filter tweak here.
+
+**Verified end to end (2026-08-09), both directions**, using `moneymachine@gmx.com`, who holds active `venue_staff` affiliations at two venues in opposite states. Checked in at **Tangra** (`is_active = true`) the node renders on Home; checked in at **The Ritz Ybor** (`is_active = false`) it does not. The negative case is the one that matters, it is the badge-desync bug this closes, where a talent stayed visibly active after their venue went dark.
+
+**Still open, deliberately out of scope:** no expiry or time window. Owner's intent is Stories-style time-boxing rather than a static list, duration undecided. `active_at` already exists on both `profiles` and `venues`, set when either toggle flips, so an expiry computes against it with no new column.
+
+**"Live" is being renamed to "Active" everywhere, deliberately, for extensibility.** Decided in an earlier session per the owner. **Sequenced before build item 6**, which touches the Live toggle surface directly, so renaming afterward would mean touching it twice.
+
+**Open idea, guest-facing batch:** blank space instead of skeleton loaders while the node row resolves, so an empty result reads as "nothing happening tonight" rather than "still loading."
 
 ## Accepted risk: nothing prevents a user holding a pending talent application AND a pending venue claim
 
