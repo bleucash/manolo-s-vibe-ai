@@ -98,7 +98,7 @@ const TalentProfile = () => {
               {profile.is_active && activeVenueName && (
                 <Badge className="w-fit bg-neon-green/10 text-neon-green border-neon-green/20 uppercase text-[8px] font-black tracking-[0.3em] px-4 py-1 rounded-full flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-                  Live at {activeVenueName}
+                  Active at {activeVenueName}
                 </Badge>
               )}
             </div>
