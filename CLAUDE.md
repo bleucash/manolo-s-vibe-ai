@@ -21,6 +21,8 @@ The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `loca
 
 **Minor, cosmetic, not a bug:** `CEORoute`/`RequireAuth`/`BouncerRoute` (all in `App.tsx`) and `Dashboard.tsx` share the same loading branch, `<LoadingState fullPage />` from `components/ui/LoadingState.tsx`. `TalentGuard.tsx` hand-rolls its own spinner div instead of using that shared component. Confirmed by direct file comparison, not assumed. Worth conforming next time that file's touched, not worth a detour on its own.
 
+**Back-arrow convention, and two pages still missing one (2026-08-09).** Two conventions coexist deliberately: `navigate(-1)` on detail pages reachable from several entry points (`TalentProfile`, `GuestProfile`, `Gigs`, `Notifications`, now `Venue`), and a hardcoded target where there is exactly one sensible parent (`TalentDirectory` to `/discovery`, `Bouncer` to `/dashboard`). `Venue.tsx` had **no back affordance at all** until it was added; it takes `navigate(-1)` because it is reachable from Discovery, the Index feed's venue tag, and VenueManage's "View Public Profile". **Still open:** `Wallet.tsx` and `Messages.tsx` have the same total absence, not investigated with the same rigor, not fixed. Note `BottomNav` renders on all of these and has a `/discovery` tab, so a missing arrow is a UX gap, not a dead end. Also minor: `TalentManage.tsx` imports `ArrowLeft` and never renders it, dead import, separate cleanup.
+
 - Talent and manager are **mutually exclusive**. A user is never both.
 - **Staff is not a role.** It's a relationship, a `venue_staff` row linking a person to a venue. Don't gate features on `role_type = 'staff'`.
 - Manager status comes from venue **ownership** (`venues.owner_id`), not a separate flag.
