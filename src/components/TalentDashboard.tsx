@@ -180,21 +180,26 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
               />
               <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Active Status</span>
             </div>
-            {isActive && currentVenueId && (
-              <Badge className="bg-neon-green/10 text-neon-green border-neon-green/30 text-[9px] font-black uppercase tracking-widest">
-                Active
-              </Badge>
-            )}
           </div>
 
           {isActive && currentVenueId ? (
             // Currently Active - Show where and deactivate button
             <div className="space-y-3">
-              <div className="p-4 bg-black/40 rounded-lg border border-neon-green/20">
-                <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1">Active At</p>
-                <p className="text-white font-bold">
-                  {activeAffiliations.find((a) => a.venue_id === currentVenueId)?.venues?.name || "Venue"}
-                </p>
+              {/* Only the active venue is shown; the others leave the selector
+                  entirely. Single-venue-at-a-time is intentional. */}
+              <div className="p-4 rounded-lg bg-neon-green/10 border border-neon-green/40 shadow-[0_0_20px_rgba(57,255,20,0.12)] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Building2 className="w-4 h-4 text-neon-green shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-neon-green/70 uppercase font-black tracking-widest mb-1">Active At</p>
+                    <p className="text-white font-bold truncate">
+                      {activeAffiliations.find((a) => a.venue_id === currentVenueId)?.venues?.name || "Venue"}
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-neon-green/20 text-neon-green border-neon-green/40 text-[8px] font-black px-4 py-1.5 uppercase tracking-[0.2em] rounded-full shrink-0">
+                  Active
+                </Badge>
               </div>
               <Button
                 onClick={() => handleToggleActive()}
@@ -221,10 +226,10 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
                         key={affiliation.id}
                         onClick={() => handleToggleActive(affiliation.venue_id)}
                         disabled={togglingActive}
-                        className="w-full justify-start h-auto p-4 bg-neon-green/5 border-neon-green/20 text-white hover:bg-neon-green/10 font-bold"
+                        className="w-full justify-start h-auto p-4 bg-neon-blue/5 border-neon-blue/20 text-white hover:bg-neon-blue/10 hover:border-neon-blue/40 font-bold transition-all"
                         variant="outline"
                       >
-                        <Building2 className="w-4 h-4 mr-3 text-neon-green" />
+                        <Building2 className="w-4 h-4 mr-3 text-neon-blue" />
                         <div className="text-left">
                           <p className="font-bold">{affiliation.venues?.name}</p>
                           {affiliation.venues?.location && (
