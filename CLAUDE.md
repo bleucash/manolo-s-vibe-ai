@@ -175,6 +175,14 @@ Talent and managers message freely into anyone's inbox (business context). Guest
 
 **`is_admin()` is a third copy of the admin identity.** RLS can't see the `ADMIN_USER_ID` secret and admin isn't in `role_type`, so the JWT email claim (same mechanism as `CEORoute`) is the only in-DB signal, this helper just keeps that email in one place instead of inline per policy. Widens the accepted email/secret desync risk to three copies. Deliberate, logged.
 
+**Pulled live from `pg_policies` 2026-08-09, three findings, none fixed.** Read the live policies before designing against these tables, local migration files do not reflect current state.
+
+1. **`payout_history` has exactly one policy, SELECT, and no INSERT policy at all.** RLS is on, so `PayoutsPanel`'s `.insert()` into `payout_history` is denied by default and has been failing silently, the code never checks the returned error. The Payouts button currently lies to the user. Fix direction: route it through `admin-actions` on the service role key (matching how approvals already work), or add a scoped INSERT policy. Do not assume this write works today, it does not.
+2. **Two UPDATE policies have no `WITH CHECK`, which is privilege-escalation shaped.** `venues`'s "Managers can update their own venue" (`qual: auth.uid() = owner_id`) and `venue_staff`'s "Managers update venue staff" both pass `USING` and then permit updating the row to any value, including moving `venue_id` to a venue the caller does not own. On `venues` the `venues_prevent_owner_change` trigger is what actually blocks the ownership case, not the policy. Note a stricter sibling policy does NOT save you here: permissive policies OR together, so the loosest one wins.
+3. **Policy sprawl actively neuters the narrow policies.** `venue_staff` has 9 policies (4 UPDATE, two of which are exact-duplicate pairs written two different ways), `venues` has 5. Both carry a `qual: true` SELECT that makes every narrower SELECT policy beside it inert, and every row world-readable. Same class as the ticket-policy duplication below.
+
+**Related, explains a live dead end:** the "open insert on `venue_staff`" dropped above was never replaced, so there is no INSERT policy on `venue_staff` at all. Combined with `/venue/:id/join` not existing as a route in `App.tsx` (though `ManagerDashboard` generates invite links pointing at it), there is currently **no working path to create a `venue_staff` row**. Existing rows predate the fix.
+
 **Still open, drafted but not run:** `venue_followers` status mismatch, three inconsistent values in live use (`active`, `approved`, and `useWorkerPermissions.ts`'s `confirmed`), never actually matches, so managers have never seen followers. Also: `posts` missing UPDATE/DELETE (can't delete own posts), 15 duplicate/overlapping ticket policies, possible recursive RLS on `conversation_participants` SELECT (unverified).
 
 ## Hard operating rules
