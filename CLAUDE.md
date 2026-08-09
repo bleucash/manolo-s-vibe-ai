@@ -74,9 +74,9 @@ These are referenced in old code/docs but do not exist in the live DB: `profiles
 
 **Verified end to end (2026-08-09), both directions**, using `moneymachine@gmx.com`, who holds active `venue_staff` affiliations at two venues in opposite states. Checked in at **Tangra** (`is_active = true`) the node renders on Home; checked in at **The Ritz Ybor** (`is_active = false`) it does not. The negative case is the one that matters, it is the badge-desync bug this closes, where a talent stayed visibly active after their venue went dark.
 
-**Still open, deliberately out of scope:** no expiry or time window. Owner's intent is Stories-style time-boxing rather than a static list, duration undecided. `active_at` already exists on both `profiles` and `venues`, set when either toggle flips, so an expiry computes against it with no new column.
-
 **"Live" is being renamed to "Active" everywhere, deliberately, for extensibility.** Decided in an earlier session per the owner. **Sequenced before build item 6**, which touches the Live toggle surface directly, so renaming afterward would mean touching it twice.
+
+**Still open, deliberately out of scope for this fix:** styling and timing Active Nodes like Instagram Stories, meaning time-boxed with an expiry rather than a static list. Duration undecided, needs its own discussion. `active_at` already exists on both `profiles` and `venues`, set by `TalentDashboard.tsx`/`ManagerDashboard.tsx` when the toggle flips, that's the groundwork an expiry window computes against, no new column needed.
 
 **Open idea, guest-facing batch:** blank space instead of skeleton loaders while the node row resolves, so an empty result reads as "nothing happening tonight" rather than "still loading."
 
