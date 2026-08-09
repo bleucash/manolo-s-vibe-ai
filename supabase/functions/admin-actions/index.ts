@@ -23,6 +23,14 @@ const ActionSchema = z.discriminatedUnion("action", [
     action: z.literal("reject_talent"),
     payload: z.object({ user_id: z.string().uuid() }),
   }),
+  z.object({
+    action: z.literal("approve_business"),
+    payload: z.object({ venue_id: z.string().uuid() }),
+  }),
+  z.object({
+    action: z.literal("reject_business"),
+    payload: z.object({ venue_id: z.string().uuid() }),
+  }),
 ]);
 
 const json = (body: unknown, status = 200) =>
@@ -113,6 +121,37 @@ Deno.serve(async (req) => {
           .from("talent_applications")
           .update({ status: "rejected" })
           .eq("user_id", user_id)
+          .eq("status", "pending");
+        if (app.error) return json({ error: app.error.message }, 500);
+        return json({ ok: true });
+      }
+      case "approve_business": {
+        const { venue_id } = parsed.data.payload;
+        // Flag first, then close the application. Same ordering as
+        // approve_talent: if the second write fails the recoverable state is
+        // "verified but still shows pending", not a venue silently dropped
+        // from the review queue while still unverified.
+        const r = await admin.from("venues").update({ business_verified: true }).eq("id", venue_id);
+        if (r.error) return json({ error: r.error.message }, 500);
+        // venue_business_applications_one_pending_per_venue guarantees at most
+        // one pending row per venue, so this filtered update targets exactly
+        // that row without a separate lookup.
+        const app = await admin
+          .from("venue_business_applications")
+          .update({ status: "approved" })
+          .eq("venue_id", venue_id)
+          .eq("status", "pending");
+        if (app.error) return json({ error: app.error.message }, 500);
+        return json({ ok: true });
+      }
+      case "reject_business": {
+        const { venue_id } = parsed.data.payload;
+        const r = await admin.from("venues").update({ business_verified: false }).eq("id", venue_id);
+        if (r.error) return json({ error: r.error.message }, 500);
+        const app = await admin
+          .from("venue_business_applications")
+          .update({ status: "rejected" })
+          .eq("venue_id", venue_id)
           .eq("status", "pending");
         if (app.error) return json({ error: app.error.message }, 500);
         return json({ ok: true });
