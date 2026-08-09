@@ -7,6 +7,7 @@ import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react
 import { useUserMode } from "@/contexts/UserModeContext";
 import { HeroReel } from "@/components/HeroReel";
 import { Venue } from "@/types/database";
+import { writeFollow, type FollowTarget } from "@/hooks/useFollow";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,7 +95,10 @@ const VenueFeedCard = ({ venue, onNavigate, isFollowing, onFollow }: any) => (
           <MapPin className="w-3 h-3" /> {venue.location || "Sector Verified"}
         </Badge>
         <ActiveFacepile staff={venue.venue_staff || []} />
-        <div onClick={onFollow}><FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={(e: any) => e.stopPropagation()} subtle /></div>
+        {/* stopPropagation lives on the wrapper, not the button: on the button
+            it fired before the event could reach onFollow, so the handler never
+            ran. Wrapper still blocks the card's onNavigate. */}
+        <div onClick={(e: any) => e.stopPropagation()}><FollowButton targetId={venue.id} targetType="venue" isFollowing={isFollowing} onClick={() => onFollow?.()} subtle /></div>
       </div>
       <h3 className="font-display text-[clamp(2rem,9vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] pr-20 whitespace-normal break-normal line-clamp-3 mb-4">{venue.name}</h3>
     </div>
@@ -109,7 +113,7 @@ const TalentFeedCard = ({ talent, onNavigate, isFollowing, onFollow }: any) => (
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {talent.sub_role && <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">{talent.sub_role}</Badge>}
         {talent.is_active && <ActiveBadge />}
-        <div onClick={onFollow}><FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={(e: any) => e.stopPropagation()} /></div>
+        <div onClick={(e: any) => e.stopPropagation()}><FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={() => onFollow?.()} /></div>
       </div>
       <h3 className="font-display text-[clamp(2rem,9vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] pr-20 whitespace-normal break-normal line-clamp-3 mb-2">{talent.display_name}</h3>
     </div>
@@ -153,6 +157,44 @@ const Discovery = () => {
   const handleCardClick = (id: string, type: string, path: string) => {
     navigate(path);
     if (currentUserId) supabase.from("interactions").insert({ user_id: currentUserId, target_id: id, target_type: type, interaction_type: "charge", action_value: 1 });
+  };
+
+  // Uses writeFollow rather than useFollow: initial state is already loaded in
+  // one batched query above, so mounting a hook per card would turn that into
+  // one query per card. Optimistic update with rollback mirrors useFollow's
+  // behaviour, including treating 23505 as "already following".
+  const handleToggleFollow = async (targetId: string, targetType: FollowTarget) => {
+    if (!currentUserId) {
+      toast.error("Please sign in to follow");
+      return;
+    }
+
+    const isVenue = targetType === "venue";
+    const setFollowed = isVenue ? setFollowedVenues : setFollowedTalent;
+    const wasFollowing = (isVenue ? followedVenues : followedTalent).has(targetId);
+
+    setFollowed((prev) => {
+      const next = new Set(prev);
+      wasFollowing ? next.delete(targetId) : next.add(targetId);
+      return next;
+    });
+
+    try {
+      await writeFollow(targetId, targetType, currentUserId, !wasFollowing);
+    } catch (error: any) {
+      setFollowed((prev) => {
+        const next = new Set(prev);
+        if (error?.code === "23505") {
+          next.add(targetId);
+        } else if (wasFollowing) {
+          next.add(targetId);
+        } else {
+          next.delete(targetId);
+        }
+        return next;
+      });
+      if (error?.code !== "23505") toast.error("Failed to update follow status");
+    }
   };
 
   const combinedFeed = useMemo(() => {
@@ -203,9 +245,9 @@ const Discovery = () => {
         </div>
         {combinedFeed.map((item, idx) => (
           item.type === "venue" ? (
-            <VenueFeedCard key={`v-${item.data.id}`} venue={item.data} onNavigate={() => handleCardClick(item.data.id, "venue", `/venue/${item.data.id}`)} isFollowing={followedVenues.has(item.data.id)} />
+            <VenueFeedCard key={`v-${item.data.id}`} venue={item.data} onNavigate={() => handleCardClick(item.data.id, "venue", `/venue/${item.data.id}`)} isFollowing={followedVenues.has(item.data.id)} onFollow={() => handleToggleFollow(item.data.id, "venue")} />
           ) : (
-            <TalentFeedCard key={`t-${item.data.id}`} talent={item.data} onNavigate={() => handleCardClick(item.data.id, "talent", `/talent/${item.data.id}`)} isFollowing={followedTalent.has(item.data.id)} />
+            <TalentFeedCard key={`t-${item.data.id}`} talent={item.data} onNavigate={() => handleCardClick(item.data.id, "talent", `/talent/${item.data.id}`)} isFollowing={followedTalent.has(item.data.id)} onFollow={() => handleToggleFollow(item.data.id, "talent")} />
           )
         ))}
       </div>

@@ -2,13 +2,57 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/**
+ * Talent follows live in `followers` (follower_id -> following_id).
+ * Venue follows live in `venue_followers` (follower_id -> venue_id).
+ * Same shape, same UNIQUE constraint, same 23505 duplicate behaviour, so the
+ * two differ only by table and target column.
+ */
+export type FollowTarget = "talent" | "venue";
+
+const TARGET_TABLE: Record<FollowTarget, { table: string; column: string }> = {
+  talent: { table: "followers", column: "following_id" },
+  venue: { table: "venue_followers", column: "venue_id" },
+};
+
 interface UseFollowReturn {
   isFollowing: boolean;
   isLoading: boolean;
   toggleFollow: () => Promise<void>;
 }
 
-export function useFollow(targetUserId: string): UseFollowReturn {
+/**
+ * Raw write, no local state. Exported so callers that already hold follow
+ * state in bulk (Discovery loads every follow in one batched query) can reuse
+ * the exact insert/delete semantics without either duplicating them or
+ * mounting one hook per card, which would turn a single query into N.
+ * Throws on failure so the caller can roll its own optimistic state back;
+ * 23505 propagates untouched for the caller to special-case.
+ */
+export async function writeFollow(
+  targetId: string,
+  targetType: FollowTarget,
+  currentUserId: string,
+  follow: boolean,
+): Promise<void> {
+  const { table, column } = TARGET_TABLE[targetType];
+
+  if (follow) {
+    const { error } = await supabase
+      .from(table)
+      .insert({ follower_id: currentUserId, [column]: targetId });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq("follower_id", currentUserId)
+      .eq(column, targetId);
+    if (error) throw error;
+  }
+}
+
+export function useFollow(targetId: string, targetType: FollowTarget = "talent"): UseFollowReturn {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -27,12 +71,12 @@ export function useFollow(targetUserId: string): UseFollowReturn {
 
         setCurrentUserId(user.id);
 
-        // Updated to use the 'followers' table per Phase 2 consolidation
+        const { table, column } = TARGET_TABLE[targetType];
         const { data, error } = await supabase
-          .from("followers")
+          .from(table)
           .select("id")
           .eq("follower_id", user.id)
-          .eq("following_id", targetUserId)
+          .eq(column, targetId)
           .maybeSingle();
 
         if (!error) {
@@ -45,10 +89,10 @@ export function useFollow(targetUserId: string): UseFollowReturn {
       }
     };
 
-    if (targetUserId) {
+    if (targetId) {
       checkFollowStatus();
     }
-  }, [targetUserId]);
+  }, [targetId, targetType]);
 
   const toggleFollow = useCallback(async () => {
     if (!currentUserId) {
@@ -56,7 +100,9 @@ export function useFollow(targetUserId: string): UseFollowReturn {
       return;
     }
 
-    if (currentUserId === targetUserId) {
+    // Only reachable for talent in practice: a venue id is never a user id.
+    // Kept unconditional so talent behaviour is preserved exactly.
+    if (currentUserId === targetId) {
       toast.error("You can't follow yourself");
       return;
     }
@@ -70,24 +116,7 @@ export function useFollow(targetUserId: string): UseFollowReturn {
     });
 
     try {
-      if (wasFollowingAtTimeOfClick) {
-        // Was following, so we delete the record (Unfollow) using standard 'followers' table
-        const { error } = await supabase
-          .from("followers")
-          .delete()
-          .eq("follower_id", currentUserId)
-          .eq("following_id", targetUserId);
-
-        if (error) throw error;
-      } else {
-        // Was NOT following, so we insert the record (Follow) using standard 'followers' table
-        const { error } = await supabase.from("followers").insert({
-          follower_id: currentUserId,
-          following_id: targetUserId,
-        });
-
-        if (error) throw error;
-      }
+      await writeFollow(targetId, targetType, currentUserId, !wasFollowingAtTimeOfClick);
     } catch (error: any) {
       setIsFollowing(wasFollowingAtTimeOfClick);
 
@@ -98,7 +127,7 @@ export function useFollow(targetUserId: string): UseFollowReturn {
       }
       // Console error removed per Phase 3 cleanup
     }
-  }, [currentUserId, targetUserId]);
+  }, [currentUserId, targetId, targetType]);
 
   return {
     isFollowing,
