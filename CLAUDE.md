@@ -132,7 +132,7 @@ Every signup used to land profile-less, zero triggers on `auth.users`, `Auth.tsx
 
 `ON CONFLICT (id) DO NOTHING` keeps it idempotent (a signup for an already-patched id, like the CEO's, would otherwise PK-violate and block that signup). No exception handler on purpose, silent swallowing is how profile-less users accumulated unnoticed before, this fails loudly instead.
 
-**Still open:** `has_role()`/`has_role_type()` are SECURITY DEFINER without `search_path` set, unlike `handle_new_user`/`prevent_profile_privilege_escalation` which both do. Should be `SET search_path = public`, RLS depends on `has_role_type` gating `posts` INSERT.
+**Closed (2026-08-09, migration `20260809_set_search_path_on_role_helpers.sql`):** `has_role()`/`has_role_type()` were SECURITY DEFINER with no `search_path`, the last two outliers. `has_role_type` was the real surface, its body selects `from profiles` unqualified, so with no path pinned it resolved against the caller's `search_path` while gating `posts` INSERT. `has_role` selects `from public.profiles`, qualified, so it was only exposed via operator/cast resolution. Both now carry `{search_path=public}`, confirmed via `pg_proc.proconfig`. Applied with `ALTER FUNCTION ... SET` rather than `CREATE OR REPLACE`, so neither body was restated, verified unchanged afterward. Neither function has a `CREATE FUNCTION` in this folder, both were made directly against the live DB, same drift as `prevent_profile_privilege_escalation`.
 
 ## Following — built for talent, not for venues
 
