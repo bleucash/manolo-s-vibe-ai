@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ShieldAlert,
+  ShieldCheck,
   Users,
   Building2,
   CheckCircle,
@@ -21,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const CEODashboard = () => {
   const [venueClaims, setVenueClaims] = useState<any[]>([]);
   const [pendingTalent, setPendingTalent] = useState<any[]>([]);
+  const [pendingBusiness, setPendingBusiness] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,8 +45,18 @@ const CEODashboard = () => {
         .eq("status", "pending")
         .order("created_at", { ascending: false });
 
+      // 3. Fetch pending business verification applications (Tier 2, part d).
+      // Readable here via the is_admin() escape hatch on the table's SELECT
+      // policy; a non-admin only ever sees their own rows.
+      const { data: bPending } = await supabase
+        .from("venue_business_applications")
+        .select("*, venues(name, location), profiles(display_name, username)")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
       if (vClaims) setVenueClaims(vClaims);
       if (tPending) setPendingTalent(tPending);
+      if (bPending) setPendingBusiness(bPending);
     } catch (err) {
       console.error(err);
     } finally {
@@ -90,6 +102,27 @@ const CEODashboard = () => {
     }
   };
 
+  // Same shape as handleTalentApproval; approve_business/reject_business take
+  // { venue_id } rather than { user_id } because Tier 2 is per-venue.
+  const handleBusinessApproval = async (venueId: string, approve: boolean) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-actions", {
+        body: approve
+          ? { action: "approve_business", payload: { venue_id: venueId } }
+          : { action: "reject_business", payload: { venue_id: venueId } },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Verification Error");
+        return;
+      }
+      if (approve) toast.success("Business Verified");
+      else toast.error("Business Verification Rejected");
+      fetchOversightData();
+    } catch (err) {
+      toast.error("Verification Error");
+    }
+  };
+
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-neon-pink" /></div>;
 
   return (
@@ -113,6 +146,9 @@ const CEODashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="talent" className="px-8 rounded-xl data-[state=active]:bg-neon-purple data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest transition-all">
               <Users className="w-4 h-4 mr-2" /> Talent Verification ({pendingTalent.length})
+            </TabsTrigger>
+            <TabsTrigger value="business" className="px-8 rounded-xl data-[state=active]:bg-amber-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest transition-all">
+              <ShieldCheck className="w-4 h-4 mr-2" /> Business Verification ({pendingBusiness.length})
             </TabsTrigger>
           </TabsList>
 
@@ -198,6 +234,74 @@ const CEODashboard = () => {
                         className="text-zinc-700 hover:text-red-500"
                       >
                         Reject
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* BUSINESS VERIFICATION CONTENT */}
+          <TabsContent value="business" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {pendingBusiness.length === 0 ? (
+              <div className="text-center py-16 text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em]">
+                No pending business verifications.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pendingBusiness.map((app) => (
+                  <Card key={app.id} className="bg-zinc-900/40 border-white/5 p-8 rounded-[2.5rem] flex flex-col justify-between">
+                    <div>
+                      <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 mb-4 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest">
+                        Pending Tier 2
+                      </Badge>
+                      <h3 className="text-3xl font-display italic text-white uppercase leading-none mb-2">
+                        {app.venues?.name || "Unknown Venue"}
+                      </h3>
+                      <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-6">
+                        {app.venues?.location}
+                      </p>
+
+                      <div className="space-y-3 pt-6 border-t border-white/5">
+                        <div>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Registered Name</p>
+                          <p className="text-white font-bold">{app.legal_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Business Email</p>
+                          <p className="text-white font-bold break-all">{app.business_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Business Phone</p>
+                          <p className="text-white font-bold">{app.business_phone}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Position</p>
+                          <p className="text-white font-bold">{app.position_title}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Filed By</p>
+                          <p className="text-white font-bold">
+                            {app.profiles?.display_name || app.profiles?.username || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-12 flex gap-3">
+                      <Button
+                        onClick={() => handleBusinessApproval(app.venue_id, true)}
+                        className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase"
+                      >
+                        <CheckCircle className="w-3 h-3 mr-2" /> Verify
+                      </Button>
+                      <Button
+                        onClick={() => handleBusinessApproval(app.venue_id, false)}
+                        variant="ghost"
+                        className="h-12 w-12 rounded-xl text-zinc-700 hover:text-red-500 transition-colors"
+                      >
+                        <XCircle className="w-5 h-5" />
                       </Button>
                     </div>
                   </Card>

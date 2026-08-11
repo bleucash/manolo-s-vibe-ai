@@ -64,7 +64,7 @@ const StaffCommissionEditor = ({ venueId }: { venueId: string }) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4 space-y-3">
-        {tier2Blocked && <Tier2Notice reason="set staff commission rates" />}
+        {tier2Blocked && <Tier2Notice reason="set staff commission rates" venueId={venueId} />}
         {staff.length === 0 ? (
           <div className="py-8 text-center text-zinc-700 text-[9px] font-black uppercase tracking-widest">
             No active units linked

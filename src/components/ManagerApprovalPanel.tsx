@@ -168,7 +168,7 @@ const ManagerApprovalPanel = () => {
 
   return (
     <div className="space-y-8 max-h-[60vh] overflow-y-auto no-scrollbar pr-2">
-      {tier2Blocked && <Tier2Notice reason="approve or dismiss staff" />}
+      {tier2Blocked && <Tier2Notice reason="approve or dismiss staff" venueId={activeVenueId} />}
       <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
           <UserPlus className="w-3 h-3 text-neon-purple" />

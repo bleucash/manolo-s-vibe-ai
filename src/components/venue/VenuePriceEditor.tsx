@@ -64,7 +64,7 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {tier2Blocked && <Tier2Notice reason="set ticket prices" />}
+        {tier2Blocked && <Tier2Notice reason="set ticket prices" venueId={venue.id} />}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="entry-price" className="text-xs text-muted-foreground">

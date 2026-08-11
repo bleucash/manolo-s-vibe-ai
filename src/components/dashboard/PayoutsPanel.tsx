@@ -74,7 +74,7 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
 
   return (
     <div className="space-y-6">
-      {tier2Blocked && <Tier2Notice reason="release payouts" />}
+      {tier2Blocked && <Tier2Notice reason="release payouts" venueId={venueId} />}
       <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-white/5">
         <button
           onClick={() => setActiveTab("pending")}

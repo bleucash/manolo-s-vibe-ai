@@ -312,7 +312,9 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
           <span className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.3em]">Neural Intel Streaming</span>
         </div>
 
-        {tier2Blocked && <Tier2Notice reason="go active, set prices, approve staff, or release payouts" />}
+        {tier2Blocked && (
+          <Tier2Notice reason="go active, set prices, approve staff, or release payouts" venueId={activeVenueId} />
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-zinc-900/20 border-white/5 relative overflow-hidden group">
