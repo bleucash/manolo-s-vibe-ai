@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Settings2, Bell, ScanLine, Link2, Check, Trophy, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useVenueVerified } from "@/hooks/useVenueVerified";
+import { Tier2Notice } from "@/components/dashboard/Tier2Notice";
 
 interface TalentPerformance {
   name: string;
@@ -28,6 +30,10 @@ interface ManagerDashboardProps {
 const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
   const navigate = useNavigate();
   const { activeVenueId, userVenues } = useUserMode();
+  const { isVerified, isLoading: verificationLoading } = useVenueVerified(activeVenueId);
+  // Gate only once context has settled, otherwise every dashboard mount
+  // flashes the blocked state for a beat before resolving.
+  const tier2Blocked = !verificationLoading && !isVerified;
 
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
@@ -207,7 +213,7 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
         {/* GO ACTIVE TOGGLE */}
         <Button
           onClick={handleToggleActive}
-          disabled={togglingActive || !activeVenueId}
+          disabled={togglingActive || !activeVenueId || tier2Blocked}
           className={`h-10 px-6 font-black uppercase tracking-widest text-[10px] transition-all ${
             isVenueActive
               ? "bg-neon-green/10 border-neon-green/30 text-neon-green hover:bg-neon-green/20 shadow-[0_0_20px_rgba(57,255,20,0.15)]"
@@ -305,6 +311,8 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
           <Zap className="w-3 h-3 text-neon-green fill-neon-green animate-pulse" />
           <span className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.3em]">Neural Intel Streaming</span>
         </div>
+
+        {tier2Blocked && <Tier2Notice reason="go active, set prices, approve staff, or release payouts" />}
 
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-zinc-900/20 border-white/5 relative overflow-hidden group">

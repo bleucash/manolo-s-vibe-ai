@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, UserPlus, Send, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
+import { useVenueVerified } from "@/hooks/useVenueVerified";
+import { Tier2Notice } from "@/components/dashboard/Tier2Notice";
 
 interface ProfileInfo {
   id: string;
@@ -16,6 +18,8 @@ interface ProfileInfo {
 
 const ManagerApprovalPanel = () => {
   const { activeVenueId } = useUserMode();
+  const { isVerified, isLoading: verificationLoading } = useVenueVerified(activeVenueId);
+  const tier2Blocked = !verificationLoading && !isVerified;
   const [isLoading, setIsLoading] = useState(true);
   const [requests, setRequests] = useState<any[]>([]);
   const [profileDetails, setProfileDetails] = useState<Map<string, ProfileInfo>>(new Map());
@@ -132,7 +136,7 @@ const ManagerApprovalPanel = () => {
                 variant="ghost"
                 className="h-9 w-9 text-neon-green hover:bg-neon-green/10"
                 onClick={() => handleUpdateStatus(req.id, "active")}
-                disabled={isProcessing}
+                disabled={isProcessing || tier2Blocked}
               >
                 <CheckCircle2 className="w-5 h-5" />
               </Button>
@@ -141,7 +145,7 @@ const ManagerApprovalPanel = () => {
                 variant="ghost"
                 className="h-9 w-9 text-red-500 hover:bg-red-500/10"
                 onClick={() => handleUpdateStatus(req.id, "rejected")}
-                disabled={isProcessing}
+                disabled={isProcessing || tier2Blocked}
               >
                 <XCircle className="w-5 h-5" />
               </Button>
@@ -152,7 +156,7 @@ const ManagerApprovalPanel = () => {
               variant="ghost"
               className="text-[9px] font-black text-zinc-600 hover:text-white uppercase tracking-widest"
               onClick={() => handleUpdateStatus(req.id, "rejected")}
-              disabled={isProcessing}
+              disabled={isProcessing || tier2Blocked}
             >
               {type === "active" ? "Sever" : "Cancel"}
             </Button>
@@ -164,6 +168,7 @@ const ManagerApprovalPanel = () => {
 
   return (
     <div className="space-y-8 max-h-[60vh] overflow-y-auto no-scrollbar pr-2">
+      {tier2Blocked && <Tier2Notice reason="approve or dismiss staff" />}
       <div className="space-y-4">
         <div className="flex items-center gap-2 px-1">
           <UserPlus className="w-3 h-3 text-neon-purple" />

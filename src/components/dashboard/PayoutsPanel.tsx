@@ -5,8 +5,12 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import LoadingState from "@/components/ui/LoadingState";
+import { useVenueVerified } from "@/hooks/useVenueVerified";
+import { Tier2Notice } from "@/components/dashboard/Tier2Notice";
 
 const PayoutsPanel = ({ venueId }: { venueId: string }) => {
+  const { isVerified, isLoading: verificationLoading } = useVenueVerified(venueId);
+  const tier2Blocked = !verificationLoading && !isVerified;
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
   const [payouts, setPayouts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -70,6 +74,7 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
 
   return (
     <div className="space-y-6">
+      {tier2Blocked && <Tier2Notice reason="release payouts" />}
       <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-white/5">
         <button
           onClick={() => setActiveTab("pending")}
@@ -109,7 +114,8 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
                   </span>
                   <Button
                     onClick={() => handleProcessPayout(t)}
-                    className="bg-neon-green text-black font-black uppercase text-[9px] h-9 px-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
+                    disabled={tier2Blocked}
+                    className="bg-neon-green text-black font-black uppercase text-[9px] h-9 px-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100"
                   >
                     Settle
                   </Button>

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DollarSign, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { useVenueVerified } from "@/hooks/useVenueVerified";
+import { Tier2Notice } from "@/components/dashboard/Tier2Notice";
 
 interface VenuePriceEditorProps {
   venue: {
@@ -20,6 +22,8 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
   const [entryPrice, setEntryPrice] = useState<number>(venue.entry_price ?? 0);
   const [vipPrice, setVipPrice] = useState<number>(venue.vip_price ?? 0);
   const [isSaving, setIsSaving] = useState(false);
+  const { isVerified, isLoading: verificationLoading } = useVenueVerified(venue.id);
+  const tier2Blocked = !verificationLoading && !isVerified;
 
   useEffect(() => {
     setEntryPrice(venue.entry_price ?? 0);
@@ -41,7 +45,11 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
 
       toast.success("Prices updated successfully!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to update prices");
+      // Never surface err.message: the venues_require_business_verified
+      // trigger raises "Business verification required to change entry_price",
+      // which was being shown to the user verbatim as a raw DB exception.
+      console.error("Error updating prices:", err);
+      toast.error("Failed to update prices");
     } finally {
       setIsSaving(false);
     }
@@ -56,6 +64,7 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {tier2Blocked && <Tier2Notice reason="set ticket prices" />}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="entry-price" className="text-xs text-muted-foreground">
@@ -72,7 +81,8 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
                 step={0.01}
                 value={entryPrice}
                 onChange={(e) => setEntryPrice(parseFloat(e.target.value) || 0)}
-                className="pl-7 bg-muted/50 border-border/50"
+                disabled={tier2Blocked}
+                className="pl-7 bg-muted/50 border-border/50 disabled:opacity-40"
               />
             </div>
           </div>
@@ -91,14 +101,15 @@ const VenuePriceEditor = ({ venue }: VenuePriceEditorProps) => {
                 step={0.01}
                 value={vipPrice}
                 onChange={(e) => setVipPrice(parseFloat(e.target.value) || 0)}
-                className="pl-7 bg-muted/50 border-border/50"
+                disabled={tier2Blocked}
+                className="pl-7 bg-muted/50 border-border/50 disabled:opacity-40"
               />
             </div>
           </div>
         </div>
         <Button
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || tier2Blocked}
           className="w-full bg-primary hover:bg-primary/90"
         >
           {isSaving ? (

@@ -9,6 +9,10 @@ interface Venue {
   name: string;
   image_url: string | null;
   hero_reel_url: string | null;
+  // Tier 2 gate. Carried here rather than fetched per-component because all
+  // five Tier 2 surfaces render at once for the same venue; a hook per
+  // component would fire the same query four or five times.
+  business_verified: boolean;
 }
 
 interface UserModeContextType {
@@ -74,7 +78,7 @@ export const UserModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         localStorage.setItem("userMode", actualRole);
 
         if (isMgr) {
-          const { data: venues } = await supabase.from("venues").select("id, name, image_url, hero_reel_url").eq("owner_id", userId);
+          const { data: venues } = await supabase.from("venues").select("id, name, image_url, hero_reel_url, business_verified").eq("owner_id", userId);
 
           if (venues && venues.length > 0) {
             setUserVenues(venues);
