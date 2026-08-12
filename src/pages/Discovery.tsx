@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 
-import { MapPin, Search, Target, Plus, Minus, ArrowRight, X } from "lucide-react";
+import { MapPin, Search, Target, Plus, Minus, ArrowRight, X, Zap } from "lucide-react";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { HeroReel } from "@/components/HeroReel";
 import { Venue } from "@/types/database";
@@ -73,6 +73,34 @@ const SpotlightCard = ({ talent, onNavigate }: any) => (
         <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">{talent.display_name}</p>
         <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1 block">{talent.sub_role || "TALENT"}</span>
       </div>
+    </div>
+  </div>
+);
+
+/**
+ * Distinct from the loading skeleton on purpose. Rendered only when the fetch
+ * has finished and genuinely returned nothing, so it has to read as a real,
+ * intentional state rather than a stalled request. Same glass + neon language
+ * as the surrounding cards, and it names the mechanic that fills it: Spotlight
+ * ranks on charges, so the honest prompt is "go charge someone".
+ */
+const SpotlightEmptyCard = () => (
+  <div className="shrink-0 w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] relative overflow-hidden border border-neon-pink/20 bg-zinc-950/60 backdrop-blur-xl flex flex-col items-center justify-center text-center px-10">
+    <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-neon-pink/10 blur-3xl" />
+    <div className="absolute -bottom-20 -left-12 w-48 h-48 rounded-full bg-neon-purple/10 blur-3xl" />
+
+    <div className="relative z-10 flex flex-col items-center">
+      <div className="w-14 h-14 rounded-2xl bg-neon-pink/10 border border-neon-pink/20 flex items-center justify-center mb-6">
+        <Zap className="w-6 h-6 text-neon-pink" />
+      </div>
+
+      <p className="font-display text-3xl text-white uppercase italic tracking-tighter leading-none">
+        Spotlight Is Cold
+      </p>
+
+      <p className="mt-4 text-[9px] font-black uppercase tracking-[0.25em] text-zinc-500 leading-relaxed">
+        No talent trending right now. Charge a post to heat someone up.
+      </p>
     </div>
   </div>
 );
@@ -226,7 +254,10 @@ const Discovery = () => {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-32">
         <div className="min-h-[52dvh] w-full snap-end scroll-mt-32 relative flex flex-col justify-center bg-black px-[10px] pt-[50px] pb-[50px]">
           <div className="flex overflow-x-auto gap-8 pl-[25px] pr-[40px] hide-scrollbar scroll-smooth items-center">
-            {loading || spotlightTalent.length === 0 ? (
+            {/* Skeleton is for loading ONLY. A fetched-but-empty Spotlight used
+                to render this same skeleton, so genuine emptiness was
+                indistinguishable from a request that never finished, forever. */}
+            {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="shrink-0 w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 animate-pulse overflow-hidden relative">
                   <div className="absolute bottom-10 left-8 space-y-3">
@@ -235,6 +266,8 @@ const Discovery = () => {
                   </div>
                 </div>
               ))
+            ) : spotlightTalent.length === 0 ? (
+              <SpotlightEmptyCard />
             ) : (
               spotlightTalent.map((t) => (
                 <SpotlightCard key={t.talent_id} talent={t} onNavigate={() => handleCardClick(t.talent_id, "talent", `/talent/${t.talent_id}`)} />

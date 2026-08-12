@@ -43,7 +43,13 @@ const Index = () => {
   }, [currentUserId, contextLoading]);
 
   const fetchUserCharges = async (userId: string) => {
-    const { data } = await supabase.from("post_likes").select("post_id").eq("user_id", userId);
+    // is_active filter is required now that uncharging soft-deletes: without
+    // it, every post the user ever charged would come back showing charged.
+    const { data } = await supabase
+      .from("post_likes")
+      .select("post_id")
+      .eq("user_id", userId)
+      .eq("is_active", true);
     if (data) setChargedPosts(new Set(data.map((l) => l.post_id)));
   };
 
@@ -90,10 +96,31 @@ const Index = () => {
       return next;
     });
     try {
-      if (isCharged) await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
-      else await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUserId });
+      // Soft toggle, not delete/insert. The row is created once per
+      // (post_id, user_id) and flipped forever after, which is what makes the
+      // heat_score credit unfarmable: that trigger fires AFTER INSERT only,
+      // and Postgres fires AFTER INSERT solely for rows genuinely inserted,
+      // taking the AFTER UPDATE path on conflict. So first charge credits, and
+      // every later toggle is an UPDATE that does not.
+      const { error } = await supabase
+        .from("post_likes")
+        .upsert(
+          { post_id: postId, user_id: currentUserId, is_active: !isCharged },
+          { onConflict: "post_id,user_id" },
+        );
+
+      // The client returns { error } rather than throwing, so the previous
+      // bare catch could never fire and failures were silent.
+      if (error) throw error;
     } catch {
       toast.error("Sync Failure");
+      // Put the optimistic flip back; previously a failed write left the
+      // button showing a state the database did not have.
+      setChargedPosts((prev) => {
+        const next = new Set(prev);
+        isCharged ? next.add(postId) : next.delete(postId);
+        return next;
+      });
     }
   };
 
