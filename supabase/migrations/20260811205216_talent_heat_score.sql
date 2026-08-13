@@ -34,7 +34,7 @@ ALTER TABLE public.profiles
 -- prevent_profile_privilege_escalation untouched.
 --
 -- CREDIT-ONCE, and why AFTER INSERT is sufficient rather than incidental.
--- Paired with 20260811_post_likes_soft_delete.sql, a (post_id, user_id) pair
+-- Paired with 20260811202026_post_likes_soft_delete.sql, a (post_id, user_id) pair
 -- gets exactly one row for its lifetime: created once, then flipped between
 -- is_active true/false forever. Uncharging is an UPDATE and recharging is an
 -- UPDATE, and neither fires this trigger. So the +1 lands on the genuine

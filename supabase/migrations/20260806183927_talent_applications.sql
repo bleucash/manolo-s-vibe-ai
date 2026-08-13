@@ -7,7 +7,7 @@
 -- or anything close exists (full public table list checked, nothing with
 -- "talent" or "application" in the name).
 --
--- RLS mirrors 20260803_venue_claims_rls.sql exactly: self-scoped SELECT with
+-- RLS mirrors 20260804232027_venue_claims_rls.sql exactly: self-scoped SELECT with
 -- an is_admin() escape hatch so CEODashboard can read all pending rows over
 -- the normal authenticated client, self-scoped INSERT that also pins
 -- status = 'pending' so nobody can insert a pre-approved row, and NO update

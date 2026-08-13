@@ -3,7 +3,7 @@
 --
 -- ManagerApprovalPanel has two paths: approve writes venue_staff.status via
 -- UPDATE, reject removes the row via DELETE. The Tier 2 migration
--- (20260809_tier2_business_verification.sql) gated the UPDATE policy on
+-- (20260809114940_tier2_business_verification.sql) gated the UPDATE policy on
 -- business_verified but left the DELETE policy scoped to ownership only. Net
 -- effect on an unverified venue: approve is refused by the database, reject
 -- succeeds. Same button pair, same panel, opposite outcomes.
