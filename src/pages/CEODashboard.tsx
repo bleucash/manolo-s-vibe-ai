@@ -205,6 +205,22 @@ const CEODashboard = () => {
                       {app.profiles?.sub_role || "TALENT"}
                     </p>
 
+                    {/* The applicant was told to DM this exact code to the brand
+                        IG account. Check the inbox for it, sent from the handle
+                        below, before approving. No automated gate: this is the
+                        reviewer's evidence, the decision is still manual. */}
+                    <div className="mb-3 rounded-lg border border-neon-green/20 bg-black/40 py-3">
+                      <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.3em]">
+                        Expect DM Code
+                      </p>
+                      <p className="font-display text-2xl text-neon-green tracking-[0.25em] pl-[0.25em]">
+                        {app.verification_code || "—"}
+                      </p>
+                      <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.2em]">
+                        from @{app.instagram_handle || "unknown"}
+                      </p>
+                    </div>
+
                     {app.instagram_handle && (
                       <Button
                         asChild

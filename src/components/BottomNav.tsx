@@ -28,6 +28,10 @@ const BottomNav = () => {
 
   const getActionPath = () => {
     if (mode === "guest") return "/wallet";
+    // Talent belongs on /gigs. Without this case, the Star icon above sent
+    // talent to /dashboard, which DashboardGuard denies on venue ownership,
+    // leaving /gigs with no navigation path anywhere in the app.
+    if (mode === "talent") return "/gigs";
     return "/dashboard";
   };
 
