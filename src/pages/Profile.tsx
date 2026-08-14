@@ -6,12 +6,13 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Grid3X3, User, Activity, Zap, Shield, Settings, Sparkles, Clock } from "lucide-react";
+import { LogOut, Grid3X3, User, Activity, Zap, Shield, Settings, Sparkles, Clock, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import LoadingState from "@/components/ui/LoadingState";
 import { BecomeTalentModal } from "@/components/BecomeTalentModal";
+import { ClaimVenueModal } from "@/components/ClaimVenueModal";
 import { cn } from "@/lib/utils";
 
 const Profile = () => {
@@ -30,6 +31,8 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState("about");
   const [talentModalOpen, setTalentModalOpen] = useState(false);
   const [hasPendingApplication, setHasPendingApplication] = useState(false);
+  const [venueModalOpen, setVenueModalOpen] = useState(false);
+  const [hasPendingClaim, setHasPendingClaim] = useState(false);
 
   // Redirect non-guest users to their appropriate studio
   useEffect(() => {
@@ -75,6 +78,17 @@ const Profile = () => {
         .maybeSingle();
 
       setHasPendingApplication(!!application);
+
+      // Same idea for the manager entry point below. Self-scoped by RLS, so
+      // this only ever sees this user's own claims.
+      const { data: claim } = await supabase
+        .from("venue_claims")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .limit(1);
+
+      setHasPendingClaim(!!claim && claim.length > 0);
     } catch (error) {
       console.error("Profile Fetch Error:", error);
     } finally {
@@ -230,7 +244,27 @@ const Profile = () => {
                     className="w-full h-16 mb-3 border-neon-purple/20 bg-neon-purple/5 text-neon-purple hover:bg-neon-purple/10 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
                     onClick={() => setTalentModalOpen(true)}
                   >
-                    <Sparkles className="w-4 h-4 mr-3" /> Become Talent
+                    <Sparkles className="w-4 h-4 mr-3" /> Are You Talent?
+                  </Button>
+                )}
+
+                {/* Sibling entry point to the talent one above. Phrased as a
+                    question for the same reason: this is a claim we check, not
+                    an offer anyone can take. */}
+                {hasPendingClaim ? (
+                  <div className="w-full h-16 mb-3 border border-neon-blue/20 bg-neon-blue/5 rounded-2xl flex items-center justify-center gap-3">
+                    <Clock className="w-4 h-4 text-neon-blue" />
+                    <span className="text-[10px] font-black text-neon-blue uppercase tracking-widest">
+                      Venue Claim Under Review
+                    </span>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full h-16 mb-3 border-neon-blue/20 bg-neon-blue/5 text-neon-blue hover:bg-neon-blue/10 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
+                    onClick={() => setVenueModalOpen(true)}
+                  >
+                    <Building2 className="w-4 h-4 mr-3" /> Do You Manage a Venue?
                   </Button>
                 )}
 
@@ -251,6 +285,12 @@ const Profile = () => {
         isOpen={talentModalOpen}
         onClose={() => setTalentModalOpen(false)}
         onSubmitted={() => setHasPendingApplication(true)}
+      />
+
+      <ClaimVenueModal
+        isOpen={venueModalOpen}
+        onClose={() => setVenueModalOpen(false)}
+        onSubmitted={() => setHasPendingClaim(true)}
       />
     </div>
   );

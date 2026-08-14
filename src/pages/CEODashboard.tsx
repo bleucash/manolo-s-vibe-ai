@@ -18,12 +18,30 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CEODashboard = () => {
   const [venueClaims, setVenueClaims] = useState<any[]>([]);
   const [pendingTalent, setPendingTalent] = useState<any[]>([]);
   const [pendingBusiness, setPendingBusiness] = useState<any[]>([]);
+  const [activeSectors, setActiveSectors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Per-application DM confirmation, keyed by application id so ticking one
+  // card never unlocks another. Deliberately not persisted: it records that
+  // this reviewer looked, in this sitting.
+  const [dmConfirmed, setDmConfirmed] = useState<Record<string, boolean>>({});
+  const [revokeTarget, setRevokeTarget] = useState<any>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   useEffect(() => {
     fetchOversightData();
@@ -54,9 +72,33 @@ const CEODashboard = () => {
         .eq("status", "pending")
         .order("created_at", { ascending: false });
 
+      // 4. Venues with a live owner. These are already-approved claims, the
+      // only thing revoke_venue_claim can act on.
+      //
+      // No embed: venues_owner_id_fkey points at auth.users, not at
+      // public.profiles, so PostgREST cannot join owner names through it.
+      // profiles.id is the same uuid, so the names are fetched separately.
+      const { data: owned } = await supabase
+        .from("venues")
+        .select("id, name, location, owner_id")
+        .not("owner_id", "is", null)
+        .order("name");
+
+      let ownedWithOwners: any[] = owned ?? [];
+      if (owned && owned.length > 0) {
+        const { data: owners } = await supabase
+          .from("profiles")
+          .select("id, display_name, username")
+          .in("id", owned.map((v) => v.owner_id));
+
+        const byId = new Map((owners ?? []).map((o) => [o.id, o]));
+        ownedWithOwners = owned.map((v) => ({ ...v, owner: byId.get(v.owner_id) ?? null }));
+      }
+
       if (vClaims) setVenueClaims(vClaims);
       if (tPending) setPendingTalent(tPending);
       if (bPending) setPendingBusiness(bPending);
+      setActiveSectors(ownedWithOwners);
     } catch (err) {
       console.error(err);
     } finally {
@@ -99,6 +141,35 @@ const CEODashboard = () => {
       fetchOversightData();
     } catch (err) {
       toast.error("Verification Error");
+    }
+  };
+
+  // Fires only from the confirmation dialog, never straight off a card.
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    setIsRevoking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-actions", {
+        body: {
+          action: "revoke_venue_claim",
+          payload: { venue_id: revokeTarget.id, user_id: revokeTarget.owner_id },
+        },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Revocation Error");
+        return;
+      }
+      toast.success("Sector Released", {
+        description: (data as any)?.demoted
+          ? "Venue is re-claimable and the account dropped to guest."
+          : "Venue is re-claimable. Account keeps manager, it still runs other venues.",
+      });
+      setRevokeTarget(null);
+      fetchOversightData();
+    } catch (err) {
+      toast.error("Revocation Error");
+    } finally {
+      setIsRevoking(false);
     }
   };
 
@@ -180,6 +251,40 @@ const CEODashboard = () => {
                 </Card>
               ))}
             </div>
+
+            {/* ACTIVE SECTORS — already-approved claims. reject_venue_claim
+                only ever applied to pending rows, so before this there was no
+                way back from an approval that went bad. */}
+            <div className="mt-16 pt-12 border-t border-white/5">
+              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em] mb-6">
+                Active Sectors ({activeSectors.length})
+              </h3>
+              {activeSectors.length === 0 ? (
+                <div className="text-center py-10 text-zinc-700 text-[10px] font-black uppercase tracking-[0.3em]">
+                  No venues currently assigned.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {activeSectors.map((v) => (
+                    <Card key={v.id} className="bg-zinc-900/40 border-white/5 p-6 rounded-[2rem] flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-white font-black uppercase text-[11px] tracking-widest truncate">{v.name}</p>
+                        <p className="text-[9px] text-zinc-600 font-black uppercase tracking-[0.2em] truncate mt-1">
+                          {v.owner?.display_name || v.owner?.username || "Unknown owner"}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => setRevokeTarget(v)}
+                        variant="ghost"
+                        className="shrink-0 h-10 px-4 rounded-xl text-zinc-700 hover:text-red-500 hover:bg-red-500/5 text-[9px] font-black uppercase tracking-widest"
+                      >
+                        Revoke
+                      </Button>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* TALENT CONTENT */}
@@ -237,10 +342,31 @@ const CEODashboard = () => {
                       </Button>
                     )}
 
+                    {/* Gates Approve only. Reject stays available without it:
+                        a reviewer who has not seen a matching DM is exactly
+                        who should be able to reject. */}
+                    <label
+                      htmlFor={`dm-${app.id}`}
+                      className="flex items-start gap-3 mb-4 text-left cursor-pointer select-none"
+                    >
+                      <Checkbox
+                        id={`dm-${app.id}`}
+                        checked={!!dmConfirmed[app.id]}
+                        onCheckedChange={(checked) =>
+                          setDmConfirmed((prev) => ({ ...prev, [app.id]: checked === true }))
+                        }
+                        className="mt-0.5 border-white/20 data-[state=checked]:bg-neon-green data-[state=checked]:border-neon-green data-[state=checked]:text-black"
+                      />
+                      <span className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.15em] leading-relaxed">
+                        Confirmed the DM code matched
+                      </span>
+                    </label>
+
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleTalentApproval(app.user_id, true)}
-                        className="flex-1 bg-white text-black text-[9px] font-black uppercase rounded-lg h-10"
+                        disabled={!dmConfirmed[app.id]}
+                        className="flex-1 bg-white text-black text-[9px] font-black uppercase rounded-lg h-10 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         Verify
                       </Button>
@@ -327,6 +453,42 @@ const CEODashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Revoking pulls a venue out from under a live manager account, and the
+          claim row is deleted to keep the venue re-claimable, so there is no
+          one-click undo. Hence a named confirmation rather than a bare click. */}
+      <AlertDialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+        <AlertDialogContent className="bg-zinc-950 border-white/10 rounded-[2.5rem] p-8">
+          <AlertDialogHeader className="space-y-4">
+            <AlertDialogTitle className="text-3xl font-display uppercase italic tracking-tighter text-white leading-none">
+              Revoke {revokeTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
+              This releases the venue from{" "}
+              {revokeTarget?.owner?.display_name || revokeTarget?.owner?.username || "its owner"} and
+              makes it claimable again. If it is the last venue they run, the account drops to guest.
+              The approved claim record is removed and cannot be restored from here.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-8 gap-3">
+            <AlertDialogCancel className="h-14 rounded-2xl border-white/10 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Keep the dialog open until the call settles, so a failure
+                // surfaces against the thing it failed on.
+                e.preventDefault();
+                handleRevoke();
+              }}
+              disabled={isRevoking}
+              className="h-14 rounded-2xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-600"
+            >
+              {isRevoking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Revoke Sector"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

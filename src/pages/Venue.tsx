@@ -15,7 +15,7 @@ import { useVenueStatus } from "@/hooks/useVenueStatus";
 const Venue = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session } = useUserMode();
+  const { session, isManager } = useUserMode();
   const { isOwner, isTempManager, hasPendingClaim, loading: statusLoading } = useVenueStatus(id || "");
 
   const [venue, setVenue] = useState<any>(null);
@@ -88,7 +88,9 @@ const Venue = () => {
           </div>
         ) : !venue.owner_id ? (
           <Button onClick={() => setIsClaimModalOpen(true)} className="w-full h-20 bg-neon-blue text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(0,183,255,0.2)]">
-            <Instagram className="mr-3 w-5 h-5" /> Claim Sector via IG
+            {/* An existing manager is adding to what they already run, not
+                becoming a manager for the first time. */}
+            <Instagram className="mr-3 w-5 h-5" /> {isManager ? "Add This Venue" : "Claim Sector via IG"}
           </Button>
         ) : (
           <div className="grid grid-cols-5 gap-3">

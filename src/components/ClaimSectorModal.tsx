@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
+import { checkOtherTrackConflict } from "@/lib/roleClaims";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -15,7 +16,9 @@ interface ClaimSectorModalProps {
 }
 
 export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimSectorModalProps) => {
-  const { session } = useUserMode();
+  // isManager is exactly role_type === "manager" in UserModeContext, so this
+  // branches on the role itself, not on venue ownership.
+  const { session, isManager } = useUserMode();
   const [instagram, setInstagram] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -27,6 +30,15 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
 
     setIsSubmitting(true);
     try {
+      // Same one-role gate as the Profile entry points. Guarding only those
+      // would leave this path open as a way around the check; an existing
+      // manager adding another venue is the same track and passes.
+      const conflict = await checkOtherTrackConflict(session?.user?.id ?? "", "manager");
+      if (conflict) {
+        toast.error(conflict.title, { description: conflict.description });
+        return;
+      }
+
       const { error } = await supabase.from("venue_claims").insert({
         user_id: session?.user?.id,
         venue_id: venueId,
@@ -36,11 +48,19 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
 
       if (error) throw error;
 
-      toast.success("Claim Initialized", {
+      toast.success(isManager ? "Venue Added to Review" : "Claim Initialized", {
         description: "Neural handshake sent. Our team will verify your IG link shortly."
       });
       onClose();
-    } catch (err) {
+    } catch (err: any) {
+      // unique_venue_claim is UNIQUE (venue_id, status), not per user, so a
+      // pending claim by anyone on this venue collides here.
+      if (err?.code === "23505") {
+        toast.error("Already Under Review", {
+          description: "A claim on this venue is already being verified."
+        });
+        return;
+      }
       console.error(err);
       toast.error("System Error", { description: "Could not initialize claim. Try again." });
     } finally {
@@ -56,10 +76,12 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
             <ShieldCheck className="w-8 h-8 text-neon-blue" />
           </div>
           <DialogTitle className="text-3xl font-display uppercase italic tracking-tighter text-white leading-none">
-            Claim Sector: {venueName}
+            {isManager ? `Add Sector: ${venueName}` : `Claim Sector: ${venueName}`}
           </DialogTitle>
           <DialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-            Identity verification required via Instagram. 
+            {isManager
+              ? "Adding this venue to the ones you already run. Verified via Instagram, same as the rest."
+              : "Identity verification required via Instagram."}
           </DialogDescription>
         </DialogHeader>
 
@@ -77,7 +99,9 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
           <div className="bg-zinc-900/50 p-6 rounded-2xl border border-white/5">
             <p className="text-[9px] text-zinc-400 leading-relaxed uppercase font-black tracking-[0.2em]">
               <Zap className="w-3 h-3 text-neon-green inline mr-2" />
-              Claiming grants temporary "Vibe" access. Financial and Staffing sectors unlock after our IG handshake is verified.
+              {isManager
+                ? "This venue joins your existing control panel once verified. Your current sectors are unaffected while it is in review."
+                : 'Claiming grants temporary "Vibe" access. Financial and Staffing sectors unlock after our IG handshake is verified.'}
             </p>
           </div>
 

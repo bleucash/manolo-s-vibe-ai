@@ -16,6 +16,13 @@ const ActionSchema = z.discriminatedUnion("action", [
     payload: z.object({ claim_id: z.string().uuid() }),
   }),
   z.object({
+    action: z.literal("revoke_venue_claim"),
+    payload: z.object({
+      venue_id: z.string().uuid(),
+      user_id: z.string().uuid(),
+    }),
+  }),
+  z.object({
     action: z.literal("approve_talent"),
     payload: z.object({ user_id: z.string().uuid() }),
   }),
@@ -32,6 +39,77 @@ const ActionSchema = z.discriminatedUnion("action", [
     payload: z.object({ venue_id: z.string().uuid() }),
   }),
 ]);
+
+/**
+ * Server-side twin of checkOtherTrackConflict in src/lib/roleClaims.ts.
+ *
+ * Deliberately duplicated rather than imported: that module pulls in the
+ * browser Supabase singleton through the "@/" alias, which this Deno bundle
+ * cannot resolve, and it queries as the signed-in user while this must query
+ * as service role. There is no _shared module convention in this functions
+ * directory to hang a common copy on. If the rule changes, BOTH files change.
+ *
+ * The two differ in one deliberate way: the client copy fails open on a read
+ * error, this one fails closed. This is the enforcement point, so a check that
+ * could not complete must not become an approval.
+ */
+type RoleTrack = "talent" | "manager";
+
+/** Legacy value still present in the app_role enum; treat it as manager. */
+const MANAGER_ROLES = ["manager", "venue_manager"];
+
+/** Both states block: pending would race, approved already settled the role. */
+const OPEN_STATUSES = ["pending", "approved"];
+
+const findRoleConflict = async (
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  track: RoleTrack,
+): Promise<{ conflict: string | null; readError?: string }> => {
+  const { data: profile, error: profileErr } = await admin
+    .from("profiles")
+    .select("role_type")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileErr) return { conflict: null, readError: profileErr.message };
+
+  const role = (profile as { role_type?: string } | null)?.role_type;
+
+  if (track === "talent") {
+    if (role && MANAGER_ROLES.includes(role)) {
+      return { conflict: "This account already manages a venue and cannot also be talent." };
+    }
+    // Same-track stays allowed: this only looks at the OTHER track's table.
+    const { data, error } = await admin
+      .from("venue_claims")
+      .select("id")
+      .eq("user_id", userId)
+      .in("status", OPEN_STATUSES)
+      .limit(1);
+    if (error) return { conflict: null, readError: error.message };
+    if (data && data.length > 0) {
+      return { conflict: "This account has a venue claim pending or approved. Resolve it first." };
+    }
+    return { conflict: null };
+  }
+
+  if (role === "talent") {
+    return { conflict: "This account is already talent and cannot also manage a venue." };
+  }
+  // Note this does NOT look at venue_claims, so an existing manager being
+  // approved for a second venue passes, which is the intended behaviour.
+  const { data, error } = await admin
+    .from("talent_applications")
+    .select("id")
+    .eq("user_id", userId)
+    .in("status", OPEN_STATUSES)
+    .limit(1);
+  if (error) return { conflict: null, readError: error.message };
+  if (data && data.length > 0) {
+    return { conflict: "This account has a talent application pending or approved. Resolve it first." };
+  }
+  return { conflict: null };
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -79,6 +157,13 @@ Deno.serve(async (req) => {
     switch (parsed.data.action) {
       case "approve_venue_claim": {
         const { claim_id, venue_id, user_id } = parsed.data.payload;
+        // Gate before ANY write. Previously this overwrote role_type
+        // unconditionally, so approving a venue claim for someone already
+        // talent silently flipped them to manager.
+        const gate = await findRoleConflict(admin, user_id, "manager");
+        if (gate.readError) return json({ error: `Role check failed: ${gate.readError}` }, 500);
+        if (gate.conflict) return json({ error: gate.conflict }, 409);
+
         const r1 = await admin.from("venue_claims").update({ status: "approved" }).eq("id", claim_id);
         if (r1.error) return json({ error: r1.error.message }, 500);
         const r2 = await admin.from("venues").update({ owner_id: user_id }).eq("id", venue_id);
@@ -93,8 +178,67 @@ Deno.serve(async (req) => {
         if (r.error) return json({ error: r.error.message }, 500);
         return json({ ok: true });
       }
+      case "revoke_venue_claim": {
+        const { venue_id, user_id } = parsed.data.payload;
+
+        // Distinct from reject_venue_claim, which only ever applies to a
+        // pending claim. This undoes an approval that has already taken
+        // effect: a live manager account losing a venue it currently runs.
+
+        // 1. Release the venue first. If a later step fails, the venue is
+        //    already re-claimable and the operator can retry; the reverse
+        //    order would demote the user while leaving the venue stuck to
+        //    them.
+        const rVenue = await admin.from("venues").update({ owner_id: null }).eq("id", venue_id);
+        if (rVenue.error) return json({ error: rVenue.error.message }, 500);
+
+        // 2. Delete the approved claim row rather than marking it terminal.
+        //    unique_venue_claim is UNIQUE (venue_id, status), so a retained
+        //    row of ANY status permanently occupies that (venue, status)
+        //    slot: leaving it "approved" makes the next approval collide,
+        //    and a "revoked" status collides on the second revoke of the
+        //    same venue. Deleting is what actually leaves the venue
+        //    re-claimable, which is the point of this action. The tradeoff
+        //    is that revocation leaves no audit row; recording that properly
+        //    needs its own table, not a status value this constraint blocks.
+        const rClaim = await admin
+          .from("venue_claims")
+          .delete()
+          .eq("venue_id", venue_id)
+          .eq("user_id", user_id)
+          .eq("status", "approved");
+        if (rClaim.error) return json({ error: rClaim.error.message }, 500);
+
+        // 3. Demote only if this was their last venue. A manager running
+        //    several venues who loses one is still a manager; dropping them
+        //    to guest would strand the venues they still own, since those
+        //    rows would keep pointing at an account that can no longer reach
+        //    the dashboard.
+        const remaining = await admin
+          .from("venues")
+          .select("id")
+          .eq("owner_id", user_id)
+          .limit(1);
+        if (remaining.error) return json({ error: remaining.error.message }, 500);
+
+        const demoted = !remaining.data || remaining.data.length === 0;
+        if (demoted) {
+          const rRole = await admin.from("profiles").update({ role_type: "guest" }).eq("id", user_id);
+          if (rRole.error) return json({ error: rRole.error.message }, 500);
+        }
+
+        return json({ ok: true, demoted });
+      }
       case "approve_talent": {
         const { user_id } = parsed.data.payload;
+        // Gate before ANY write, same reason as approve_venue_claim: this
+        // used to overwrite role_type unconditionally, so approving talent
+        // for an existing manager flipped the role while venues.owner_id
+        // kept pointing at that account.
+        const gate = await findRoleConflict(admin, user_id, "talent");
+        if (gate.readError) return json({ error: `Role check failed: ${gate.readError}` }, 500);
+        if (gate.conflict) return json({ error: gate.conflict }, 409);
+
         // Role first, then close the application. If the second write fails,
         // the applicant still shows as pending and the admin can retry
         // (re-approving is harmless). The reverse order would drop them out

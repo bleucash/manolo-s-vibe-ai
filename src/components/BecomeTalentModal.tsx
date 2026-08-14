@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
+import { checkOtherTrackConflict } from "@/lib/roleClaims";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -69,6 +70,15 @@ export const BecomeTalentModal = ({ isOpen, onClose, onSubmitted }: BecomeTalent
 
     setIsSubmitting(true);
     try {
+      // One role per account, enforced here rather than only at approval.
+      // Checked inside the submitting guard so the button stays disabled for
+      // the duration of the round trip.
+      const conflict = await checkOtherTrackConflict(session?.user?.id ?? "", "talent");
+      if (conflict) {
+        toast.error(conflict.title, { description: conflict.description });
+        return;
+      }
+
       // verification_code is never sent from here. It is a column default, so
       // the value comes back from the insert rather than going into it.
       const { data, error } = await supabase
@@ -137,12 +147,12 @@ export const BecomeTalentModal = ({ isOpen, onClose, onSubmitted }: BecomeTalent
             <Sparkles className="w-8 h-8 text-neon-purple" />
           </div>
           <DialogTitle className="text-3xl font-display uppercase italic tracking-tighter text-white leading-none">
-            {showingCode ? "Confirm It's You" : "Apply as Talent"}
+            {showingCode ? "Confirm It's You" : "Are You Talent?"}
           </DialogTitle>
           <DialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
             {showingCode
               ? `DM this code from @${instagram} to prove the account is yours.`
-              : "Identity verification required via Instagram."}
+              : "Every claim is checked against the Instagram it names before anything unlocks."}
           </DialogDescription>
         </DialogHeader>
 
