@@ -5,7 +5,7 @@ import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, ShieldCheck, Loader2, Video, ArrowLeft } from "lucide-react";
+import { Zap, ShieldCheck, Loader2, Video, ArrowLeft, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,13 @@ const TalentManage = () => {
     }
   };
 
+  // Same call Profile.tsx makes. Talent are redirected away from /profile, so
+  // without this there is no way for a talent account to sign out at all.
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
   if (loading) return null;
   if (!profile) return null; // Guard against null profile
 
@@ -120,7 +127,21 @@ const TalentManage = () => {
             </span>
           </button>
         </div>
-        <div className="w-10" />
+
+        {/* Sits opposite the mode switcher in the HUD header, the one strip
+            that is always on screen here. Micro-type matches the switcher's
+            label rather than Profile's full-width button. */}
+        <div className="flex flex-col gap-2 items-end">
+          <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em] mr-1">
+            Session
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="h-10 px-4 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-500 hover:border-red-500/30 transition-all duration-300"
+          >
+            <LogOut className="w-3 h-3" /> Sign Out
+          </button>
+        </div>
       </div>
 
       {/* 2. HERO REEL EDITOR (The Vibe Layer) */}

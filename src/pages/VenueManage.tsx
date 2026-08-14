@@ -6,7 +6,7 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +72,13 @@ const VenueManage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Same call Profile.tsx makes. Managers are redirected away from /profile,
+  // so without this there is no way for a manager account to sign out at all.
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   const toggleUserMode = () => {
@@ -211,7 +218,18 @@ const VenueManage = () => {
             <p className="text-[9px] text-white/40 uppercase tracking-widest font-black">{venue.name} Management</p>
           </div>
 
-          <div className="w-36" /> {/* Balance flex */}
+          {/* Keeps the w-36 that balances the mode switcher, so the centered
+              title does not shift. Lives in the sticky header, which is on
+              screen from every tab of the studio. */}
+          <div className="w-36 flex justify-end">
+            <Button
+              variant="ghost"
+              onClick={handleSignOut}
+              className="h-10 px-4 rounded-full border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-500 hover:bg-red-500/5 hover:border-red-500/30 transition-all"
+            >
+              <LogOut className="w-3 h-3 mr-2" /> Sign Out
+            </Button>
+          </div>
         </div>
       </div>
 
