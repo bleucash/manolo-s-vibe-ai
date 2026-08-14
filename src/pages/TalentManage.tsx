@@ -10,6 +10,17 @@ import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { cn } from "@/lib/utils";
 
+/**
+ * `return null` renders nothing, which shows whatever is behind the app,
+ * i.e. a white flash, rather than anything intentional. Mirrors TalentGuard's
+ * loading branch, which wraps this page's sibling surfaces.
+ */
+const PageLoading = () => (
+  <div className="flex flex-col items-center justify-center h-screen bg-black">
+    <Loader2 className="w-8 h-8 text-neon-purple animate-spin" />
+  </div>
+);
+
 const TalentManage = () => {
   const navigate = useNavigate();
   const { session, mode, setMode, isTalent, isManager } = useUserMode();
@@ -88,8 +99,19 @@ const TalentManage = () => {
     navigate("/auth");
   };
 
-  if (loading) return null;
-  if (!profile) return null; // Guard against null profile
+  if (loading) return <PageLoading />;
+
+  // Not a loading state: fetchProfile always clears `loading`, even when the
+  // select returned no row, so `return null` here was a permanently blank
+  // page with no spinner, no message and no way out. Rare, but a dead end
+  // rather than a flash. Matches the "Venue Not Found" screen in VenueManage.
+  if (!profile) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-black text-white font-display uppercase tracking-[0.5em] text-[10px]">
+        Profile Not Found
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">

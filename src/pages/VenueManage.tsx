@@ -6,9 +6,20 @@ import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck, LogOut } from "lucide-react";
+import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck, LogOut, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+/**
+ * `return null` renders nothing, which shows whatever is behind the app,
+ * i.e. a white flash, rather than anything intentional. Every load path in
+ * this page paints black instead. Mirrors TalentGuard's loading branch.
+ */
+const PageLoading = () => (
+  <div className="flex flex-col items-center justify-center h-screen bg-black">
+    <Loader2 className="w-8 h-8 text-neon-blue animate-spin" />
+  </div>
+);
 
 const VenueManage = () => {
   const navigate = useNavigate();
@@ -115,11 +126,11 @@ const VenueManage = () => {
   // and the empty state flashes on every cold load before the real venue
   // arrives. Matches this component's existing loading convention of
   // rendering nothing rather than a spinner.
-  if (contextLoading) return null;
+  if (contextLoading) return <PageLoading />;
 
   // Manager, but no venue resolved yet. Stable states, no redirect, no toast.
   if (!activeVenueId) {
-    if (checkingClaim) return null;
+    if (checkingClaim) return <PageLoading />;
 
     if (pendingClaimVenue) {
       return (
@@ -180,7 +191,7 @@ const VenueManage = () => {
     );
   }
 
-  if (loading) return null;
+  if (loading) return <PageLoading />;
 
   if (!venue) {
     return (
