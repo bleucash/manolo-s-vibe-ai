@@ -17,6 +17,20 @@ const Auth = () => {
   const nextParam = new URLSearchParams(window.location.search).get("next");
   const redirectTo = nextParam && /^\/(?!\/)/.test(nextParam) ? nextParam : "/";
 
+  // Where each role actually works. Talent and managers used to land on the
+  // guest homepage and navigate themselves.
+  //
+  // role_type is NOT NULL, defaults to 'guest', and handle_new_user inserts
+  // 'guest' explicitly, so a brand-new signup is guest rather than null and
+  // needs no separate case. The enum still carries unused legacy values
+  // (staff, user, venue_manager), which is why this falls through to
+  // /discovery rather than assuming the set is exhaustive.
+  const landingPathForRole = (role: string | null | undefined) => {
+    if (role === "manager") return "/venue/manage";
+    if (role === "talent") return "/talent-manage";
+    return "/discovery";
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -28,14 +42,29 @@ const Auth = () => {
     localStorage.removeItem("activeVenueId");
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
 
+        // An explicit ?next always wins: it means something bounced the user
+        // here mid-flow (the OAuth consent screen) and is waiting to resume.
+        // Overriding it with a role landing page would silently drop that.
+        let target = nextParam ? redirectTo : "/discovery";
+        if (!nextParam) {
+          // Read the role directly rather than waiting for UserModeContext,
+          // which has not re-synced yet at this point.
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role_type")
+            .eq("id", data.user.id)
+            .maybeSingle();
+          target = landingPathForRole(profile?.role_type);
+        }
+
         // Use a hard reload to ensure Context re-initializes with fresh data
-        window.location.href = redirectTo;
+        window.location.href = target;
       } else {
         const { error } = await supabase.auth.signUp({
           email,

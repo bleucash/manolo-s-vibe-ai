@@ -12,5 +12,9 @@
  * Instagram account that talent applicants DM their verification code to.
  * Stored WITHOUT the leading "@" so it composes into both display strings
  * and instagram.com URLs; add the "@" at render time.
+ *
+ * TEMPORARY: this is a test account used to exercise the DM handshake. The
+ * real brand account is still undecided, so this must change again before
+ * public launch. Applicants are told to DM whatever is set here.
  */
-export const VERIFICATION_INSTAGRAM_HANDLE = "manolomgmt";
+export const VERIFICATION_INSTAGRAM_HANDLE = "__money__machine";
