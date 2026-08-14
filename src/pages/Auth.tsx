@@ -48,20 +48,38 @@ const Auth = () => {
         });
         if (error) throw error;
 
+        // Read the role directly rather than waiting for UserModeContext,
+        // which has not re-synced yet at this point. Queried unconditionally,
+        // including on the ?next path, because the mode write below matters
+        // regardless of where we are about to send them.
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role_type")
+          .eq("id", data.user.id)
+          .maybeSingle();
+        const role = profile?.role_type;
+
+        // userMode was cleared above for a clean slate, and until now the only
+        // thing that restored it was syncProfileAndVenues running off the
+        // SIGNED_IN listener, which races the redirect below. When the
+        // redirect won, the next page loaded with mode still "guest" and
+        // VenueManage's mount-time gate bounced the manager straight back off
+        // the page they had just logged into.
+        //
+        // Writing it here removes the race rather than narrowing it: this is a
+        // synchronous write with no await between it and the navigation, so it
+        // cannot lose. The listener may still write the same value afterwards,
+        // which is harmless because the mapping below is the one
+        // syncProfileAndVenues uses.
+        localStorage.setItem(
+          "userMode",
+          role === "manager" ? "manager" : role === "talent" ? "talent" : "guest",
+        );
+
         // An explicit ?next always wins: it means something bounced the user
-        // here mid-flow (the OAuth consent screen) and is waiting to resume.
-        // Overriding it with a role landing page would silently drop that.
-        let target = nextParam ? redirectTo : "/discovery";
-        if (!nextParam) {
-          // Read the role directly rather than waiting for UserModeContext,
-          // which has not re-synced yet at this point.
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role_type")
-            .eq("id", data.user.id)
-            .maybeSingle();
-          target = landingPathForRole(profile?.role_type);
-        }
+        // here mid-flow and is waiting to resume. Overriding it with a role
+        // landing page would silently drop that.
+        const target = nextParam ? redirectTo : landingPathForRole(role);
 
         // Use a hard reload to ensure Context re-initializes with fresh data
         window.location.href = target;
