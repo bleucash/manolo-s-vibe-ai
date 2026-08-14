@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 const VenueManage = () => {
   const navigate = useNavigate();
-  const { mode, activeVenueId, setMode, isTalent, isManager, session } = useUserMode();
+  const { mode, activeVenueId, setMode, isTalent, isManager, session, isLoading: contextLoading } = useUserMode();
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +21,15 @@ const VenueManage = () => {
   const [checkingClaim, setCheckingClaim] = useState(true);
 
   useEffect(() => {
+    // Wait for the shared auth context to hydrate first, the TalentGuard
+    // pattern. activeVenueId starts as a bare null and is never persisted to
+    // localStorage by syncProfileAndVenues, so on a cold load it is null
+    // because nothing has resolved yet, not because this manager owns no
+    // venue. Running before that resolves fires the pending-claim query for
+    // nothing and, worse, lets mode still read "guest" and bounce the user
+    // off the page they just landed on.
+    if (contextLoading) return;
+
     // Redirect if not in manager mode
     if (mode !== "manager") {
       toast.error("Manager mode required");
@@ -55,7 +64,7 @@ const VenueManage = () => {
     }
 
     fetchVenue();
-  }, [mode, activeVenueId, navigate, session]);
+  }, [mode, activeVenueId, navigate, session, contextLoading]);
 
   const fetchVenue = async () => {
     if (!activeVenueId) return;
@@ -100,6 +109,13 @@ const VenueManage = () => {
       navigate("/profile");
     }
   };
+
+  // Must come before the !activeVenueId branch below. Without it, "context has
+  // not resolved yet" and "this manager owns nothing" are the same condition,
+  // and the empty state flashes on every cold load before the real venue
+  // arrives. Matches this component's existing loading convention of
+  // rendering nothing rather than a spinner.
+  if (contextLoading) return null;
 
   // Manager, but no venue resolved yet. Stable states, no redirect, no toast.
   if (!activeVenueId) {
