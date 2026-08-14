@@ -18,7 +18,6 @@ import Messages from "./pages/Messages";
 import Wallet from "./pages/Wallet";
 import VenueManage from "./pages/VenueManage";
 import GuestProfile from "./pages/GuestProfile";
-import OAuthConsent from "./pages/OAuthConsent";
 import Bouncer from "./pages/Bouncer";
 import Events from "./pages/Events";
 import Notifications from "./pages/Notifications";
@@ -74,7 +73,6 @@ const App = () => (
           {/* PUBLIC SECTOR */}
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/venue/manage" element={<VenueManage />} />
           <Route path="/venue/:id" element={<Venue />} />
