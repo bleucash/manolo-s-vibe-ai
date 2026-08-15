@@ -17,6 +17,32 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!--
+      Pre-mount paint. Login uses window.location.href, a hard document
+      reload, so the browser paints an empty #root before React exists. No
+      component-level loading state can cover that gap.
+
+      This has to be inline rather than left to index.css because in dev
+      Vite serves no stylesheet link at all: index.css is imported by
+      main.tsx and injected by JavaScript, so body's bg-background does not
+      apply until the bundle boots. The production build does emit a
+      render-blocking <link>, where the stylesheet alone would be enough.
+      Inline covers both.
+
+      #0A0A0A is the literal value of --background (0 0% 4%), duplicated on
+      purpose so this matches what the stylesheet sets and there is no shift
+      when it loads. Keep the two in sync.
+    -->
+    <style>
+      html {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        background-color: #0a0a0a;
+      }
+    </style>
   </head>
 
   <body>
