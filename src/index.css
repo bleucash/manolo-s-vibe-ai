@@ -68,6 +68,18 @@
   /* Force dark mode on html and body */
   html {
     color-scheme: dark;
+    /* Reserve the scrollbar gutter permanently. Most routes overflow the
+       viewport and get a scrollbar; /messages fills exactly one screen and
+       scrolls internally, so it does not. Without this, clientWidth swings
+       by the scrollbar width between routes and every mx-auto element,
+       BottomNav included, jumps by half that on navigation.
+       Measured here: 1319px without a scrollbar vs 1304px with, moving the
+       nav 8px. Applies to the html scroll container only; the
+       .hide-scrollbar utility below targets inner rails and is unaffected.
+       Chrome/Edge 94+, Firefox 97+, Safari 18.2+. Older Safari and iOS use
+       overlay scrollbars that take no layout width, so there is no shift to
+       correct there and ignoring this property is harmless. */
+    scrollbar-gutter: stable;
   }
   body {
     @apply bg-background text-foreground antialiased;
