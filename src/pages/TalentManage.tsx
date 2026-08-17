@@ -9,6 +9,8 @@ import { Zap, ShieldCheck, Loader2, Video, ArrowLeft, LogOut } from "lucide-reac
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { TalentGuard } from "@/components/TalentGuard";
+import { GUEST_FACING_POSITIONS, POSITIONS } from "@/config/positions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,7 +33,9 @@ const TalentManage = () => {
 
   // Form State
   const [displayName, setDisplayName] = useState("");
-  const [subRole, setSubRole] = useState("");
+  // null, not "": the empty string is not a valid position and would fail
+  // profiles_sub_role_allowed. "Not chosen" has to stay NULL all the way down.
+  const [subRole, setSubRole] = useState<string | null>(null);
   const [bio, setBio] = useState("");
 
   // Matches Gigs, this page's peer. TalentGuard handles "signed in but not
@@ -54,7 +58,7 @@ const TalentManage = () => {
     if (data) {
       setProfile(data);
       setDisplayName(data.display_name || "");
-      setSubRole(data.sub_role || "");
+      setSubRole(data.sub_role ?? null);
       setBio(data.bio || "");
       // Extract IG username if it exists in a 'metadata' or 'instagram' field 
       // (Assuming we store the handle for the handshake)
@@ -69,7 +73,7 @@ const TalentManage = () => {
         .from("profiles")
         .update({
           display_name: displayName,
-          sub_role: subRole,
+          sub_role: subRole || null,
           bio: bio,
         })
         .eq("id", session?.user?.id);
@@ -207,7 +211,22 @@ const TalentManage = () => {
 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-zinc-600 uppercase ml-4">Primary Role</label>
-            <Input value={subRole} onChange={(e) => setSubRole(e.target.value)} placeholder="e.g. Lead Dancer" className="bg-zinc-900/40 border-white/5 h-14 rounded-2xl text-white font-bold" />
+            {/* Was a free-text Input. Anything not on the list now fails the
+                profiles_sub_role_allowed constraint, so the field has to offer
+                the list rather than accept prose. Guest-facing positions only:
+                operational roles are assigned by a venue, not self-declared. */}
+            <Select value={subRole || undefined} onValueChange={setSubRole}>
+              <SelectTrigger className="bg-zinc-900/40 border-white/5 h-14 rounded-2xl text-white font-bold">
+                <SelectValue placeholder="Select your position" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-950 border-white/10 rounded-2xl">
+                {GUEST_FACING_POSITIONS.map((p) => (
+                  <SelectItem key={p} value={p} className="text-white focus:bg-white/10 focus:text-white">
+                    {POSITIONS[p].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

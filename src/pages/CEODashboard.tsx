@@ -17,6 +17,7 @@ import {
   Search
 } from "lucide-react";
 import { toast } from "sonner";
+import { positionLabel } from "@/config/positions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -307,7 +308,10 @@ const CEODashboard = () => {
                       {app.profiles?.display_name || app.profiles?.username || "Unnamed Applicant"}
                     </h4>
                     <p className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-6">
-                      {app.profiles?.sub_role || "TALENT"}
+                      {/* Internal review surface: uses positionLabel, not
+                          guestFacingLabel, so an operational position is
+                          visible to the reviewer rather than hidden. */}
+                      {positionLabel(app.profiles?.sub_role) || "TALENT"}
                     </p>
 
                     {/* The applicant was told to DM this exact code to the brand

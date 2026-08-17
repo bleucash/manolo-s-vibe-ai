@@ -9,6 +9,7 @@ import { HeroReel } from "@/components/HeroReel";
 import { Venue } from "@/types/database";
 import { writeFollow, type FollowTarget } from "@/hooks/useFollow";
 import { toast } from "sonner";
+import { guestFacingLabel, isOperationalPosition } from "@/config/positions";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -71,7 +72,7 @@ const SpotlightCard = ({ talent, onNavigate }: any) => (
       {talent.is_active && <div className="absolute top-6 left-6 z-20"><ActiveBadge /></div>}
       <div className="absolute bottom-10 left-10 z-20">
         <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">{talent.display_name}</p>
-        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1 block">{talent.sub_role || "TALENT"}</span>
+        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1 block">{guestFacingLabel(talent.sub_role) || "TALENT"}</span>
       </div>
     </div>
   </div>
@@ -139,7 +140,7 @@ const TalentFeedCard = ({ talent, onNavigate, isFollowing, onFollow }: any) => (
     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%)", zIndex: 10 }} />
     <div className="absolute bottom-0 left-0 right-0 p-10 z-20 max-w-4xl pb-[90px]">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        {talent.sub_role && <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">{talent.sub_role}</Badge>}
+        {guestFacingLabel(talent.sub_role) && <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">{guestFacingLabel(talent.sub_role)}</Badge>}
         {talent.is_active && <ActiveBadge />}
         <div onClick={(e: any) => e.stopPropagation()}><FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={() => onFollow?.()} /></div>
       </div>
@@ -173,8 +174,12 @@ const Discovery = () => {
         if (currentUserId) queries.push(supabase.from("followers").select("following_id").eq("follower_id", currentUserId), supabase.from("venue_followers").select("venue_id").eq("follower_id", currentUserId));
         const [vRes, sRes, fRes, tFRes, vFRes] = await Promise.all(queries);
         if (vRes.data) setVenues(vRes.data);
-        if (sRes.data) setSpotlightTalent(sRes.data);
-        if (fRes.data) setFeedTalent(fRes.data);
+        // Operational positions are excluded from both talent rails, not just
+        // hidden as a label. Someone whose position is security or event staff
+        // is not browsable talent. Rows with no position set still appear,
+        // since "not chosen yet" is not an operational role.
+        if (sRes.data) setSpotlightTalent(sRes.data.filter((t: any) => !isOperationalPosition(t.sub_role)));
+        if (fRes.data) setFeedTalent(fRes.data.filter((t: any) => !isOperationalPosition(t.sub_role)));
         if (tFRes?.data) setFollowedTalent(new Set(tFRes.data.map((f: any) => f.following_id)));
         if (vFRes?.data) setFollowedVenues(new Set(vFRes.data.map((f: any) => f.venue_id)));
       } catch (err) { console.error(err); } finally { setLoading(false); }

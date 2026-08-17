@@ -1,3 +1,5 @@
+import type { Position } from "@/config/positions";
+
 export type Json =
   | string
   | number
@@ -14,7 +16,8 @@ export interface Profile {
   hero_reel_url: string | null;
   bio: string | null;
   role_type: "guest" | "talent" | "manager";
-  sub_role: string | null;
+  /** Constrained by profiles_sub_role_allowed; see src/config/positions.ts. */
+  sub_role: Position | null;
   is_active: boolean;
   current_venue_id: string | null;
   created_at: string;

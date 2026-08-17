@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, ArrowLeft, Sparkles, User, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import { guestFacingLabel, isOperationalPosition } from "@/config/positions";
 
 // 1. SHARED NEON ANIMATION (Matches Discovery.tsx)
 const neonPulseStyles = `
@@ -68,12 +69,17 @@ const TalentDirectory = () => {
     }
   };
 
-  const filteredTalent = talent.filter((t) => {
-    const searchLower = searchTerm.toLowerCase();
-    const name = (t.display_name || t.username || "").toLowerCase();
-    const role = (t.sub_role || t.role_type || "").toLowerCase();
-    return name.includes(searchLower) || role.includes(searchLower);
-  });
+  const filteredTalent = talent
+    // Operational positions never appear in the directory at all.
+    .filter((t) => !isOperationalPosition(t.sub_role))
+    .filter((t) => {
+      const searchLower = searchTerm.toLowerCase();
+      const name = (t.display_name || t.username || "").toLowerCase();
+      // Search the displayed label, not the stored value, so typing "bottle"
+      // matches "Bottle Girl" as shown rather than only the raw bottle_girl.
+      const role = (guestFacingLabel(t.sub_role) || t.role_type || "").toLowerCase();
+      return name.includes(searchLower) || role.includes(searchLower);
+    });
 
   if (loading)
     return (
@@ -151,7 +157,7 @@ const TalentDirectory = () => {
                       {t.display_name || t.username}
                     </h3>
                     <p className="text-neon-pink text-[10px] font-bold uppercase tracking-widest mt-2">
-                      {t.is_featured ? "Top Talent" : t.sub_role || "Talent"}
+                      {t.is_featured ? "Top Talent" : guestFacingLabel(t.sub_role) || "Talent"}
                     </p>
                   </div>
                 </div>

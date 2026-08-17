@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ALL_POSITIONS, GUEST_FACING_POSITIONS, POSITIONS } from "@/config/positions";
 
 export type RoleType = "talent" | "guest" | "manager" | null;
 
@@ -19,8 +20,21 @@ interface WorkerPermissions {
   loading: boolean;
 }
 
-const TALENT_SUB_ROLES = ["dj", "promoter", "host", "performer", "entertainer", "dancer"];
-const STAFF_SUB_ROLES = ["security", "bouncer", "staff"];
+// BEHAVIOUR CHANGE. These were two hardcoded lists that had drifted out of
+// sync with the real position set:
+//
+//   in the lists, not positions:  performer, dancer, bouncer, staff
+//   positions, in neither list:   bartender, bottle_girl, media, event_staff
+//
+// So a bartender counted as neither talent nor staff, and event_staff failed
+// the staff check outright, because membership is exact and the old list held
+// "staff" rather than "event_staff". Both sets are now derived from the config
+// map, so adding a position updates permissions with it.
+//
+// Currently unreachable: the only consumer is ProtectedRoute, which is dead
+// code and never imported. Fixed now rather than left armed.
+const TALENT_SUB_ROLES: string[] = GUEST_FACING_POSITIONS;
+const STAFF_SUB_ROLES: string[] = ALL_POSITIONS.filter((p) => !POSITIONS[p].guestFacing);
 
 export function useWorkerPermissions(userId: string | null): WorkerPermissions {
   // ✅ HYDRATION FIX: Initializing from localStorage if available

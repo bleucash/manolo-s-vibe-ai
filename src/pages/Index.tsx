@@ -12,6 +12,7 @@ import { ActivitySidebar } from "@/components/ActivitySidebar";
 import { EmptyFeedState } from "@/components/home/EmptyFeedState";
 import { PostWithVenue } from "@/types/database";
 import { toast } from "sonner";
+import { guestFacingLabel } from "@/config/positions";
 import LoadingState from "@/components/ui/LoadingState";
 import { cn } from "@/lib/utils";
 
@@ -198,7 +199,9 @@ const Index = () => {
                     {formatDistanceToNow(new Date(post.created_at))} ago
                   </span>
                   <span className="text-[9px] font-black text-neon-blue uppercase tracking-widest">
-                    • {post.profiles?.sub_role || "NEURAL"}
+                    {/* The post still shows; only an operational label is
+                        suppressed, falling back to the existing placeholder. */}
+                    • {guestFacingLabel(post.profiles?.sub_role) || "NEURAL"}
                   </span>
                 </div>
               </div>
