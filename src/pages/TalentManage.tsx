@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Zap, ShieldCheck, Loader2, Video, ArrowLeft, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
+import { TalentGuard } from "@/components/TalentGuard";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,7 +24,7 @@ const PageLoading = () => (
 
 const TalentManage = () => {
   const navigate = useNavigate();
-  const { session, mode, setMode, isTalent, isManager } = useUserMode();
+  const { session, mode, setMode, isTalent, isManager, isLoading } = useUserMode();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -32,6 +33,16 @@ const TalentManage = () => {
   const [displayName, setDisplayName] = useState("");
   const [subRole, setSubRole] = useState("");
   const [bio, setBio] = useState("");
+
+  // Matches Gigs, this page's peer. TalentGuard handles "signed in but not
+  // talent" by rendering its verification message, but it deliberately does
+  // not redirect, so the signed-out case needs this. Without it fetchProfile
+  // returns early without clearing `loading` and the page spins forever.
+  useEffect(() => {
+    if (!isLoading && !session) {
+      navigate("/auth");
+    }
+  }, [session, isLoading, navigate]);
 
   useEffect(() => {
     fetchProfile();
@@ -113,7 +124,10 @@ const TalentManage = () => {
     );
   }
 
-  return (
+  // Held in a variable rather than wrapping the JSX inline purely to keep this
+  // change reviewable: inlining <TalentGuard> would re-indent ~130 untouched
+  // lines and bury a five-line access fix in whitespace.
+  const content = (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
       {/* 1. HUD HEADER */}
       <div className="px-8 pt-8 flex items-center justify-between mb-8">
@@ -212,6 +226,8 @@ const TalentManage = () => {
       </div>
     </div>
   );
+
+  return <TalentGuard>{content}</TalentGuard>;
 };
 
 export default TalentManage;

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useUserMode } from "@/contexts/UserModeContext";
 import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,7 +13,18 @@ import { cn } from "@/lib/utils";
 
 export default function Messages() {
   const navigate = useNavigate();
+  const { session, isLoading } = useUserMode();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+
+  // Authenticated, any role: nothing here is role-specific, useChat keys
+  // entirely off the signed-in user. Without this a signed-out visitor spins
+  // forever, because useChat bails before the call that clears
+  // isLoadingConversations, so the LoadingState below never resolves.
+  useEffect(() => {
+    if (!isLoading && !session) {
+      navigate("/auth");
+    }
+  }, [session, isLoading, navigate]);
 
   const { conversations, messages, currentUserId, isLoadingConversations, isLoadingMessages, sendMessage } =
     useChat(selectedConversationId);
