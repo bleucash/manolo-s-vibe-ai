@@ -4,28 +4,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Ticket, MapPin, Users, ShieldCheck, MessageSquare, Instagram, Zap, Loader2, ArrowLeft } from "lucide-react";
+import { Ticket, MapPin, Users, ShieldCheck, MessageSquare, Instagram, Zap, Loader2, ArrowLeft, Briefcase } from "lucide-react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClaimSectorModal } from "@/components/ClaimSectorModal";
+import { RequestToWorkModal } from "@/components/RequestToWorkModal";
+import { positionLabel } from "@/config/positions";
 import { useVenueStatus } from "@/hooks/useVenueStatus";
 
 const Venue = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session, isManager } = useUserMode();
+  const { session, isManager, isTalent } = useUserMode();
   const { isOwner, isTempManager, hasPendingClaim, loading: statusLoading } = useVenueStatus(id || "");
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeStaff, setActiveStaff] = useState<any[]>([]);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+  // This viewer's own venue_staff row for this venue, if any. Drives whether
+  // the button offers a request, or reports one already in flight.
+  const [staffLink, setStaffLink] = useState<any>(null);
 
   useEffect(() => {
     fetchVenueData();
-  }, [id]);
+  }, [id, session?.user?.id]);
 
   const fetchVenueData = async () => {
     if (!id) return;
@@ -40,6 +46,18 @@ const Venue = () => {
         .eq("status", "active");
       
       if (staff) setActiveStaff(staff);
+
+      // Self-scoped by the "Talent view own status" policy, so this only ever
+      // returns the viewer's own row.
+      if (session?.user?.id) {
+        const { data: link } = await supabase
+          .from("venue_staff")
+          .select("id, status, staff_role")
+          .eq("venue_id", id)
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        setStaffLink(link ?? null);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -102,6 +120,36 @@ const Venue = () => {
             </Button>
           </div>
         )}
+
+        {/* Talent working here is orthogonal to the claim chain above: it
+            applies to venues that ARE owned, where the claim button never
+            renders. So it sits outside that if/else rather than inside it.
+            Styled to match the claim button per J, in green because this is
+            a work link, not an ownership claim. */}
+        {isTalent && !isOwner && (
+          staffLink?.status === "pending" ? (
+            <div className="w-full h-20 bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3">
+              <Loader2 className="w-4 h-4 text-neon-green animate-spin" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest italic">
+                Work Request Pending
+              </span>
+            </div>
+          ) : staffLink?.status === "active" ? (
+            <div className="w-full h-20 bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3">
+              <ShieldCheck className="w-4 h-4 text-neon-green" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest italic">
+                {positionLabel(staffLink.staff_role) || "Confirmed"} Here
+              </span>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setIsWorkModalOpen(true)}
+              className="w-full h-20 bg-neon-green text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(57,255,20,0.2)]"
+            >
+              <Briefcase className="mr-3 w-5 h-5" /> Request to Work Here
+            </Button>
+          )
+        )}
       </div>
 
       {/* 3. ACTIVE ROSTER */}
@@ -124,11 +172,19 @@ const Venue = () => {
         <PortfolioGallery userId={venue.id} isEditable={isTempManager} />
       </div>
 
-      <ClaimSectorModal 
-        isOpen={isClaimModalOpen} 
-        onClose={() => setIsClaimModalOpen(false)} 
-        venueId={venue.id} 
-        venueName={venue.name} 
+      <ClaimSectorModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        venueId={venue.id}
+        venueName={venue.name}
+      />
+
+      <RequestToWorkModal
+        isOpen={isWorkModalOpen}
+        onClose={() => setIsWorkModalOpen(false)}
+        venueId={venue.id}
+        venueName={venue.name}
+        onSubmitted={fetchVenueData}
       />
     </div>
   );

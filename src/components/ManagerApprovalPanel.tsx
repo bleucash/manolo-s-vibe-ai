@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserMode } from "@/contexts/UserModeContext";
+import { positionLabel } from "@/config/positions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, UserPlus, Send, UserCheck } from "lucide-react";
@@ -72,11 +73,27 @@ const ManagerApprovalPanel = () => {
   const handleUpdateStatus = async (requestId: string, newStatus: "active" | "rejected") => {
     setProcessingIds((prev) => new Set(prev).add(requestId));
     try {
-      if (newStatus === "rejected") {
-        await supabase.from("venue_staff").delete().eq("id", requestId);
-      } else {
-        await supabase.from("venue_staff").update({ status: newStatus }).eq("id", requestId);
+      // Both manager policies require venues.business_verified as well as
+      // ownership. When that fails, RLS filters the row out rather than
+      // raising: the request succeeds and affects zero rows. This used to
+      // report "Neural Link Confirmed" while nothing had happened, which is
+      // worse than a blocked action because the manager stops looking.
+      // select() + count makes the difference observable.
+      const { data, error } =
+        newStatus === "rejected"
+          ? await supabase.from("venue_staff").delete().eq("id", requestId).select("id")
+          : await supabase.from("venue_staff").update({ status: newStatus }).eq("id", requestId).select("id");
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast.error("Not Permitted", {
+          description:
+            "This venue is not business verified yet, so staff changes are blocked. Nothing was changed.",
+        });
+        return;
       }
+
       toast.success(newStatus === "active" ? "Neural Link Confirmed" : "Request Dismissed");
       fetchRequests();
     } catch {
@@ -120,6 +137,16 @@ const ManagerApprovalPanel = () => {
             {profile?.display_name || profile?.username || "Neural ID Unknown"}
           </p>
           <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest mt-0.5">
+            {/* The position talent asked for. Approval is still a bare
+                yes/no, so this is the only place it is visible to whoever
+                decides. Falls back to the old copy when unset, since rows
+                predating the picker have no staff_role. */}
+            {positionLabel(req.staff_role) ? (
+              <>
+                <span className="text-neon-green">{positionLabel(req.staff_role)}</span>
+                <span className="text-zinc-700"> · </span>
+              </>
+            ) : null}
             {type === "incoming"
               ? "Requesting Entry"
               : type === "outgoing"
