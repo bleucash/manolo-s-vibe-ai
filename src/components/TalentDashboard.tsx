@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, Link2, Building2, TrendingUp, Mail, Zap, Check } from "lucide-react";
 import { toast } from "sonner";
+import { positionLabel } from "@/config/positions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface TalentDashboardProps {
   userId: string;
@@ -22,6 +33,10 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
   const [isActive, setIsActive] = useState(false);
   const [currentVenueId, setCurrentVenueId] = useState<string | null>(null);
   const [togglingActive, setTogglingActive] = useState(false);
+  // Non-null while the leave confirmation is open. Leaving is destructive:
+  // re-requesting means waiting on manager approval again.
+  const [leaveTarget, setLeaveTarget] = useState<any>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   // Static 10% commission calculation
   const availableBalance = metrics.grossSales * 0.1;
@@ -127,6 +142,37 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
     }
   };
 
+  // Leaving is the same DELETE as withdrawing a pending request. The
+  // venue_staff_clear_check_in trigger nulls current_venue_id if they were
+  // checked in here, so the client does not have to sequence two writes.
+  const handleLeave = async () => {
+    if (!leaveTarget) return;
+    setIsLeaving(true);
+    try {
+      // .select() so an RLS-filtered delete cannot read as success.
+      const { data, error } = await supabase
+        .from("venue_staff")
+        .delete()
+        .eq("id", leaveTarget.id)
+        .select("id");
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.error("Not Permitted", { description: "Nothing was changed." });
+        return;
+      }
+
+      toast.success("Link Severed", { description: `You have left ${leaveTarget.venues?.name || "the venue"}.` });
+      setLeaveTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error("System Error", { description: "Could not leave. Try again." });
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
   // Toggle talent active status
   const handleToggleActive = async (venueId?: string) => {
     if (togglingActive) return;
@@ -142,16 +188,28 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
     }
 
     try {
-      const { error } = await supabase
+      // .select() so a filtered update cannot read as success, and the
+      // profiles_enforce_check_in trigger's message is surfaced rather than
+      // swallowed: going active at a venue without an approved link now
+      // raises instead of quietly doing nothing.
+      const { data, error } = await supabase
         .from("profiles")
         .update({
           is_active: newActiveState,
           current_venue_id: newActiveState ? venueId : null,
           active_at: newActiveState ? new Date().toISOString() : null,
         })
-        .eq("id", userId);
+        .eq("id", userId)
+        .select("id");
 
-      if (error) throw error;
+      if (error) {
+        toast.error("Check-In Blocked", { description: error.message });
+        return;
+      }
+      if (!data || data.length === 0) {
+        toast.error("Not Permitted", { description: "Nothing was changed." });
+        return;
+      }
 
       setIsActive(newActiveState);
       setCurrentVenueId(newActiveState ? venueId || null : null);
@@ -371,9 +429,17 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
                   </p>
                 </div>
               </div>
-              <Badge className="bg-neon-blue/10 text-neon-blue border-neon-blue/20 text-[8px] font-black px-4 py-1.5 uppercase tracking-[0.2em] rounded-full">
-                Linked
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Badge className="bg-neon-blue/10 text-neon-blue border-neon-blue/20 text-[8px] font-black px-4 py-1.5 uppercase tracking-[0.2em] rounded-full">
+                  {positionLabel(aff.staff_role) || "Linked"}
+                </Badge>
+                <button
+                  onClick={() => setLeaveTarget(aff)}
+                  className="text-[8px] font-black uppercase tracking-widest text-zinc-700 hover:text-red-500 transition-colors px-2"
+                >
+                  Leave
+                </button>
+              </div>
             </div>
           ))
         ) : (
@@ -384,6 +450,37 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!leaveTarget} onOpenChange={(open) => !open && setLeaveTarget(null)}>
+        <AlertDialogContent className="bg-zinc-950 border-white/10 rounded-[2.5rem] p-8">
+          <AlertDialogHeader className="space-y-4">
+            <AlertDialogTitle className="text-3xl font-display uppercase italic tracking-tighter text-white leading-none">
+              Leave {leaveTarget?.venues?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
+              This removes your link to the venue. If you are currently active there, you will be checked out. Coming
+              back means requesting again and waiting on manager approval.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-8 gap-3">
+            <AlertDialogCancel className="h-14 rounded-2xl border-white/10 bg-white/5 text-white text-[10px] font-black uppercase tracking-widest">
+              Stay
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Keep the dialog open until the call settles so a failure
+                // surfaces against the thing it failed on.
+                e.preventDefault();
+                handleLeave();
+              }}
+              disabled={isLeaving}
+              className="h-14 rounded-2xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-600"
+            >
+              {isLeaving ? "Leaving..." : "Leave Venue"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

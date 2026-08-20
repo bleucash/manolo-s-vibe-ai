@@ -11,6 +11,7 @@ import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClaimSectorModal } from "@/components/ClaimSectorModal";
 import { RequestToWorkModal } from "@/components/RequestToWorkModal";
+import { toast } from "sonner";
 import { positionLabel } from "@/config/positions";
 import { useVenueStatus } from "@/hooks/useVenueStatus";
 
@@ -28,10 +29,44 @@ const Venue = () => {
   // This viewer's own venue_staff row for this venue, if any. Drives whether
   // the button offers a request, or reports one already in flight.
   const [staffLink, setStaffLink] = useState<any>(null);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     fetchVenueData();
   }, [id, session?.user?.id]);
+
+  // Withdrawing a pending request is the same DELETE as leaving an active
+  // venue: unique_venue_user_connection means one row per pair, and rejection
+  // already deletes rather than writing a terminal status.
+  const handleWithdraw = async () => {
+    if (!staffLink) return;
+    setIsExiting(true);
+    try {
+      // .select() so an RLS-filtered delete is visible. Without it this
+      // returns 200 with zero rows and reads as success, the same shape that
+      // hid the manager-approve bug.
+      const { data, error } = await supabase
+        .from("venue_staff")
+        .delete()
+        .eq("id", staffLink.id)
+        .select("id");
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.error("Not Permitted", { description: "Nothing was withdrawn." });
+        return;
+      }
+
+      toast.success("Request Withdrawn");
+      setStaffLink(null);
+      fetchVenueData();
+    } catch (err) {
+      console.error(err);
+      toast.error("System Error", { description: "Could not withdraw. Try again." });
+    } finally {
+      setIsExiting(false);
+    }
+  };
 
   const fetchVenueData = async () => {
     if (!id) return;
@@ -128,11 +163,20 @@ const Venue = () => {
             a work link, not an ownership claim. */}
         {isTalent && !isOwner && (
           staffLink?.status === "pending" ? (
-            <div className="w-full h-20 bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3">
-              <Loader2 className="w-4 h-4 text-neon-green animate-spin" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest italic">
-                Work Request Pending
-              </span>
+            <div className="w-full rounded-[2rem] bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md overflow-hidden">
+              <div className="h-20 flex items-center justify-center gap-3">
+                <Loader2 className="w-4 h-4 text-neon-green animate-spin" />
+                <span className="text-[10px] font-black text-white uppercase tracking-widest italic">
+                  Work Request Pending
+                </span>
+              </div>
+              <button
+                onClick={handleWithdraw}
+                disabled={isExiting}
+                className="w-full py-4 border-t border-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors disabled:opacity-40"
+              >
+                {isExiting ? "Withdrawing..." : "Withdraw Request"}
+              </button>
             </div>
           ) : staffLink?.status === "active" ? (
             <div className="w-full h-20 bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3">
