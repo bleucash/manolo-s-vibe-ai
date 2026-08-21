@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Settings2, Bell, ScanLine, Link2, Check, Trophy, Zap } from "lucide-react";
+import { Settings2, Bell, ScanLine, Link2, Check, Trophy, Zap, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useVenueVerified } from "@/hooks/useVenueVerified";
 import { Tier2Notice } from "@/components/dashboard/Tier2Notice";
@@ -262,7 +262,17 @@ const ManagerDashboard = ({ userId }: ManagerDashboardProps) => {
                       Tools
                     </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="requests" className="mt-6">
+                  <TabsContent value="requests" className="mt-6 space-y-4">
+                    {/* The directory was reachable only through Discovery's
+                        DirectoryCard, a guest path. This is the manager's own
+                        way in, next to the panel where invites land. */}
+                    <Button
+                      onClick={() => navigate("/talent-directory")}
+                      variant="outline"
+                      className="w-full h-14 rounded-2xl border-amber-500/30 bg-amber-500/5 text-amber-500 hover:bg-amber-500/10 text-[10px] font-black uppercase tracking-widest"
+                    >
+                      <Send className="w-4 h-4 mr-3" /> Invite Talent from Directory
+                    </Button>
                     <ManagerApprovalPanel />
                   </TabsContent>
                   <TabsContent value="payouts" className="mt-6">

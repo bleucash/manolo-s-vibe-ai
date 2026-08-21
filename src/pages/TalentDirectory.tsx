@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, ArrowLeft, Sparkles, User, TrendingUp } from "lucide-react";
+import { Loader2, Search, ArrowLeft, Sparkles, User, TrendingUp, Send } from "lucide-react";
 import { toast } from "sonner";
 import { guestFacingLabel, isOperationalPosition } from "@/config/positions";
+import { useUserMode } from "@/contexts/UserModeContext";
+import { InviteTalentModal } from "@/components/InviteTalentModal";
 
 // 1. SHARED NEON ANIMATION (Matches Discovery.tsx)
 const neonPulseStyles = `
@@ -40,6 +42,12 @@ const TalentDirectory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [talent, setTalent] = useState<TalentProfile[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Invites need a manager AND a venue to invite into. activeVenueId is the
+  // venue the invite lands on, so without one there is nothing to send.
+  const { isManager, activeVenueId } = useUserMode();
+  const canInvite = isManager && !!activeVenueId;
+  const [inviteTarget, setInviteTarget] = useState<any>(null);
 
   useEffect(() => {
     fetchTalent();
@@ -160,12 +168,34 @@ const TalentDirectory = () => {
                       {t.is_featured ? "Top Talent" : guestFacingLabel(t.sub_role) || "Talent"}
                     </p>
                   </div>
+
+                  {/* Manager-only. The directory was guest-only before: no
+                      user context at all, every card going to the public
+                      profile. stopPropagation so inviting does not also
+                      navigate away to that profile. */}
+                  {canInvite && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInviteTarget(t);
+                      }}
+                      className="absolute top-3 left-3 z-10 h-8 px-3 rounded-full bg-black/70 backdrop-blur-md border border-amber-500/40 text-amber-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:bg-amber-500 hover:text-black transition-all"
+                    >
+                      <Send className="w-3 h-3" /> Invite
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <InviteTalentModal
+        talent={inviteTarget}
+        isOpen={!!inviteTarget}
+        onClose={() => setInviteTarget(null)}
+      />
     </div>
   );
 };
