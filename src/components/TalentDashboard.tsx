@@ -97,13 +97,28 @@ const TalentDashboard = ({ userId }: TalentDashboardProps) => {
   const handleResponse = async (id: string, accept: boolean) => {
     setProcessingIds((prev) => new Set(prev).add(id));
     try {
-      const { error } = await supabase
+      // .select() so a filtered update cannot read as success. The talent
+      // UPDATE policy restricts USING to status = 'pending_talent_action', so
+      // an invite that has since been cancelled, already answered, or moved on
+      // is filtered out rather than erroring: without this the call returned
+      // 200 with zero rows and still showed "Neural Link Established" while
+      // nothing changed.
+      const { data, error } = await supabase
         .from("venue_staff")
         .update({ status: accept ? "active" : "ignored" })
         .eq("id", id)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.error("Invite Unavailable", {
+          description: "This invitation is no longer open. Refreshing.",
+        });
+        await fetchData();
+        return;
+      }
+
       toast.success(accept ? "Neural Link Established" : "Invitation Dismissed");
       await fetchData();
     } catch (err: any) {
