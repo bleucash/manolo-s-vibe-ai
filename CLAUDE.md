@@ -36,6 +36,26 @@ The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `loca
 - The `useWorkerPermissions` collision logged 2026-08-02 is fixed (2026-08-17): both hardcoded lists now derive from the config map. It had drifted badly — `performer`/`dancer`/`bouncer`/`staff` were listed but aren't positions, while `bartender`/`bottle_girl`/`media`/`event_staff` were in neither list. Still unreachable in practice: its only consumer is `ProtectedRoute`, which is dead code and never imported.
 - Bouncer/door access is a link-based invite (intentional, lets venues staff up without app friction). Eventually needs to be venue-scoped, revocable, and expiring. Not urgent, but don't harden it into something permanent-by-default.
 
+## "Active" means three different things — documented trap
+
+Three unrelated concepts share the word. Read the column, not the label, and use these terms in code and commits:
+
+- **Affiliation** — `venue_staff.status = 'active'`. Approved to work at this venue. Persists for months.
+- **Tapped in** — `profiles.is_active` + `profiles.current_venue_id`. Working right now, at this venue. Talent's own toggle; the verbs are "tap in" / "tap out".
+- **Open** — `venues.is_active`. Venue is open for business. Manager-flipped, changes daily.
+
+Affiliation is a prerequisite for tapping in (enforced by `profiles_enforce_check_in`, Build 3) but **never implies it**. Open is independent of both.
+
+**Presence** — what a guest should see — requires all three: tapped in, tapped in *here*, and *here* is open. It lives in one place, `src/lib/presence.ts` (`isPresentAt`), the way `positions.ts` centralises `guestFacing`. Do not re-derive it inline; that is exactly how four surfaces drifted apart. Before 2026-08-20 only `Index.tsx` checked whether the venue was open, so talent tapped in at a closed venue read as present on their profile, on Discovery, and in `CreatePostDialog`, which **wrote** it into a post's venue tag where it outlived the night.
+
+**Tapped-in state is deliberately not cleared when a venue closes.** Open gets flipped routinely and clearing would silently tap out a whole floor on a manager's toggle. Presence is computed at display time, so closing hides it and reopening restores it. Self-cleaning data (a trigger on `venues`) was considered and rejected; it remains a separate deliberate decision, not an oversight.
+
+`TalentDashboard` is the one intentional exception: it is the talent's own view, and "tapped in, venue closed" is more useful there than silently showing nothing.
+
+Discovery's venue-card facepile shows the full **affiliated** roster with a green ring on whoever is **present**. Two facts, two treatments. It is not presence-only on purpose: most venues have nobody tapped in most of the time, so the roster signal would vanish.
+
+**Talent-surface work (profile, gigs dashboard) should push tapping in while working.** The glow, Active Nodes, and presence generally are only worth anything if that toggle actually gets used.
+
 ## Missing FK constraints — found 2026-08-03, unfixed, logged only
 
 Two columns that look like foreign keys and behave like foreign keys in the code, but have no constraint behind them. Found while verifying the PostgREST embed for the Active Nodes fix, where the FK graph is what the query actually resolves through.

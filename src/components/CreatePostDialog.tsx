@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { isPresentAt, isTappedIn } from "@/lib/presence";
 
 interface CreatePostDialogProps {
   open?: boolean;
@@ -47,16 +48,25 @@ export const CreatePostDialog = ({ open, onOpenChange, onPostCreated }: CreatePo
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (!profile?.is_active || !profile.current_venue_id) {
+        if (!isTappedIn(profile)) {
           if (!cancelled) setVenueTag(null);
           return;
         }
 
         const { data: venue } = await supabase
           .from("venues")
-          .select("id, name")
-          .eq("id", profile.current_venue_id)
+          .select("id, name, is_active")
+          .eq("id", profile!.current_venue_id!)
           .maybeSingle();
+
+        // The venue must also be OPEN. This is the one surface where stale
+        // presence was not merely displayed but written: the tag is baked into
+        // the post and outlives the night. Tapped in at a closed venue tags
+        // nothing rather than tagging somewhere shut.
+        if (!isPresentAt(profile, venue)) {
+          if (!cancelled) setVenueTag(null);
+          return;
+        }
 
         if (!cancelled) setVenueTag(venue ?? null);
         return;

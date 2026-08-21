@@ -10,6 +10,7 @@ import { Venue } from "@/types/database";
 import { writeFollow, type FollowTarget } from "@/hooks/useFollow";
 import { toast } from "sonner";
 import { guestFacingLabel, isOperationalPosition } from "@/config/positions";
+import { isPresentAt } from "@/lib/presence";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -31,12 +32,39 @@ const ActiveBadge = () => (
   </span>
 );
 
-const ActiveFacepile = ({ staff }: { staff: any[] }) => {
+/**
+ * Shows the full AFFILIATED roster, not only who is present. Most venues have
+ * nobody tapped in most of the time, so a presence-only facepile would be
+ * empty almost always and the roster signal would be lost.
+ *
+ * Two facts, two treatments: everyone affiliated appears, and whoever is
+ * actually tapped in HERE while this venue is OPEN gets a green ring. Presence
+ * comes from the shared helper rather than a local rule, so this does not
+ * become a fourth definition of "active".
+ */
+const ActiveFacepile = ({ staff, venue }: { staff: any[]; venue: any }) => {
   if (!staff || staff.length === 0) return null;
+
+  // Tapped-in first, so glowing avatars lead instead of being buried behind an
+  // arbitrary slice of a large roster.
+  const ordered = [...staff].sort((a, b) => {
+    const aP = isPresentAt(a.profiles, venue) ? 0 : 1;
+    const bP = isPresentAt(b.profiles, venue) ? 0 : 1;
+    return aP - bP;
+  });
+
   return (
     <div className="flex -space-x-2 overflow-hidden pointer-events-none ml-2">
-      {staff.slice(0, 3).map((item: any, i: number) => (
-        <Avatar key={i} className="w-6 h-6 border border-black ring-1 ring-white/10">
+      {ordered.slice(0, 3).map((item: any, i: number) => (
+        <Avatar
+          key={i}
+          className={cn(
+            "w-6 h-6 border border-black",
+            isPresentAt(item.profiles, venue)
+              ? "ring-2 ring-neon-green shadow-[0_0_8px_rgba(57,255,20,0.7)]"
+              : "ring-1 ring-white/10",
+          )}
+        >
           <AvatarImage src={item.profiles?.avatar_url} />
           <AvatarFallback className="text-[6px] bg-zinc-900 text-white">
             {item.profiles?.username?.[0]}
@@ -69,7 +97,9 @@ const SpotlightCard = ({ talent, onNavigate }: any) => (
     <div className="relative w-[75vw] md:w-80 h-[48dvh] rounded-[2.5rem] bg-zinc-950 border border-white/5 overflow-hidden shadow-2xl">
       <HeroReel videoUrl={talent.hero_reel_url} fallbackImageUrl={talent.avatar_url || "/placeholder.svg"} alt={talent.display_name} className="w-full h-full opacity-60 object-cover" />
       <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,1) 100%)", zIndex: 10 }} />
-      {talent.is_active && <div className="absolute top-6 left-6 z-20"><ActiveBadge /></div>}
+      {/* Presence, not just tapped in: the embedded venue carries its own
+          is_active, so a talent tapped in somewhere closed shows no badge. */}
+      {isPresentAt(talent, talent.venues) && <div className="absolute top-6 left-6 z-20"><ActiveBadge /></div>}
       <div className="absolute bottom-10 left-10 z-20">
         <p className="font-display text-4xl text-white uppercase tracking-tighter italic leading-none">{talent.display_name}</p>
         <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1 block">{guestFacingLabel(talent.sub_role) || "TALENT"}</span>
@@ -123,7 +153,7 @@ const VenueFeedCard = ({ venue, onNavigate, isFollowing, onFollow }: any) => (
         <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full flex items-center gap-2">
           <MapPin className="w-3 h-3" /> {venue.location || "Sector Verified"}
         </Badge>
-        <ActiveFacepile staff={venue.venue_staff || []} />
+        <ActiveFacepile staff={venue.venue_staff || []} venue={venue} />
         {/* stopPropagation lives on the wrapper, not the button: on the button
             it fired before the event could reach onFollow, so the handler never
             ran. Wrapper still blocks the card's onNavigate. */}
@@ -141,7 +171,7 @@ const TalentFeedCard = ({ talent, onNavigate, isFollowing, onFollow }: any) => (
     <div className="absolute bottom-0 left-0 right-0 p-10 z-20 max-w-4xl pb-[90px]">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {guestFacingLabel(talent.sub_role) && <Badge className="bg-neon-purple/20 backdrop-blur-md border-neon-purple/40 text-white text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">{guestFacingLabel(talent.sub_role)}</Badge>}
-        {talent.is_active && <ActiveBadge />}
+        {isPresentAt(talent, talent.venues) && <ActiveBadge />}
         <div onClick={(e: any) => e.stopPropagation()}><FollowButton targetId={talent.id} targetType="talent" isFollowing={isFollowing} onClick={() => onFollow?.()} /></div>
       </div>
       <h3 className="font-display text-[clamp(2rem,9vw,6rem)] text-white uppercase italic tracking-tighter leading-[0.85] pr-20 whitespace-normal break-normal line-clamp-3 mb-2">{talent.display_name}</h3>
@@ -168,9 +198,12 @@ const Discovery = () => {
     const fetchDiscoveryData = async () => {
       setLoading(true);
       try {
-        let venueQuery = supabase.from("venues").select("*, venue_staff(user_id, status, profiles(avatar_url, username))").eq("venue_staff.status", "active").order("is_active", { ascending: false }).limit(20);
+        // profiles.is_active + current_venue_id come along so the facepile can
+        // compute presence per person against this venue's own is_active,
+        // rather than issuing a second query with its own rule.
+        let venueQuery = supabase.from("venues").select("*, venue_staff(user_id, status, profiles(avatar_url, username, is_active, current_venue_id))").eq("venue_staff.status", "active").order("is_active", { ascending: false }).limit(20);
         if (activeCategory !== "All Vibes") venueQuery = venueQuery.eq("category", activeCategory);
-        const queries = [venueQuery, supabase.rpc("get_talent_spotlight", { limit_count: 3 }), supabase.from("profiles").select("id, display_name, username, avatar_url, hero_reel_url, is_active, current_venue_id, sub_role").eq("role_type", "talent").order("is_active", { ascending: false }).limit(20)];
+        const queries = [venueQuery, supabase.rpc("get_talent_spotlight", { limit_count: 3 }), supabase.from("profiles").select("id, display_name, username, avatar_url, hero_reel_url, is_active, current_venue_id, sub_role, venues!profiles_current_venue_id_fkey(id, is_active)").eq("role_type", "talent").order("is_active", { ascending: false }).limit(20)];
         if (currentUserId) queries.push(supabase.from("followers").select("following_id").eq("follower_id", currentUserId), supabase.from("venue_followers").select("venue_id").eq("follower_id", currentUserId));
         const [vRes, sRes, fRes, tFRes, vFRes] = await Promise.all(queries);
         if (vRes.data) setVenues(vRes.data);

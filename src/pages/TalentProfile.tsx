@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { InteractiveHeroReel } from "@/components/InteractiveHeroReel";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
+import { isPresentAt, isTappedIn } from "@/lib/presence";
 
 const TalentProfile = () => {
   const { id } = useParams();
@@ -39,9 +40,17 @@ const TalentProfile = () => {
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
       if (profileData) {
         setProfile(profileData);
-        if (profileData.is_active && profileData.current_venue_id) {
-          const { data: v } = await supabase.from("venues").select("name").eq("id", profileData.current_venue_id).single();
-          if (v) setActiveVenueName(v.name);
+        // Presence needs the venue to be OPEN as well, not just the talent
+        // tapped in. Previously this showed "live at X" for a closed venue,
+        // while Index's Active Nodes correctly excluded them: two surfaces
+        // disagreeing about the same fact.
+        if (isTappedIn(profileData)) {
+          const { data: v } = await supabase
+            .from("venues")
+            .select("id, name, is_active")
+            .eq("id", profileData.current_venue_id)
+            .maybeSingle();
+          if (isPresentAt(profileData, v)) setActiveVenueName(v!.name);
         }
       }
 
@@ -95,7 +104,10 @@ const TalentProfile = () => {
               <h1 className="text-6xl font-display text-white uppercase tracking-tighter italic leading-[0.8]">
                 {profile.display_name || profile.username}
               </h1>
-              {profile.is_active && activeVenueName && (
+              {/* activeVenueName is only set when isPresentAt passed, so it
+                  already carries the full rule. Re-checking is_active here
+                  would be a second, partial copy of that definition. */}
+              {activeVenueName && (
                 <Badge className="w-fit bg-neon-green/10 text-neon-green border-neon-green/20 uppercase text-[8px] font-black tracking-[0.3em] px-4 py-1 rounded-full flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
                   Active at {activeVenueName}
