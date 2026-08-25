@@ -13,8 +13,10 @@
  * Stored WITHOUT the leading "@" so it composes into both display strings
  * and instagram.com URLs; add the "@" at render time.
  *
- * TEMPORARY: this is a test account used to exercise the DM handshake. The
- * real brand account is still undecided, so this must change again before
- * public launch. Applicants are told to DM whatever is set here.
+ * This is the real brand account, registered and in use. Applicants are told
+ * to DM whatever is set here, so changing it changes the instructions talent
+ * see. Nothing persists it: the value is read at render time and only the
+ * APPLICANT's own handle is ever stored, so a change takes effect everywhere
+ * at once and cannot strand an existing record.
  */
-export const VERIFICATION_INSTAGRAM_HANDLE = "__money__machine";
+export const VERIFICATION_INSTAGRAM_HANDLE = "getmanolo";
