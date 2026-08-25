@@ -161,13 +161,14 @@ const Venue = () => {
             renders. So it sits outside that if/else rather than inside it.
             Styled to match the claim button per J, in green because this is
             a work link, not an ownership claim. */}
-        {/* venue.owner_id is required, not just !isOwner. Requesting at an
-            unowned venue creates a row nobody can ever approve or reject,
-            because every approval path requires an owner. The RLS INSERT
-            policy deliberately does not block this: a request parked against a
-            venue that later gets claimed is arguably useful, so the choice is
-            kept here rather than made permanent in the database. */}
-        {isTalent && !isOwner && venue.owner_id && (
+        {/* An existing link is ALWAYS shown, even at an unowned venue. Only
+            the new-request button is gated on ownership.
+            If a venue is revoked while a request is in flight, hiding the
+            whole block would make that request vanish from the page with no
+            explanation. Nobody is trapped, since Leave still works from the
+            talent dashboard, but the page should not go silent about a row
+            that still exists. */}
+        {isTalent && !isOwner && (
           staffLink?.status === "pending" ? (
             <div className="w-full rounded-[2rem] bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md overflow-hidden">
               <div className="h-20 flex items-center justify-center gap-3">
@@ -191,14 +192,20 @@ const Venue = () => {
                 {positionLabel(staffLink.staff_role) || "Confirmed"} Here
               </span>
             </div>
-          ) : (
+          ) : venue.owner_id ? (
+            // Only offered at an owned venue: a request at an unowned one
+            // creates a row nobody can ever approve or reject, since every
+            // approval path requires an owner. The RLS INSERT policy
+            // deliberately does not block this, so a request parked against a
+            // venue that later gets claimed stays possible if wanted; the
+            // choice lives here rather than permanently in the database.
             <Button
               onClick={() => setIsWorkModalOpen(true)}
               className="w-full h-20 bg-neon-green text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(57,255,20,0.2)]"
             >
               <Briefcase className="mr-3 w-5 h-5" /> Request to Work Here
             </Button>
-          )
+          ) : null
         )}
       </div>
 

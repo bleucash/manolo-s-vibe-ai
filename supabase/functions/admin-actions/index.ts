@@ -189,9 +189,17 @@ Deno.serve(async (req) => {
         //    already re-claimable and the operator can retry; the reverse
         //    order would demote the user while leaving the venue stuck to
         //    them.
-        const rVenue = await admin.from("venues").update({ owner_id: null }).eq("id", venue_id);
-        if (rVenue.error) return json({ error: rVenue.error.message }, 500);
-
+        // ORDER MATTERS. These are sequential client calls with no
+        // transaction around them, so every step has to leave a recoverable
+        // state if the next one fails.
+        //
+        // Staff are downgraded BEFORE the venue is released. The reverse order
+        // fails into exactly the state this action exists to prevent: venue
+        // already ownerless with 'active' affiliations still attached, which
+        // is the Tangra shape, unmanageable from both sides and still granting
+        // tap-in. This way a failure between the two leaves pending staff at a
+        // venue that still has an owner, and the owner simply re-approves.
+        //
         // Releasing the venue strands every affiliation at it: nobody can
         // approve, remove or invite without an owner. Worse, an 'active'
         // affiliation still grants tap-in, since profiles_enforce_check_in
@@ -218,6 +226,10 @@ Deno.serve(async (req) => {
         if (rStaff.error) return json({ error: rStaff.error.message }, 500);
         const downgraded = rStaff.data?.length ?? 0;
 
+        // Only now release the venue.
+        const rVenue = await admin.from("venues").update({ owner_id: null }).eq("id", venue_id);
+        if (rVenue.error) return json({ error: rVenue.error.message }, 500);
+
         // 2. Delete the approved claim row rather than marking it terminal.
         //    unique_venue_claim is UNIQUE (venue_id, status), so a retained
         //    row of ANY status permanently occupies that (venue, status)
@@ -227,6 +239,22 @@ Deno.serve(async (req) => {
         //    re-claimable, which is the point of this action. The tradeoff
         //    is that revocation leaves no audit row; recording that properly
         //    needs its own table, not a status value this constraint blocks.
+        // Steps 3 and 4 have the same no-transaction exposure but fail safe,
+        // so they stay in this order:
+        //
+        //   claim delete fails  -> venue is released and staff downgraded, but
+        //     an 'approved' claim row lingers. unique_venue_claim is
+        //     UNIQUE (venue_id, status), so that stale row blocks the NEXT
+        //     approval on this venue. Annoying and visible, not a rights
+        //     leak, and clearable by re-running revoke.
+        //
+        //   demote fails        -> the account keeps role_type 'manager' while
+        //     owning nothing. Manager surfaces already handle zero owned
+        //     venues (that was fixed 2026-08-03), and re-running revoke
+        //     re-evaluates it.
+        //
+        // Neither leaves anyone able to act on a venue they no longer own,
+        // which is the property that actually matters here.
         const rClaim = await admin
           .from("venue_claims")
           .delete()
