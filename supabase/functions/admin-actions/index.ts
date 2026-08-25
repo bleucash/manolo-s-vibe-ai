@@ -192,6 +192,32 @@ Deno.serve(async (req) => {
         const rVenue = await admin.from("venues").update({ owner_id: null }).eq("id", venue_id);
         if (rVenue.error) return json({ error: rVenue.error.message }, 500);
 
+        // Releasing the venue strands every affiliation at it: nobody can
+        // approve, remove or invite without an owner. Worse, an 'active'
+        // affiliation still grants tap-in, since profiles_enforce_check_in
+        // only asks for status = 'active'. So talent could keep marking
+        // themselves present at a venue no one controls. That is exactly the
+        // state the legacy Tangra row was in.
+        //
+        // Downgraded to 'pending' rather than deleted. Pending confers
+        // nothing, so the tap-in right is removed just as completely, but the
+        // relationship survives as a request waiting for whoever claims the
+        // venue next. Deleting would destroy every employment relationship
+        // irreversibly, with no audit row, and revoke is plausibly used to
+        // correct a mis-approval where the venue is re-claimed days later.
+        // Talent can still withdraw at any time.
+        //
+        // Only 'active' rows are touched. pending, pending_talent_action and
+        // ignored already confer nothing and are left as they are.
+        const rStaff = await admin
+          .from("venue_staff")
+          .update({ status: "pending" })
+          .eq("venue_id", venue_id)
+          .eq("status", "active")
+          .select("id");
+        if (rStaff.error) return json({ error: rStaff.error.message }, 500);
+        const downgraded = rStaff.data?.length ?? 0;
+
         // 2. Delete the approved claim row rather than marking it terminal.
         //    unique_venue_claim is UNIQUE (venue_id, status), so a retained
         //    row of ANY status permanently occupies that (venue, status)
@@ -227,7 +253,7 @@ Deno.serve(async (req) => {
           if (rRole.error) return json({ error: rRole.error.message }, 500);
         }
 
-        return json({ ok: true, demoted });
+        return json({ ok: true, demoted, downgraded });
       }
       case "approve_talent": {
         const { user_id } = parsed.data.payload;

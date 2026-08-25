@@ -161,7 +161,13 @@ const Venue = () => {
             renders. So it sits outside that if/else rather than inside it.
             Styled to match the claim button per J, in green because this is
             a work link, not an ownership claim. */}
-        {isTalent && !isOwner && (
+        {/* venue.owner_id is required, not just !isOwner. Requesting at an
+            unowned venue creates a row nobody can ever approve or reject,
+            because every approval path requires an owner. The RLS INSERT
+            policy deliberately does not block this: a request parked against a
+            venue that later gets claimed is arguably useful, so the choice is
+            kept here rather than made permanent in the database. */}
+        {isTalent && !isOwner && venue.owner_id && (
           staffLink?.status === "pending" ? (
             <div className="w-full rounded-[2rem] bg-zinc-900/80 border border-neon-green/30 backdrop-blur-md overflow-hidden">
               <div className="h-20 flex items-center justify-center gap-3">

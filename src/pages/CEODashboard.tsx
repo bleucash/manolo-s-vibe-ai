@@ -160,10 +160,16 @@ const CEODashboard = () => {
         toast.error("Revocation Error");
         return;
       }
+      const downgraded = (data as any)?.downgraded ?? 0;
+      const staffNote =
+        downgraded > 0
+          ? ` ${downgraded} staff affiliation${downgraded === 1 ? "" : "s"} moved back to pending.`
+          : "";
       toast.success("Sector Released", {
-        description: (data as any)?.demoted
-          ? "Venue is re-claimable and the account dropped to guest."
-          : "Venue is re-claimable. Account keeps manager, it still runs other venues.",
+        description:
+          ((data as any)?.demoted
+            ? "Venue is re-claimable and the account dropped to guest."
+            : "Venue is re-claimable. Account keeps manager, it still runs other venues.") + staffNote,
       });
       setRevokeTarget(null);
       fetchOversightData();
@@ -471,7 +477,8 @@ const CEODashboard = () => {
               This releases the venue from{" "}
               {revokeTarget?.owner?.display_name || revokeTarget?.owner?.username || "its owner"} and
               makes it claimable again. If it is the last venue they run, the account drops to guest.
-              The approved claim record is removed and cannot be restored from here.
+              Any confirmed staff there move back to pending, so nobody stays able to tap in at a venue
+              with no owner. The approved claim record is removed and cannot be restored from here.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 gap-3">
