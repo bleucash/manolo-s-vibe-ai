@@ -31,8 +31,9 @@ interface WorkerPermissions {
 // "staff" rather than "event_staff". Both sets are now derived from the config
 // map, so adding a position updates permissions with it.
 //
-// Currently unreachable: the only consumer is ProtectedRoute, which is dead
-// code and never imported. Fixed now rather than left armed.
+// This hook currently has no consumers. ProtectedRoute, its only one, was
+// deleted for an auth bug. The role logic here is kept deliberately rather
+// than removed as collateral.
 const TALENT_SUB_ROLES: string[] = GUEST_FACING_POSITIONS;
 const STAFF_SUB_ROLES: string[] = ALL_POSITIONS.filter((p) => !POSITIONS[p].guestFacing);
 
