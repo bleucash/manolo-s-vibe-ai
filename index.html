@@ -19,6 +19,29 @@
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
     <!--
+      Fonts load here, not via @import in index.css.
+
+      That @import sat after the three @tailwind directives, which CSS does
+      not allow: @import must precede all other rules. Vite dropped it
+      silently in BOTH dev and the production build, so Bebas Neue and Inter
+      never loaded at all and every surface fell back to system sans-serif.
+      It had been in that position since the line was first added, so the
+      display face has never once rendered.
+
+      <link> also beats @import on speed even when the ordering is legal: an
+      @import cannot begin fetching until the stylesheet containing it has
+      been downloaded and parsed, serialising two round trips. preconnect
+      opens the TLS connections to both Google hosts up front, since the CSS
+      and the font files come from different origins.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap"
+    />
+
+    <!--
       Pre-mount paint. Login uses window.location.href, a hard document
       reload, so the browser paints an empty #root before React exists. No
       component-level loading state can cover that gap.

@@ -1,7 +1,11 @@
+/* Fonts are loaded by <link> tags in index.html, not from here. An @import
+   below the @tailwind directives is invalid CSS and Vite dropped it silently
+   in both dev and production, so Bebas Neue and Inter never loaded. See the
+   comment in index.html. Do not reintroduce an @import here: if it is not
+   the very first rule it will be discarded again, without an error. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap");
 @layer base {
   /* Force dark mode always - no light mode */
   :root {
