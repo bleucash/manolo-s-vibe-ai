@@ -41,6 +41,7 @@ The frontend "mode" a user is in (`useUserMode()`) hydrates instantly from `loca
 Three unrelated concepts share the word. Read the column, not the label, and use these terms in code and commits:
 
 - **Affiliation** — `venue_staff.status = 'active'`. Approved to work at this venue. Persists for months.
+  - *How to read it:* `venue_staff` filtered by `user_id`, selecting `venue_id, status, staff_role`; a person is affiliated where `status = 'active'`. One row per `(venue_id, user_id)` — `unique_venue_user_connection` — so a person has at most one row per venue whatever its state. Note `'confirmed'` is **not** a status: the old `useWorkerPermissions` tested for it and never matched, and the `venue_staff_status_allowed` CHECK permits only `pending`, `pending_talent_action`, `active`, `ignored`.
 - **Tapped in** — `profiles.is_active` + `profiles.current_venue_id`. Working right now, at this venue. Talent's own toggle; the verbs are "tap in" / "tap out".
 - **Open** — `venues.is_active`. Venue is open for business. Manager-flipped, changes daily.
 
