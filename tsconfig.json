@@ -1,4 +1,15 @@
 {
+  "//": [
+    "DO NOT run `tsc --noEmit` against this file. It has \"files\": [] and only",
+    "project references, and tsc does not follow references without --build, so",
+    "the bare command compiles ZERO files and exits 0. It looks like a passing",
+    "typecheck and checks nothing. Every typecheck reported during the",
+    "2026-08-22 session was that command; the first real run surfaced 15 errors",
+    "immediately.",
+    "Use `npm run typecheck` (tsc --build), which covers tsconfig.app.json and",
+    "tsconfig.node.json and exits 2 on errors. The failure mode here is silent,",
+    "same class as the dropped @import in index.css."
+  ],
   "compilerOptions": {
     "allowJs": true,
     "noImplicitAny": false,
