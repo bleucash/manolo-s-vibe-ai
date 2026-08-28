@@ -56,8 +56,10 @@ export default function Messages() {
                   <User className="h-5 w-5" />
                 </AvatarFallback>
               </Avatar>
-              {/* ✅ FIXED: Handled TS2339 by casting until hook update */}
-              {(conv as any).unread_count > 0 && (
+              {/* Was `(conv as any).unread_count`, casting around a column
+                  that did not exist. It is a real column now, so this reads
+                  it directly and a future rename becomes a compile error. */}
+              {conv.unread_count > 0 && (
                 <span className="absolute -top-1 -right-1 h-4 w-4 bg-neon-pink rounded-full border-2 border-black animate-pulse" />
               )}
             </div>

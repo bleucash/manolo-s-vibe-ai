@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -441,18 +441,21 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_active: boolean
           post_id: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           post_id?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           post_id?: string | null
           user_id?: string | null
         }
@@ -537,6 +540,8 @@ export type Database = {
           current_venue_id: string | null
           display_name: string | null
           full_name: string | null
+          heat_score: number
+          heat_updated_at: string
           hero_reel_url: string | null
           id: string
           is_active: boolean | null
@@ -558,6 +563,8 @@ export type Database = {
           current_venue_id?: string | null
           display_name?: string | null
           full_name?: string | null
+          heat_score?: number
+          heat_updated_at?: string
           hero_reel_url?: string | null
           id: string
           is_active?: boolean | null
@@ -579,6 +586,8 @@ export type Database = {
           current_venue_id?: string | null
           display_name?: string | null
           full_name?: string | null
+          heat_score?: number
+          heat_updated_at?: string
           hero_reel_url?: string | null
           id?: string
           is_active?: boolean | null
@@ -597,6 +606,41 @@ export type Database = {
             columns: ["current_venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_applications: {
+        Row: {
+          created_at: string | null
+          id: string
+          instagram_handle: string | null
+          status: string | null
+          user_id: string
+          verification_code: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instagram_handle?: string | null
+          status?: string | null
+          user_id: string
+          verification_code?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instagram_handle?: string | null
+          status?: string | null
+          user_id?: string
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -679,35 +723,89 @@ export type Database = {
           },
         ]
       }
-      venue_claims: {
+      venue_business_applications: {
         Row: {
           business_email: string
-          business_phone: string | null
+          business_phone: string
           created_at: string | null
           id: string
           legal_name: string
+          position_title: string
+          status: string | null
+          user_id: string
+          venue_id: string
+        }
+        Insert: {
+          business_email: string
+          business_phone: string
+          created_at?: string | null
+          id?: string
+          legal_name: string
+          position_title: string
+          status?: string | null
+          user_id: string
+          venue_id: string
+        }
+        Update: {
+          business_email?: string
+          business_phone?: string
+          created_at?: string | null
+          id?: string
+          legal_name?: string
+          position_title?: string
+          status?: string | null
+          user_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_business_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_business_applications_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_claims: {
+        Row: {
+          business_email: string | null
+          business_phone: string | null
+          created_at: string | null
+          id: string
+          instagram_handle: string | null
+          legal_name: string | null
           position_title: string | null
           status: string | null
           user_id: string | null
           venue_id: string | null
         }
         Insert: {
-          business_email: string
+          business_email?: string | null
           business_phone?: string | null
           created_at?: string | null
           id?: string
-          legal_name: string
+          instagram_handle?: string | null
+          legal_name?: string | null
           position_title?: string | null
           status?: string | null
           user_id?: string | null
           venue_id?: string | null
         }
         Update: {
-          business_email?: string
+          business_email?: string | null
           business_phone?: string | null
           created_at?: string | null
           id?: string
-          legal_name?: string
+          instagram_handle?: string | null
+          legal_name?: string | null
           position_title?: string | null
           status?: string | null
           user_id?: string | null
@@ -816,6 +914,7 @@ export type Database = {
           active_at: string | null
           address: string | null
           base_price: number | null
+          business_verified: boolean
           capacity: number | null
           category: string | null
           commission_rate: number | null
@@ -845,6 +944,7 @@ export type Database = {
           active_at?: string | null
           address?: string | null
           base_price?: number | null
+          business_verified?: boolean
           capacity?: number | null
           category?: string | null
           commission_rate?: number | null
@@ -874,6 +974,7 @@ export type Database = {
           active_at?: string | null
           address?: string | null
           base_price?: number | null
+          business_verified?: boolean
           capacity?: number | null
           category?: string | null
           commission_rate?: number | null
@@ -913,6 +1014,7 @@ export type Database = {
           last_message_content: string | null
           last_sender_id: string | null
           participant_id: string | null
+          unread_count: number | null
           updated_at: string | null
         }
         Relationships: [
@@ -939,6 +1041,7 @@ export type Database = {
         Returns: Json
       }
       cleanup_expired_posts: { Args: never; Returns: number }
+      generate_verification_code: { Args: never; Returns: string }
       get_talent_spotlight: {
         Args: { limit_count?: number }
         Returns: {
@@ -972,6 +1075,7 @@ export type Database = {
         Args: { _role_type: string; _user_id: string }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_conversation: { Args: { target_user_id: string }; Returns: string }

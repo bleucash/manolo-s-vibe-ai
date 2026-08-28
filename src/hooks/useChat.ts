@@ -1,23 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
 /**
- * ✅ NEURAL TYPE DEFINITION
- * Added unread_count and corrected last_message_at naming
+ * Derived from the generated types rather than hand-written, so it cannot
+ * drift from the view again.
+ *
+ * `unread_count` used to be declared here by hand with the comment
+ * "Resolves TS2339 in Messages.tsx". No such column existed anywhere in the
+ * database: the field was invented to silence a type error, `|| 0` pinned it
+ * to zero, and the badge gated on `> 0` could never render. The column is
+ * real as of 20260822120000_conversation_summary_unread_count.sql; taking the
+ * shape from the generated types means a future mismatch is a compile error
+ * instead of a silently absent feature.
  */
-export interface ConversationSummary {
-  conversation_id: string;
-  participant_id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  last_message_content: string | null;
-  last_message_at: string | null;
-  last_sender_id: string | null;
-  is_read: boolean | null;
-  unread_count: number; // Resolves TS2339 in Messages.tsx
-  updated_at: string | null;
-}
+export type ConversationSummary =
+  Database["public"]["Views"]["conversation_summary"]["Row"];
 
 export interface Message {
   id: string;
