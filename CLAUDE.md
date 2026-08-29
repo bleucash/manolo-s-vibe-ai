@@ -143,6 +143,14 @@ Separate tables, no cross-check, so both can be open at once even though the rol
 
 `venues` has no latitude/longitude columns, so geofencing is not buildable today regardless.
 
+## Events — live table, no reader, no writer
+
+`events` holds real rows (2, created by the manager account) but **nothing in the codebase reads or writes it**. The `/events` page was deleted 2026-08-22: platform-generated in a single bot commit, never touched, reachable only by typing the URL, and its `profiles:created_by` embed had never resolved, so it 400'd from the day it was written and always rendered blank. Recoverable from git if the layout is wanted.
+
+**Event-first browsing is a real gap, deliberately deferred.** Discovery is venue-first and talent-first; nothing answers "what is on this week". Build it when ticketing turns on, together with an event-creation path (none exists) and a nav entry.
+
+**`events.created_by` references `auth.users`, not `profiles`** — same shape as `venues.owner_id`. PostgREST cannot embed `profiles` through it, so any future query must fetch creators in a second call keyed on `created_by`, as `CEODashboard` does for venue owners.
+
 ## Ticketing — infrastructure exists, feature is withheld
 
 Stripe, QR generation, `check_in_guest`, `tickets.scanned_at` all exist and work. **Do not surface ticket purchasing in the shipped UI.** Keep the wiring dormant, don't strip it. "The wiring already exists" is not a reason to ship it early; that was an explicit owner correction.

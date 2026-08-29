@@ -19,7 +19,6 @@ import Wallet from "./pages/Wallet";
 import VenueManage from "./pages/VenueManage";
 import GuestProfile from "./pages/GuestProfile";
 import Bouncer from "./pages/Bouncer";
-import Events from "./pages/Events";
 import Notifications from "./pages/Notifications";
 import TalentDirectory from "./pages/TalentDirectory";
 
@@ -79,7 +78,6 @@ const App = () => (
           <Route path="/talent/:id" element={<TalentProfile />} />
           <Route path="/talent-directory" element={<TalentDirectory />} />
           <Route path="/users/:id" element={<GuestProfile />} />
-          <Route path="/events" element={<Events />} />
 
           {/* GUEST & IDENTITY SETTINGS */}
           <Route path="/profile" element={<Profile />} />
