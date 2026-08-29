@@ -50,10 +50,20 @@ export function useChat(selectedConversationId: string | null) {
     if (!currentUserId) return;
 
     try {
+      // No participant filter. The view scopes itself to auth.uid() and
+      // returns one row per conversation carrying the COUNTERPARTY's name and
+      // avatar, so there is nothing left for the client to filter.
+      //
+      // The old `.neq("participant_id", currentUserId)` caused three defects
+      // at once: it never scoped to the caller's own conversations, so every
+      // conversation in the database came back with last_message_content on
+      // the wire; and because it selected the other party's row, unread_count
+      // was THEIR unread, so the badge lit when someone had not read your
+      // message. Fixed in the view rather than here, because client
+      // discipline is what failed.
       const { data, error } = await supabase
         .from("conversation_summary")
         .select("*")
-        .neq("participant_id", currentUserId)
         .order("last_message_at", { ascending: false });
 
       if (error) throw error;
