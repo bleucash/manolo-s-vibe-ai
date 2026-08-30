@@ -61,11 +61,22 @@ export const BusinessVerificationModal = ({
       return;
     }
 
+    // venue_business_applications.user_id is NOT NULL, so the insert type
+    // requires a string and `session?.user?.id` is `string | undefined`. The
+    // modal only opens from an authenticated venue surface, but reading the id
+    // once and failing loudly beats sending undefined and getting a PostgREST
+    // error the user sees as a generic submission failure.
+    const userId = session?.user?.id;
+    if (!userId) {
+      toast.error("Session Expired", { description: "Please sign in again to submit." });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from("venue_business_applications").insert({
         venue_id: venueId,
-        user_id: session?.user?.id,
+        user_id: userId,
         legal_name: legal,
         business_email: email,
         business_phone: phone,

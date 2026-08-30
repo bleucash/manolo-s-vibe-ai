@@ -15,8 +15,26 @@ import { toast } from "sonner";
  * shape from the generated types means a future mismatch is a compile error
  * instead of a silently absent feature.
  */
-export type ConversationSummary =
-  Database["public"]["Views"]["conversation_summary"]["Row"];
+export type ConversationSummary = Omit<
+  Database["public"]["Views"]["conversation_summary"]["Row"],
+  "unread_count"
+> & {
+  /**
+   * Non-null, corrected here because the generator cannot express it.
+   *
+   * The view computes this with COALESCE(count(*), 0) and count() cannot
+   * return NULL over zero rows, verified against the database. But views do
+   * not carry NOT NULL in pg_attribute, so Supabase's generator types EVERY
+   * view column as nullable no matter what the expression guarantees. Adding
+   * the COALESCE (20260822170000) did not change the emitted type, confirmed
+   * by regenerating.
+   *
+   * Corrected once here, at the boundary, rather than with `?? 0` at each
+   * consumer: those are the annotations that drift. Everything downstream
+   * gets a plain number.
+   */
+  unread_count: number;
+};
 
 export interface Message {
   id: string;
@@ -68,10 +86,14 @@ export function useChat(selectedConversationId: string | null) {
 
       if (error) throw error;
 
-      // ✅ Data Sanitization: Ensure unread_count is never undefined
+      // The single place the generator's `number | null` becomes the `number`
+      // ConversationSummary promises. `?? 0` is not papering over an unknown:
+      // the view's COALESCE means null is unreachable, and if someone drops
+      // that COALESCE the badge reads zero instead of NaN. Doing it once here
+      // is why no consumer needs its own default.
       const sanitized = (data || []).map((conv) => ({
         ...conv,
-        unread_count: conv.unread_count || 0,
+        unread_count: conv.unread_count ?? 0,
       }));
 
       setConversations(sanitized);

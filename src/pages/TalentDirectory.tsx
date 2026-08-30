@@ -29,7 +29,12 @@ const neonPulseStyles = `
 
 interface TalentProfile {
   id: string;
-  username: string;
+  // profiles.username is nullable in the database. This said `string`, which
+  // was simply wrong — a hand-written shape claiming a guarantee the schema
+  // does not make. Both render sites already fall back
+  // (`display_name || username`), so correcting the type costs nothing and
+  // stops the next reader from trusting it.
+  username: string | null;
   display_name: string | null;
   avatar_url: string | null;
   role_type: string;

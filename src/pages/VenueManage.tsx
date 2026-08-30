@@ -54,11 +54,22 @@ const VenueManage = () => {
     // so redirecting back produced an infinite loop with a toast every cycle.
     if (!activeVenueId) {
       const checkPendingClaim = async () => {
+        // The mode check above already returned for anything but manager mode,
+        // and mode only becomes "manager" once syncProfileAndVenues has read a
+        // session. Guarding anyway: `.eq("user_id", undefined)` would query
+        // for the literal string "undefined" and return no claim, rendering
+        // "nothing claimed yet" to a manager who has a claim pending.
+        const userId = session?.user?.id;
+        if (!userId) {
+          setCheckingClaim(false);
+          return;
+        }
+
         try {
           const { data } = await supabase
             .from("venue_claims")
             .select("venues(name)")
-            .eq("user_id", session?.user?.id)
+            .eq("user_id", userId)
             .eq("status", "pending")
             .order("created_at", { ascending: false })
             .limit(1)

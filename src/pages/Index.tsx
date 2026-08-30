@@ -51,7 +51,11 @@ const Index = () => {
       .select("post_id")
       .eq("user_id", userId)
       .eq("is_active", true);
-    if (data) setChargedPosts(new Set(data.map((l) => l.post_id)));
+    // post_likes.post_id is nullable in the schema (see the schema-nullability
+    // note in CLAUDE.md), so the row type is `string | null` while
+    // chargedPosts is a Set<string>. A like with no post cannot match any post
+    // being rendered, so dropping it here changes nothing except the type.
+    if (data) setChargedPosts(new Set(data.map((l) => l.post_id).filter((id): id is string => id !== null)));
   };
 
   const fetchActiveNodes = async () => {

@@ -87,13 +87,21 @@ const CEODashboard = () => {
 
       let ownedWithOwners: any[] = owned ?? [];
       if (owned && owned.length > 0) {
+        // venues.owner_id is nullable in the schema, so the generated row type
+        // says `string | null`. The query two lines up filters with
+        // .not("owner_id", "is", null), which the type system cannot see, so
+        // every row here has an owner. Narrowing with a filter rather than an
+        // assertion keeps that true even if someone drops the .not() later:
+        // the join would come back short instead of querying for null.
+        const ownerIds = owned.map((v) => v.owner_id).filter((id): id is string => id !== null);
+
         const { data: owners } = await supabase
           .from("profiles")
           .select("id, display_name, username")
-          .in("id", owned.map((v) => v.owner_id));
+          .in("id", ownerIds);
 
         const byId = new Map((owners ?? []).map((o) => [o.id, o]));
-        ownedWithOwners = owned.map((v) => ({ ...v, owner: byId.get(v.owner_id) ?? null }));
+        ownedWithOwners = owned.map((v) => ({ ...v, owner: (v.owner_id && byId.get(v.owner_id)) || null }));
       }
 
       if (vClaims) setVenueClaims(vClaims);

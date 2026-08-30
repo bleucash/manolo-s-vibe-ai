@@ -24,7 +24,11 @@ export const InteractiveHeroReel = ({
   const [uploading, setUploading] = useState(false);
   const [showUploadHint, setShowUploadHint] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const longPressTimerRef = useRef<number>();
+  // Not `number`. @types/node is in the tree (Vite's config needs it), so the
+  // ambient setTimeout resolves to the Node overload returning Timeout, not
+  // the DOM one returning number. Deriving the type from the function means it
+  // stays correct either way instead of hard-coding one environment's answer.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

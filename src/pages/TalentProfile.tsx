@@ -36,6 +36,12 @@ const TalentProfile = () => {
   }, [id]);
 
   const fetchData = async () => {
+    // `id` is `string | undefined` from useParams, but "/talent/:id"
+    // (App.tsx) is the only route mounting this page, so the segment is
+    // always present. Guarding rather than asserting, so it stays true if the
+    // component is ever mounted from somewhere else.
+    if (!id) return;
+
     try {
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
       if (profileData) {

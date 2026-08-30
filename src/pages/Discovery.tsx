@@ -203,7 +203,12 @@ const Discovery = () => {
         // rather than issuing a second query with its own rule.
         let venueQuery = supabase.from("venues").select("*, venue_staff(user_id, status, profiles(avatar_url, username, is_active, current_venue_id))").eq("venue_staff.status", "active").order("is_active", { ascending: false }).limit(20);
         if (activeCategory !== "All Vibes") venueQuery = venueQuery.eq("category", activeCategory);
-        const queries = [venueQuery, supabase.rpc("get_talent_spotlight", { limit_count: 3 }), supabase.from("profiles").select("id, display_name, username, avatar_url, hero_reel_url, is_active, current_venue_id, sub_role, venues!profiles_current_venue_id_fkey(id, is_active)").eq("role_type", "talent").order("is_active", { ascending: false }).limit(20)];
+        // Annotated rather than inferred. TypeScript types this array from its
+        // first element, the venues builder, so pushing a followers builder is
+        // an error: every table produces a differently-shaped builder. These
+        // are only ever awaited and read for `.data`, so that is the contract
+        // to declare. Not a nullability fix, just an inference one strictNullChecks exposed.
+        const queries: PromiseLike<{ data: any }>[] = [venueQuery, supabase.rpc("get_talent_spotlight", { limit_count: 3 }), supabase.from("profiles").select("id, display_name, username, avatar_url, hero_reel_url, is_active, current_venue_id, sub_role, venues!profiles_current_venue_id_fkey(id, is_active)").eq("role_type", "talent").order("is_active", { ascending: false }).limit(20)];
         if (currentUserId) queries.push(supabase.from("followers").select("following_id").eq("follower_id", currentUserId), supabase.from("venue_followers").select("venue_id").eq("follower_id", currentUserId));
         const [vRes, sRes, fRes, tFRes, vFRes] = await Promise.all(queries);
         if (vRes.data) setVenues(vRes.data);

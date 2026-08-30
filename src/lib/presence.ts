@@ -38,9 +38,18 @@ export interface PresenceVenue {
   is_active?: boolean | null;
 }
 
-/** Tapped in at all, regardless of where or whether that venue is open. */
-export const isTappedIn = (profile: PresenceProfile | null | undefined): boolean =>
-  !!profile?.is_active && !!profile?.current_venue_id;
+/**
+ * Tapped in at all, regardless of where or whether that venue is open.
+ *
+ * Declared as a type predicate rather than `boolean` so the compiler keeps
+ * what the check proves: past this guard, `current_venue_id` is a string. It
+ * returned plain `boolean` before, which threw that away and left callers
+ * writing `profile.current_venue_id!` right after testing it. The guarantee
+ * lives in the signature now, so nobody has to assert it.
+ */
+export const isTappedIn = <T extends PresenceProfile>(
+  profile: T | null | undefined,
+): profile is T & { current_venue_id: string } => !!profile?.is_active && !!profile?.current_venue_id;
 
 /**
  * The guest-facing question: is this person visibly present at this venue,

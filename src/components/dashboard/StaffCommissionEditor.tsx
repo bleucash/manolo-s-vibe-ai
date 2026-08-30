@@ -24,13 +24,18 @@ const StaffCommissionEditor = ({ venueId }: { venueId: string }) => {
           .eq("venue_id", venueId)
           .eq("status", "active");
         if (staffData?.length) {
-          const userIds = staffData.map((s) => s.user_id);
+          // venue_staff.user_id is nullable in the schema even though a staff
+          // row without a user is meaningless. See the schema-nullability note
+          // in CLAUDE.md: tightening it needs a data audit, so until then the
+          // client narrows. Filtering rather than asserting means a bad row
+          // shows up as a missing profile, not a crash.
+          const userIds = staffData.map((s) => s.user_id).filter((id): id is string => id !== null);
           const { data: profiles } = await supabase
             .from("profiles")
             .select("id, display_name, username")
             .in("id", userIds);
           const profileMap = new Map(profiles?.map((p) => [p.id, p]));
-          setStaff(staffData.map((s) => ({ ...s, profile: profileMap.get(s.user_id) })));
+          setStaff(staffData.map((s) => ({ ...s, profile: s.user_id ? profileMap.get(s.user_id) : undefined })));
         }
       } finally {
         setIsLoading(false);

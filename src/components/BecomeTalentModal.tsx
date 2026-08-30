@@ -68,12 +68,23 @@ export const BecomeTalentModal = ({ isOpen, onClose, onSubmitted }: BecomeTalent
       return;
     }
 
+    // Was `session?.user?.id ?? ""` at the conflict check and a bare
+    // `session?.user?.id` in the insert. The empty-string default is worse
+    // than useless: it conflicts with nothing, so a signed-out user would
+    // clear the role check and then insert an application with a null
+    // user_id. One guard for both call sites, and it fails loudly.
+    const userId = session?.user?.id;
+    if (!userId) {
+      toast.error("Session Expired", { description: "Please sign in again to apply." });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // One role per account, enforced here rather than only at approval.
       // Checked inside the submitting guard so the button stays disabled for
       // the duration of the round trip.
-      const conflict = await checkOtherTrackConflict(session?.user?.id ?? "", "talent");
+      const conflict = await checkOtherTrackConflict(userId, "talent");
       if (conflict) {
         toast.error(conflict.title, { description: conflict.description });
         return;
@@ -84,7 +95,7 @@ export const BecomeTalentModal = ({ isOpen, onClose, onSubmitted }: BecomeTalent
       const { data, error } = await supabase
         .from("talent_applications")
         .insert({
-          user_id: session?.user?.id,
+          user_id: userId,
           instagram_handle: handle,
           status: "pending"
         })
@@ -103,7 +114,7 @@ export const BecomeTalentModal = ({ isOpen, onClose, onSubmitted }: BecomeTalent
         const { data } = await supabase
           .from("talent_applications")
           .select("verification_code")
-          .eq("user_id", session?.user?.id)
+          .eq("user_id", userId)
           .eq("status", "pending")
           .maybeSingle();
 

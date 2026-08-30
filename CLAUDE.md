@@ -82,6 +82,12 @@ Referenced in old code but absent from the live DB: `profiles.is_verified_talent
 
 Not fixed deliberately: adding constraints to production tables can fail on pre-existing violations, so it needs a data audit first, not a blind `ALTER TABLE`.
 
+## Nullable join keys — found 2026-08-22 turning on `strictNullChecks`, unfixed, logged only
+
+Six columns that are meaningless when NULL are nullable anyway: `venue_staff.user_id`, `venue_staff.venue_id`, `venue_claims.user_id`, `venue_claims.venue_id`, `post_likes.post_id`, `post_likes.user_id`.
+
+**Why it matters beyond types.** A `venue_staff` row with a NULL `venue_id` still exists and still counts, but every venue-scoped query filters `.eq("venue_id", …)`, so no venue sees it, no dashboard lists it, and no revoke reaches it — an invisible affiliation, the silent-success shape of an RLS denial arriving through the schema instead. Clients narrow with `.filter((id): id is string => id !== null)`, which drops the orphan rather than asserting it away. **Not a fix.** Tightening to `NOT NULL` needs an audit for existing violations first (see the FK note above) and is its own dispatch.
+
 ## Talent ↔ venue relationship (Builds 2-4, closed and verified)
 
 Both directions of `venue_staff` now exist, each proven against real JWTs rather than from the client that wrote it.
@@ -158,6 +164,8 @@ Stripe, QR generation, `check_in_guest`, `tickets.scanned_at` all exist and work
 ## Messaging — decided, not built
 
 Talent and managers message freely into anyone's inbox. Guests can message anyone but land in a request queue unless the recipient follows them back (Instagram's model; the filter lives on the receiving end, since a follow-gate is trivially bypassed by following first). **Refinement (owner, 2026-08-07):** managers are exempt from that friction, businesses don't want it turning away customers. Only conversation membership is checked today.
+
+**`GuestProfile`'s Message button is broken and knowingly left so (found 2026-08-22).** It queries and inserts `conversations.user1_id` / `user2_id`. Those columns do not exist — `conversations` is `(id, created_at, updated_at)` and membership lives in `conversation_participants`. Same class as the phantom `unread_count`: a shape invented at the call site. Two working alternatives exist — the `start_conversation(target_user_id)` RPC, and `ContactsList.tsx:108`'s manual pattern (insert an empty conversation, then two participant rows). Choosing between them is a feature dispatch, not a types one, so this is the one remaining `tsc --build` error rather than a paper-over.
 
 **Group chat is intended, not hypothetical** — primarily venue-to-staff coordination. `conversation_summary` therefore returns **NULL `display_name` and `avatar_url` whenever there is more than one other participant**, so the client can branch on it. Picking a participant deterministically was rejected: it renders one confidently wrong name on a three-way thread, the same failure shape as the inverted badge. NULL is honest, and this is the foundation rather than a placeholder. **Design pass still open:** thread naming, who may add and remove participants, whether venue threads follow `venue_staff` affiliation so leaving the venue removes you, and how roles surface in a multi-party thread.
 

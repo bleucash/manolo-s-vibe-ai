@@ -29,6 +29,12 @@ const GuestProfile = () => {
   }, [id]);
 
   const fetchProfile = async () => {
+    // `id` is `string | undefined` from useParams, but the only route that
+    // mounts this page is "/users/:id" (App.tsx), so React Router cannot
+    // render it without the segment. Guarding instead of asserting, because a
+    // guard also covers the day someone mounts this component elsewhere.
+    if (!id) return;
+
     try {
       // Fetch profile data
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();

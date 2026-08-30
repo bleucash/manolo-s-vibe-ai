@@ -67,6 +67,14 @@ const TalentManage = () => {
   };
 
   const handleSave = async () => {
+    // Same guard fetchProfile already uses. TalentGuard will not render this
+    // page without a session, but an unguarded `.eq("id", undefined)` would
+    // send `id=eq.undefined` to PostgREST and update zero rows while still
+    // toasting "Vibe Updated" — the silent-success shape this codebase keeps
+    // hitting. Guarding makes the impossible case do nothing loudly instead.
+    const userId = session?.user?.id;
+    if (!userId) return;
+
     setSaving(true);
     try {
       const { error } = await supabase
@@ -76,7 +84,7 @@ const TalentManage = () => {
           sub_role: subRole || null,
           bio: bio,
         })
-        .eq("id", session?.user?.id);
+        .eq("id", userId);
 
       if (error) throw error;
       toast.success("Vibe Updated");

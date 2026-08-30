@@ -11,6 +11,32 @@ import LoadingState from "@/components/ui/LoadingState";
 
 type ScanResult = "success" | "already_used" | "invalid" | "wrong_venue" | null;
 
+/**
+ * What check_in_guest actually returns. It is declared RETURNS json, so the
+ * generated types give `Json`, a union that includes primitives and null and
+ * therefore has no `.result` property at all.
+ *
+ * Every branch of the function returns json_build_object('result', ...),
+ * sometimes with a 'ticket'. Confirmed by reading pg_get_functiondef against
+ * production, not inferred from call sites.
+ */
+interface CheckInResponse {
+  result: Exclude<ScanResult, null>;
+  ticket?: unknown;
+}
+
+/**
+ * Runtime-checked narrowing rather than a cast. `as CheckInResponse` would
+ * compile against literally any payload, including null, and the scanner would
+ * throw on a shape change instead of reporting one. This validates and lets
+ * the caller handle the miss.
+ */
+const isCheckInResponse = (value: unknown): value is CheckInResponse => {
+  if (typeof value !== "object" || value === null) return false;
+  const result = (value as Record<string, unknown>).result;
+  return result === "success" || result === "already_used" || result === "invalid" || result === "wrong_venue";
+};
+
 const Bouncer = () => {
   const navigate = useNavigate();
   const { activeVenueId, userVenues, isLoading: contextLoading } = useUserMode();
@@ -60,7 +86,18 @@ const Bouncer = () => {
 
       if (error) throw error;
 
-      const result = data.result as ScanResult;
+      // A real check, not an assertion. `data` is Json | null: null if the
+      // function ever returns SQL NULL, and any JSON value otherwise. Rather
+      // than assume, verify, so an unexpected payload surfaces as a scan
+      // failure the bouncer can act on instead of a crash at the door.
+      if (!isCheckInResponse(data)) {
+        console.error("check_in_guest returned an unexpected payload", data);
+        toast.error("Ledger Sync Failure");
+        setScanResult(null);
+        return;
+      }
+
+      const result = data.result;
       setScanResult(result);
       if (data.ticket) setTicketData(data.ticket);
 

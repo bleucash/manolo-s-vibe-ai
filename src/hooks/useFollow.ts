@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
 /**
@@ -10,10 +11,17 @@ import { toast } from "sonner";
  */
 export type FollowTarget = "talent" | "venue";
 
-const TARGET_TABLE: Record<FollowTarget, { table: string; column: string }> = {
+/**
+ * `as const` matters. Typed as `{ table: string }` these were plain strings,
+ * and `supabase.from(aString)` matches no overload: the client keys every
+ * query off a literal table name. Widening to `string` also meant a typo here
+ * compiled fine and failed at runtime. `satisfies` checks both names against
+ * the generated schema while `as const` keeps them literal.
+ */
+const TARGET_TABLE = {
   talent: { table: "followers", column: "following_id" },
   venue: { table: "venue_followers", column: "venue_id" },
-};
+} as const satisfies Record<FollowTarget, { table: keyof Database["public"]["Tables"]; column: string }>;
 
 interface UseFollowReturn {
   isFollowing: boolean;
