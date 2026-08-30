@@ -63,34 +63,38 @@ const GuestProfile = () => {
     setInitiatingChat(true);
 
     try {
-      // Check for existing conversation
-      const { data: existingConversations } = await supabase
-        .from("conversations")
-        .select("id")
-        .or(`and(user1_id.eq.${currentUserId},user2_id.eq.${id}),and(user1_id.eq.${id},user2_id.eq.${currentUserId})`)
-        .maybeSingle();
-
-      if (existingConversations) {
-        navigate(`/messages?conversation=${existingConversations.id}`);
-        return;
-      }
-
-      // Create new conversation
-      const { data: newConvo, error } = await supabase
-        .from("conversations")
-        .insert({
-          user1_id: currentUserId,
-          user2_id: id,
-        })
-        .select()
-        .single();
+      // One RPC, not a lookup plus two inserts.
+      //
+      // This previously queried and inserted conversations.user1_id/user2_id.
+      // Those columns have never existed: conversations is (id, created_at,
+      // updated_at) and membership lives in conversation_participants. The
+      // button therefore failed every time it was pressed, silently, behind a
+      // generic toast.
+      //
+      // start_conversation creates the thread and both participant rows in one
+      // transaction, so there is no window where a conversation exists with
+      // nobody in it — a row invisible to every query but still present. It is
+      // also idempotent and takes a lock on the pair, so pressing twice
+      // returns the same thread instead of racing a second one into existence.
+      const { data: conversationId, error } = await supabase.rpc("start_conversation", {
+        target_user_id: id,
+      });
 
       if (error) throw error;
+      if (!conversationId) throw new Error("start_conversation returned no id");
 
-      navigate(`/messages?conversation=${newConvo.id}`);
+      navigate(`/messages?conversation=${conversationId}`);
     } catch (error: any) {
       console.error("Message error:", error);
-      toast.error("Failed to start conversation");
+      // 42501 is the velvet rope: the recipient does not follow you back. The
+      // function's message is written for the person reading it, so show it
+      // rather than replacing it with a generic failure. Everything else is a
+      // real fault and keeps the generic text.
+      if (error?.code === "42501") {
+        toast.error("Cannot Message Yet", { description: error.message });
+      } else {
+        toast.error("Failed to start conversation");
+      }
     } finally {
       setInitiatingChat(false);
     }

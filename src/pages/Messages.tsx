@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -14,7 +14,20 @@ import { cn } from "@/lib/utils";
 export default function Messages() {
   const navigate = useNavigate();
   const { session, isLoading } = useUserMode();
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  // `?conversation=<id>` opens that thread directly. Callers have been
+  // navigating here with this parameter since before it did anything:
+  // GuestProfile's Message button built the URL, and nothing ever read it, so
+  // the thread landed in the sidebar unselected. Invisible until now only
+  // because that button never worked at all.
+  //
+  // Read once as the initial state rather than synced in an effect: the user
+  // must stay free to click a different thread, and an effect would fight
+  // them by dragging the selection back to the URL on every render.
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    () => searchParams.get("conversation"),
+  );
 
   // Authenticated, any role: nothing here is role-specific, useChat keys
   // entirely off the signed-in user. Without this a signed-out visitor spins
