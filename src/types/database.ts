@@ -1,4 +1,5 @@
 import type { Position } from "@/config/positions";
+import type { Database as GeneratedDatabase } from "@/integrations/supabase/types";
 
 export type Json =
   | string
@@ -70,20 +71,28 @@ export interface Ticket {
   created_at: string;
 }
 
-export interface Post {
-  id: string;
-  user_id: string;
-  venue_id: string | null;
-  content: string | null;
-  media_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * Derived from the generated types rather than hand-written, so it cannot
+ * drift from the table again.
+ *
+ * The hand-written version declared `updated_at`, which does not exist on
+ * `posts`, and omitted four columns that do: media_type, likes_count,
+ * is_active and expires_at. The `as PostWithVenue[]` cast in Index.tsx hid
+ * both. Same shape as the `unread_count` field invented to silence a type
+ * error, though this one was dormant: nothing ever read post.updated_at, so
+ * it was a trap for the next person rather than a broken feature.
+ *
+ * The embedded shapes are composed on top because Index.tsx selects
+ * `*, profiles:user_id (*), venues:venue_id (*)`. Both of those FKs are real,
+ * so PostgREST resolves them; contrast events.created_by, which points at
+ * auth.users and cannot be embedded at all.
+ */
+export type Post = GeneratedDatabase["public"]["Tables"]["posts"]["Row"];
 
-export interface PostWithVenue extends Post {
-  profiles: Profile;
-  venues: Venue | null;
-}
+export type PostWithVenue = Post & {
+  profiles: GeneratedDatabase["public"]["Tables"]["profiles"]["Row"];
+  venues: GeneratedDatabase["public"]["Tables"]["venues"]["Row"] | null;
+};
 
 export interface Database {
   public: {

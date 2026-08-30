@@ -84,7 +84,10 @@ const Index = () => {
         .in("user_id", followingIds)
         .order("created_at", { ascending: false })
         .range(0, 19); // Limit to 20 most recent posts
-      if (postData) setPosts(postData as PostWithVenue[]);
+      // No cast. PostWithVenue is derived from the generated types now, so the
+      // query's inferred shape simply matches. The old `as PostWithVenue[]`
+      // was hiding a declared-but-nonexistent `updated_at` column.
+      if (postData) setPosts(postData);
     }
   };
 
