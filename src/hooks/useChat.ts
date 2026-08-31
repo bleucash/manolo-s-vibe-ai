@@ -176,6 +176,10 @@ export function useChat(selectedConversationId: string | null) {
         // If the message is in our active chat, add it to history
         if (newMessage.conversation_id === selectedConversationId) {
           setMessages((prev) => {
+            // Load-bearing only since sendMessage started reconciling the
+            // optimistic entry to the server's id. Before that this compared
+            // against a client-generated tempId and could never match your
+            // own message, so it silently did nothing.
             const exists = prev.some((m) => m.id === newMessage.id);
             if (exists) return prev;
             return [...prev, newMessage];
@@ -213,13 +217,38 @@ export function useChat(selectedConversationId: string | null) {
     setMessages((prev) => [...prev, optimisticMessage]);
 
     try {
-      const { error } = await supabase.from("messages").insert({
-        conversation_id: selectedConversationId,
-        sender_id: currentUserId,
-        content: content.trim(),
-      });
+      // `.select().single()` so the row the database actually wrote comes
+      // back. Without it the optimistic entry kept `tempId` forever, and the
+      // realtime dedup below compared that against the server's id.
+      //
+      // That made the guard STRUCTURALLY DEAD, not merely bypassed: it tested
+      // an id the database had never seen, so for a message you sent yourself
+      // it could never match, and every one of your own messages was appended
+      // a second time. Same shape as venue_staff's `status === "confirmed"`,
+      // a check that reads as correct and can never fire. The guard starts
+      // working only because of this reconcile.
+      const { data: saved, error } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: selectedConversationId,
+          sender_id: currentUserId,
+          content: content.trim(),
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Removal-then-conditional-add, deliberately not a swap in place. The
+      // realtime INSERT can arrive before this response resolves, in which
+      // case the real row is already in state and swapping would leave two
+      // entries sharing one id: the same duplicate, one layer down. This is
+      // correct in both orderings.
+      setMessages((prev) => {
+        const withoutTemp = prev.filter((m) => m.id !== tempId);
+        return withoutTemp.some((m) => m.id === saved.id) ? withoutTemp : [...withoutTemp, saved];
+      });
+
       fetchConversations(); // Update sidebar snippet for the sender
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
