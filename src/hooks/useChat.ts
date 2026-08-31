@@ -113,19 +113,43 @@ export function useChat(selectedConversationId: string | null) {
     async (conversationId: string) => {
       if (!currentUserId) return;
       try {
-        await supabase
+        // `.select("id")` so we can count rows affected. Without it this was
+        // the silent-success pattern in full: messages had no UPDATE policy
+        // at all, so every call matched zero rows and returned 200 with no
+        // error, while the local state below reported success. The badge
+        // cleared on screen and came back on every reload, and nothing ever
+        // said why. The policy (20260830140000) makes the write land; this
+        // check is what makes a future denial visible instead of invisible.
+        const { data: updated, error } = await supabase
           .from("messages")
           .update({ is_read: true })
           .eq("conversation_id", conversationId)
           .neq("sender_id", currentUserId)
-          .eq("is_read", false);
+          .eq("is_read", false)
+          .select("id");
 
-        // Update local sidebar unread count immediately
-        setConversations((prev) =>
-          prev.map((c) => (c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c)),
-        );
+        if (error) throw error;
+
+        setConversations((prev) => {
+          const target = prev.find((c) => c.conversation_id === conversationId);
+
+          // Zero rows is legitimate when there was nothing unread, so it is
+          // only a denial if we believed there was. Comparing against the
+          // count we are already holding tells the two apart, and refusing to
+          // zero the badge means the UI stops agreeing with a write that did
+          // not happen.
+          if (target && target.unread_count > 0 && (updated?.length ?? 0) === 0) {
+            console.error(
+              `markAsRead affected 0 rows for conversation ${conversationId} while ${target.unread_count} were unread. ` +
+                "The write was refused, most likely by RLS. Leaving the badge lit.",
+            );
+            return prev;
+          }
+
+          return prev.map((c) => (c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c));
+        });
       } catch (err) {
-        console.warn("Read Status Sync Delayed");
+        console.warn("Read Status Sync Delayed", err);
       }
     },
     [currentUserId],
