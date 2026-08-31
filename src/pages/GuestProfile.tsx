@@ -83,18 +83,35 @@ const GuestProfile = () => {
       if (error) throw error;
       if (!conversationId) throw new Error("start_conversation returned no id");
 
+      // Tell the sender when their message is a REQUEST rather than a
+      // delivery. Without this the thread looks completely ordinary from this
+      // side while being invisible to the recipient until they accept, so the
+      // sender reasonably assumes it arrived. The black hole after a decline
+      // is deliberate; leaving the sender uninformed before one is not.
+      //
+      // start_conversation returns only the id, so the recipient's state is
+      // read back. It is visible to us: conversation_participants' SELECT
+      // policy lets a participant see every row of their own conversations.
+      const { data: theirRow } = await supabase
+        .from("conversation_participants")
+        .select("state")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", id)
+        .maybeSingle();
+
+      if (theirRow?.state === "pending") {
+        toast.success("Request Sent", { description: "They'll see it when they accept." });
+      }
+
       navigate(`/messages?conversation=${conversationId}`);
     } catch (error: any) {
+      // The 42501 rope branch that lived here is gone with the rope itself.
+      // start_conversation no longer refuses a guest messaging someone who
+      // does not follow them back; it queues the thread as a request. A branch
+      // that can never fire is exactly the kind of dead check this codebase
+      // has collected too many of.
       console.error("Message error:", error);
-      // 42501 is the velvet rope: the recipient does not follow you back. The
-      // function's message is written for the person reading it, so show it
-      // rather than replacing it with a generic failure. Everything else is a
-      // real fault and keeps the generic text.
-      if (error?.code === "42501") {
-        toast.error("Cannot Message Yet", { description: error.message });
-      } else {
-        toast.error("Failed to start conversation");
-      }
+      toast.error("Failed to start conversation");
     } finally {
       setInitiatingChat(false);
     }

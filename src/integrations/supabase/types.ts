@@ -43,16 +43,19 @@ export type Database = {
         Row: {
           conversation_id: string
           created_at: string
+          state: string
           user_id: string
         }
         Insert: {
           conversation_id: string
           created_at?: string
+          state?: string
           user_id: string
         }
         Update: {
           conversation_id?: string
           created_at?: string
+          state?: string
           user_id?: string
         }
         Relationships: [
@@ -1014,6 +1017,7 @@ export type Database = {
           last_message_content: string | null
           last_sender_id: string | null
           participant_id: string | null
+          participant_state: string | null
           unread_count: number | null
           updated_at: string | null
         }
@@ -1073,6 +1077,10 @@ export type Database = {
       }
       has_role_type: {
         Args: { _role_type: string; _user_id: string }
+        Returns: boolean
+      }
+      is_accepted_conversation_participant: {
+        Args: { _conversation_id: string }
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }

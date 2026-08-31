@@ -6,7 +6,7 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Zap, X, User } from "lucide-react";
+import { MessageSquare, Zap, X, User, Inbox, ChevronRight, ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LoadingState from "@/components/ui/LoadingState";
 import { cn } from "@/lib/utils";
@@ -39,8 +39,36 @@ export default function Messages() {
     }
   }, [session, isLoading, navigate]);
 
-  const { conversations, messages, currentUserId, isLoadingConversations, isLoadingMessages, sendMessage } =
-    useChat(selectedConversationId);
+  const {
+    conversations,
+    requests,
+    messages,
+    currentUserId,
+    isLoadingConversations,
+    isLoadingMessages,
+    sendMessage,
+    respondToRequest,
+  } = useChat(selectedConversationId);
+
+  // The requests surface is a separate view, NOT a third tab. PRIMARY/GENERAL
+  // already routes on a display-name substring and is on the cosmetic list for
+  // the visual pass; threading requests into that split would tie this feature
+  // to something already slated for rework. Keeping it outside means fixing
+  // that split later touches none of this.
+  const [showRequests, setShowRequests] = useState(false);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+
+  const handleRespond = async (conversationId: string, accept: boolean) => {
+    setRespondingTo(conversationId);
+    const ok = await respondToRequest(conversationId, accept);
+    setRespondingTo(null);
+    // Accepting drops you into the thread; declining leaves you in the queue,
+    // which is now one shorter.
+    if (ok && accept) {
+      setShowRequests(false);
+      setSelectedConversationId(conversationId);
+    }
+  };
 
   const mainThreads = conversations.filter(
     (c) => c.last_sender_id === currentUserId || c.display_name?.toLowerCase().includes("manager"),
@@ -121,6 +149,99 @@ export default function Messages() {
             </Button>
           </div>
 
+          {/* Message requests. Sits above the tabs and outside them, so the
+              PRIMARY/GENERAL split can be reworked without touching it. Only
+              rendered when there is something waiting: an always-present empty
+              row would be permanent furniture for the many accounts that never
+              receive a request. */}
+          {requests.length > 0 && !showRequests && (
+            <button
+              onClick={() => setShowRequests(true)}
+              className="w-full mb-4 flex items-center gap-4 p-4 rounded-2xl bg-neon-pink/10 border border-neon-pink/20 hover:bg-neon-pink/15 transition-all active:scale-[0.98]"
+            >
+              <div className="h-10 w-10 rounded-xl bg-neon-pink/20 flex items-center justify-center">
+                <Inbox className="h-4 w-4 text-neon-pink" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neon-pink">Message Requests</p>
+                <p className="text-[9px] text-zinc-500 uppercase tracking-wider font-medium">
+                  {requests.length} waiting
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-neon-pink/60" />
+            </button>
+          )}
+
+          {showRequests ? (
+            <div className="outline-none">
+              <div className="flex items-center gap-3 mb-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowRequests(false)}
+                  className="h-9 w-9 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Message Requests</p>
+              </div>
+
+              <ScrollArea className="h-[calc(100vh-280px)] pr-3">
+                <div className="space-y-3 py-2">
+                  {requests.length === 0 && (
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold py-8 text-center">
+                      No pending requests
+                    </p>
+                  )}
+
+                  {requests.map((req) => (
+                    <div
+                      key={req.conversation_id}
+                      className="p-4 rounded-2xl bg-zinc-900/60 border border-white/5 space-y-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 border border-white/10">
+                          <AvatarImage src={req.avatar_url || undefined} />
+                          <AvatarFallback className="bg-zinc-800 text-zinc-500">
+                            <User className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-white uppercase italic tracking-tight truncate">
+                            {req.display_name || "Neural User"}
+                          </p>
+                          {/* The message body is the whole point of showing a
+                              request rather than just a name, which is why a
+                              pending participant can still READ the thread. */}
+                          <p className="text-[10px] text-zinc-500 line-clamp-2 tracking-wide font-medium">
+                            {req.last_message_content || "Wants to connect"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => req.conversation_id && handleRespond(req.conversation_id, true)}
+                          disabled={respondingTo === req.conversation_id}
+                          className="h-10 bg-neon-pink text-black text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-neon-pink/90"
+                        >
+                          <Check className="h-3 w-3 mr-1.5" /> Accept
+                        </Button>
+                        <Button
+                          onClick={() => req.conversation_id && handleRespond(req.conversation_id, false)}
+                          disabled={respondingTo === req.conversation_id}
+                          variant="ghost"
+                          className="h-10 bg-white/5 border border-white/10 text-zinc-400 text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:text-white"
+                        >
+                          <X className="h-3 w-3 mr-1.5" /> Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
           <Tabs defaultValue="main" className="w-full">
             <TabsList className="w-full bg-zinc-900/50 border border-white/5 p-1 rounded-xl h-11">
               <TabsTrigger
@@ -145,6 +266,7 @@ export default function Messages() {
               <ScrollArea className="h-[calc(100vh-280px)] pr-3">{renderConversationList(generalThreads)}</ScrollArea>
             </TabsContent>
           </Tabs>
+          )}
         </div>
       </div>
 

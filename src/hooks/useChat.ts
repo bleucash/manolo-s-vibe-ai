@@ -15,10 +15,24 @@ import { toast } from "sonner";
  * shape from the generated types means a future mismatch is a compile error
  * instead of a silently absent feature.
  */
+/**
+ * The viewer's own membership state in a thread. `accepted` is deliberately
+ * not called `active`: CLAUDE.md documents "active" already meaning three
+ * unrelated things in this codebase, and a fourth would be the exact trap it
+ * warns about.
+ */
+export type ParticipantState = "accepted" | "pending" | "declined";
+
 export type ConversationSummary = Omit<
   Database["public"]["Views"]["conversation_summary"]["Row"],
-  "unread_count"
+  "unread_count" | "participant_state"
 > & {
+  /**
+   * Non-null for the same reason as unread_count below: the column is NOT NULL
+   * on conversation_participants, but views never carry NOT NULL in
+   * pg_attribute, so the generator types it nullable regardless.
+   */
+  participant_state: ParticipantState;
   /**
    * Non-null, corrected here because the generator cannot express it.
    *
@@ -86,14 +100,15 @@ export function useChat(selectedConversationId: string | null) {
 
       if (error) throw error;
 
-      // The single place the generator's `number | null` becomes the `number`
-      // ConversationSummary promises. `?? 0` is not papering over an unknown:
-      // the view's COALESCE means null is unreachable, and if someone drops
-      // that COALESCE the badge reads zero instead of NaN. Doing it once here
-      // is why no consumer needs its own default.
-      const sanitized = (data || []).map((conv) => ({
+      // The single place the generator's nullable view columns become the
+      // non-null types ConversationSummary promises. Neither default papers
+      // over an unknown: unread_count is COALESCEd in the view, and
+      // participant_state is NOT NULL on the table. Doing it once here is why
+      // no consumer needs its own default.
+      const sanitized: ConversationSummary[] = (data || []).map((conv) => ({
         ...conv,
         unread_count: conv.unread_count ?? 0,
+        participant_state: (conv.participant_state ?? "accepted") as ParticipantState,
       }));
 
       setConversations(sanitized);
@@ -280,13 +295,69 @@ export function useChat(selectedConversationId: string | null) {
     }
   };
 
+  /**
+   * Accept or decline a message request by moving the caller's OWN participant
+   * row. The policy allows only pending -> accepted|declined on your own row,
+   * and the column grant makes `state` the only writable column, so this
+   * cannot reach anyone else's membership or rewrite the thread it points at.
+   */
+  const respondToRequest = useCallback(
+    async (conversationId: string, accept: boolean) => {
+      if (!currentUserId) return false;
+
+      try {
+        // Rows affected, not just absence of error. An RLS refusal here would
+        // be a 200 with zero rows, and reporting success on that is the
+        // mistake that made markAsRead invisible for the life of the feature.
+        const { data, error } = await supabase
+          .from("conversation_participants")
+          .update({ state: accept ? "accepted" : "declined" })
+          .eq("conversation_id", conversationId)
+          .eq("user_id", currentUserId)
+          .select("conversation_id");
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          console.error(
+            `respondToRequest affected 0 rows for conversation ${conversationId}. ` +
+              "The transition was refused, most likely because the row is no longer pending.",
+          );
+          toast.error("Request No Longer Pending");
+          await fetchConversations();
+          return false;
+        }
+
+        toast.success(accept ? "Request Accepted" : "Request Declined");
+        await fetchConversations();
+        return true;
+      } catch (err) {
+        console.error("respondToRequest failed:", err);
+        toast.error("Could Not Update Request");
+        return false;
+      }
+    },
+    [currentUserId, fetchConversations],
+  );
+
+  // Split here rather than at each surface. `declined` belongs to neither
+  // list, and centralising that is what stops a future surface rendering a
+  // thread its owner already refused.
+  const inbox = conversations.filter((c) => c.participant_state === "accepted");
+  const requests = conversations.filter((c) => c.participant_state === "pending");
+
   return {
-    conversations,
+    // Accepted only. A pending thread the SENDER opened still appears here for
+    // them, because their own row is accepted -- which is correct: it is an
+    // ordinary thread from their side.
+    conversations: inbox,
+    requests,
     messages,
     currentUserId,
     isLoadingConversations,
     isLoadingMessages,
     sendMessage,
+    respondToRequest,
     refetchConversations: fetchConversations,
   };
 }
