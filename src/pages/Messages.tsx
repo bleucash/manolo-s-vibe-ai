@@ -275,7 +275,7 @@ export default function Messages() {
           <ChatWindow
             messages={messages}
             currentUserId={currentUserId}
-            otherParticipant={conversations.find((c) => c.conversation_id === selectedConversationId) as any}
+            otherParticipant={conversations.find((c) => c.conversation_id === selectedConversationId)}
             isLoading={isLoadingMessages}
             onBack={() => setSelectedConversationId(null)}
             onSend={sendMessage}

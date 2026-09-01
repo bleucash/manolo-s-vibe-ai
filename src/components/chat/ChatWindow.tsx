@@ -6,11 +6,21 @@ import { ArrowLeft, Send, ShieldCheck, User, Radio } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import type { Message } from "@/hooks/useChat";
 
 interface ChatWindowProps {
-  messages: any[];
+  messages: Message[];
   currentUserId: string | null;
-  otherParticipant: any;
+  /**
+   * Only the two fields this component actually renders, rather than `any`.
+   *
+   * As `any` this was the one boundary in messaging where a removed column
+   * could still be read without failing the typecheck -- which matters now
+   * that `messages.is_read` is unmaintained and scheduled for removal. Naming
+   * the fields makes the compiler enforce that permanently instead of it
+   * resting on someone having grepped once.
+   */
+  otherParticipant: { display_name: string | null; avatar_url: string | null } | undefined;
   isLoading: boolean;
   onBack: () => void;
   onSend: (content: string) => void;
@@ -56,7 +66,7 @@ export function ChatWindow({ messages, currentUserId, otherParticipant, isLoadin
 
         <div className="relative">
           <Avatar className="h-11 w-11 border border-white/10 shadow-xl">
-            <AvatarImage src={otherParticipant?.avatar_url} />
+            <AvatarImage src={otherParticipant?.avatar_url || undefined} />
             <AvatarFallback className="bg-muted text-muted-foreground">
               <User className="h-5 w-5" />
             </AvatarFallback>

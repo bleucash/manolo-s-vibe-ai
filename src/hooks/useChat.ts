@@ -56,7 +56,10 @@ export interface Message {
   sender_id: string;
   content: string;
   created_at: string;
-  is_read: boolean | null;
+  // No is_read. Read state is a per-participant cursor now
+  // (conversation_participants.last_read_at, 20260901100000). The column still
+  // exists on messages but is unmaintained and scheduled for removal; carrying
+  // it here would invite someone to read it and believe it.
 }
 
 export function useChat(selectedConversationId: string | null) {
@@ -128,35 +131,37 @@ export function useChat(selectedConversationId: string | null) {
     async (conversationId: string) => {
       if (!currentUserId) return;
       try {
-        // `.select("id")` so we can count rows affected. Without it this was
-        // the silent-success pattern in full: messages had no UPDATE policy
-        // at all, so every call matched zero rows and returned 200 with no
-        // error, while the local state below reported success. The badge
-        // cleared on screen and came back on every reload, and nothing ever
-        // said why. The policy (20260830140000) makes the write land; this
-        // check is what makes a future denial visible instead of invisible.
-        const { data: updated, error } = await supabase
-          .from("messages")
-          .update({ is_read: true })
-          .eq("conversation_id", conversationId)
-          .neq("sender_id", currentUserId)
-          .eq("is_read", false)
-          .select("id");
+        // One RPC, not an UPDATE on messages. Read state is a per-participant
+        // cursor now (20260901100000): messages.is_read was a single boolean
+        // shared by everyone in a thread, so the first person to open a group
+        // chat would mark it read for all of them.
+        //
+        // The cursor is deliberately NOT client-writable. conversation_
+        // participants already has an UPDATE policy -- the request state
+        // machine -- and permissive policies OR together, so a second policy
+        // loose enough to allow a cursor write would have re-opened every
+        // accepted row to a state change. The RPC keeps that policy untouched,
+        // and sets the cursor from the newest message's own created_at rather
+        // than a client clock, which cannot be skewed into the future.
+        const { data: cursor, error } = await supabase.rpc("mark_conversation_read", {
+          _conversation_id: conversationId,
+        });
 
         if (error) throw error;
 
         setConversations((prev) => {
           const target = prev.find((c) => c.conversation_id === conversationId);
 
-          // Zero rows is legitimate when there was nothing unread, so it is
-          // only a denial if we believed there was. Comparing against the
-          // count we are already holding tells the two apart, and refusing to
-          // zero the badge means the UI stops agreeing with a write that did
-          // not happen.
-          if (target && target.unread_count > 0 && (updated?.length ?? 0) === 0) {
+          // Same rows-affected discipline as before, against the returned
+          // cursor instead of a row count. NULL means the function wrote
+          // nothing -- legitimate for an empty thread or a request not yet
+          // accepted, but a refusal if we were holding unread messages.
+          // Refusing to zero the badge keeps the UI from asserting a write
+          // that did not land, which is what made the old bug invisible.
+          if (target && target.unread_count > 0 && cursor === null) {
             console.error(
-              `markAsRead affected 0 rows for conversation ${conversationId} while ${target.unread_count} were unread. ` +
-                "The write was refused, most likely by RLS. Leaving the badge lit.",
+              `markAsRead wrote no cursor for conversation ${conversationId} while ${target.unread_count} were unread. ` +
+                "The write was refused. Leaving the badge lit.",
             );
             return prev;
           }
@@ -250,7 +255,6 @@ export function useChat(selectedConversationId: string | null) {
       sender_id: currentUserId,
       content: content.trim(),
       created_at: new Date().toISOString(),
-      is_read: false,
     };
 
     setMessages((prev) => [...prev, optimisticMessage]);

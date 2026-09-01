@@ -43,18 +43,21 @@ export type Database = {
         Row: {
           conversation_id: string
           created_at: string
+          last_read_at: string | null
           state: string
           user_id: string
         }
         Insert: {
           conversation_id: string
           created_at?: string
+          last_read_at?: string | null
           state?: string
           user_id: string
         }
         Update: {
           conversation_id?: string
           created_at?: string
+          last_read_at?: string | null
           state?: string
           user_id?: string
         }
@@ -1012,7 +1015,6 @@ export type Database = {
           avatar_url: string | null
           conversation_id: string | null
           display_name: string | null
-          is_read: boolean | null
           last_message_at: string | null
           last_message_content: string | null
           last_sender_id: string | null
@@ -1087,6 +1089,10 @@ export type Database = {
       is_conversation_participant: {
         Args: { _conversation_id: string }
         Returns: boolean
+      }
+      mark_conversation_read: {
+        Args: { _conversation_id: string }
+        Returns: string
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
