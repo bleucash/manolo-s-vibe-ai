@@ -84,10 +84,21 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 ### B1. Unbounded pending message requests
 A guest can hold unlimited pending threads with strangers. The first thing abused when signups open, and much harder to bound once there is real traffic to reason about.
 
-### B2. Unbounded reads, no pagination
-Verified: `useChat` has **no `.limit()` or `.range()`** on either `conversation_summary` or `messages`. Every thread and every message in it is fetched in full, every time. `TalentDirectory` likewise fetches all talent with zero limits. `Discovery` and `Index` do have limits; these do not.
+### B2. Unbounded reads — RESOLVED for messages, reclassified for the rest
 
-Invisible at one conversation and five messages. Linear degradation, no error, and the first symptom is a slow inbox rather than a failure.
+**Not every "fine now, not later" item is the same thing, and B2 was three items wearing one label.** The distinction that matters is whether a thing *degrades* or merely *irritates*. Pagination degrades; a missing feature irritates. Only the first blocks building on top of it.
+
+**`fetchMessages` — was a genuine ceiling. FIXED 2026-09-02.** It grew with activity in one thread, unbounded, and grew while nobody was looking. Now keyset-paginated at 50 with a composite `(created_at, id)` cursor, served by `idx_messages_conversation_created_id` with no sort node. The composite cursor is not caution for its own sake: a single-column cursor makes a page boundary ambiguous when two messages share a microsecond, and the symptom — one message silently missing at a seam — is close to undiagnosable after the fact.
+
+**`fetchConversations` — NOT a ceiling. Deliberately left unpaginated.** It grows with O(relationships), not O(activity): bounded by how many distinct people and venues you have a relationship with, and it does not grow while you sleep. Even a heavy manager is in the low hundreds. Two further reasons pagination would be *negative* value here: the `last_message_at` sort comes from a lateral subquery and so cannot use an index at all, meaning a `LIMIT` would avoid transferring rows but not computing them; and **a silently truncated inbox is worse than a slow one** — thread 201 vanishing with no indication is exactly the class of quiet wrongness this project keeps finding. Revisit only if a real account crosses ~200 conversations.
+
+### B2b. `TalentDirectory` — genuine ceiling, and **the obvious fix makes it worse**
+
+It fetches **all talent globally**, so it grows with platform size rather than with the user. At 10,000 talent every directory open ships 10,000 rows to every viewer.
+
+**A naive `.limit()` would break search correctness.** Search is client-side — `filteredTalent` filters the already-fetched array — so a limit would silently make the search box search only the first page, and the user would have no way to know their results were incomplete. That turns a performance problem into a correctness problem. **This is the part worth remembering, because `.limit()` is exactly what someone will reach for.**
+
+The real fix is three things together: server-side filtering (`ilike` on `username` and `display_name`), pagination, and a `(role_type, username)` composite index which does not currently exist — `idx_profiles_role_type` covers the filter but not the ordering, so a paginated query would sort every talent row. That is a search-architecture change, not a pagination change, and it deserves its own dispatch.
 
 ### B3. No rate limiting
 Nothing throttles message sends, follows, or `interactions` writes.

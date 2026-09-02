@@ -35,11 +35,24 @@ interface ChatWindowProps {
       }
     | undefined;
   isLoading: boolean;
+  onLoadOlder?: () => void;
+  hasMoreMessages?: boolean;
+  isLoadingOlder?: boolean;
   onBack: () => void;
   onSend: (content: string) => void;
 }
 
-export function ChatWindow({ messages, currentUserId, thread, isLoading, onBack, onSend }: ChatWindowProps) {
+export function ChatWindow({
+  messages,
+  currentUserId,
+  thread,
+  isLoading,
+  onLoadOlder,
+  hasMoreMessages,
+  isLoadingOlder,
+  onBack,
+  onSend,
+}: ChatWindowProps) {
   const [inputValue, setInputValue] = useState("");
 
   // A dm has a single counterparty, so avatar_url is the right face. A venue
@@ -47,15 +60,73 @@ export function ChatWindow({ messages, currentUserId, thread, isLoading, onBack,
   // is NOT a member count, so only its first entry is used here.
   const headerAvatar = (thread?.kind === "dm" ? thread?.avatar_url : thread?.member_avatars?.[0]) || undefined;
   const scrollRef = useRef<HTMLDivElement>(null);
+  // What the viewport looked like before this render, so a prepend can be
+  // distinguished from an append and compensated for.
+  const prevRef = useRef<{ firstId?: string; scrollHeight: number; scrollTop: number; clientHeight: number }>({
+    scrollHeight: 0,
+    scrollTop: 0,
+    clientHeight: 0,
+  });
 
+  /**
+   * Scroll behaviour, three cases rather than one.
+   *
+   * This effect used to be an unconditional `scrollTop = scrollHeight` on every
+   * change to `messages`, which was fine when a thread loaded once and only
+   * ever grew at the bottom. Pagination broke that assumption in both
+   * directions: loading older messages PREPENDS, so the unconditional scroll
+   * dumped the reader at the newest message the instant they asked for older
+   * ones -- and a message arriving while they were scrolled back yanked them
+   * away from what they were reading. The merge was never the problem; where
+   * the viewport pointed was.
+   *
+   *   PREPEND  -- the first message changed identity. Hold the reader's visual
+   *               position by adding the height that appeared above them.
+   *               Never scroll.
+   *   APPEND   -- only follow to the bottom if they were ALREADY near it.
+   *               Someone reading history is not interested in being moved.
+   *   INITIAL  -- land at the bottom, which is what opening a thread means.
+   */
   useEffect(() => {
-    if (scrollRef.current) {
-      const scrollContainer = scrollRef.current.querySelector("[data-radix-scroll-area-viewport]");
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+    const el = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
+    if (!el) return;
+
+    const prev = prevRef.current;
+    const firstId = messages[0]?.id;
+    const isPrepend = prev.firstId !== undefined && firstId !== undefined && prev.firstId !== firstId;
+    // 80px of slack so "almost at the bottom" still counts as following along.
+    const wasNearBottom = prev.scrollHeight - prev.scrollTop - prev.clientHeight < 80;
+
+    if (isPrepend) {
+      el.scrollTop = prev.scrollTop + (el.scrollHeight - prev.scrollHeight);
+    } else if (prev.firstId === undefined || wasNearBottom) {
+      el.scrollTop = el.scrollHeight;
     }
+
+    prevRef.current = {
+      firstId,
+      scrollHeight: el.scrollHeight,
+      scrollTop: el.scrollTop,
+      clientHeight: el.clientHeight,
+    };
   }, [messages, isLoading]);
+
+  // Keep the remembered offsets current as the reader scrolls, so the next
+  // message change can tell where they were.
+  useEffect(() => {
+    const el = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
+    if (!el) return;
+    const onScroll = () => {
+      prevRef.current = {
+        ...prevRef.current,
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+        clientHeight: el.clientHeight,
+      };
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleSend = () => {
     if (inputValue.trim()) {
@@ -118,6 +189,22 @@ export function ChatWindow({ messages, currentUserId, thread, isLoading, onBack,
           </div>
         ) : (
           <div className="py-10 space-y-8">
+            {/* A button rather than a scroll listener. Scroll-triggered loading
+                has to fight the browser's scroll anchoring to stop the reader's
+                position jumping when rows prepend; an explicit control is
+                simpler and honest about what it does. */}
+            {hasMoreMessages && (
+              <div className="flex justify-center pb-2">
+                <Button
+                  variant="ghost"
+                  onClick={onLoadOlder}
+                  disabled={isLoadingOlder}
+                  className="h-9 px-5 rounded-full bg-white/5 border border-white/10 text-zinc-500 hover:text-white text-[9px] font-black uppercase tracking-[0.2em]"
+                >
+                  {isLoadingOlder ? "Loading" : "Load earlier messages"}
+                </Button>
+              </div>
+            )}
             {messages.map((message, idx) => {
               const isMe = message.sender_id === currentUserId;
               return (

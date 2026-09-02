@@ -68,6 +68,8 @@ export function useChat(selectedConversationId: string | null) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
   // 1. Initial Identity Sync
   useEffect(() => {
@@ -176,19 +178,63 @@ export function useChat(selectedConversationId: string | null) {
   );
 
   // 4. Fetch Active Message History
+  //
+  // PAGE_SIZE 50: a phone shows 10-15 messages, so this is three or four
+  // screens of scrollback before the first extra fetch, and -- more usefully --
+  // a thread with fewer than 50 messages never paginates at all, which is
+  // every thread that exists today.
+  //
+  // This used to load EVERY message in a thread with no limit. That is a
+  // structural ceiling rather than a pre-launch concern: it grows with
+  // activity in one thread, unbounded, and it grows while nobody is looking.
+  const PAGE_SIZE = 50;
+
+  /**
+   * One page of history, newest-first from the database, reversed for display.
+   *
+   * KEYSET, not `.range()`. Offset pagination shifts under concurrent inserts:
+   * two messages arriving while you read would make page 2 re-serve rows you
+   * already have and skip others. A keyset cursor is stable precisely because
+   * this thread is live.
+   *
+   * The cursor is COMPOSITE, (created_at, id). With created_at alone, two
+   * messages sharing a microsecond make a page boundary ambiguous, and the
+   * symptom is one message silently missing at the seam between two pages --
+   * near-undiagnosable after the fact. `idx_messages_conversation_created_id`
+   * (20260902100000) serves the row comparison in the Index Cond with no sort
+   * node, verified against the live planner.
+   */
+  const fetchMessagePage = useCallback(
+    async (conversationId: string, before?: { created_at: string; id: string }) => {
+      let q = supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (before) {
+        q = q.or(
+          `created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`,
+        );
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).slice().reverse(); // oldest-first for rendering
+    },
+    [],
+  );
+
   const fetchMessages = useCallback(async () => {
     if (!selectedConversationId || !currentUserId) return;
 
     setIsLoadingMessages(true);
     try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", selectedConversationId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setMessages(data ?? []);
+      const page = await fetchMessagePage(selectedConversationId);
+      setMessages(page);
+      setHasMoreMessages(page.length === PAGE_SIZE);
 
       // Auto-clear unread status when opening conversation
       markAsRead(selectedConversationId);
@@ -197,7 +243,36 @@ export function useChat(selectedConversationId: string | null) {
     } finally {
       setIsLoadingMessages(false);
     }
-  }, [selectedConversationId, currentUserId, markAsRead]);
+  }, [selectedConversationId, currentUserId, markAsRead, fetchMessagePage]);
+
+  /**
+   * Load the page before the oldest message currently held, and PREPEND.
+   * Older pages prepend, realtime inserts append, so the two never collide.
+   */
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedConversationId || isLoadingOlder || !hasMoreMessages) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+
+    setIsLoadingOlder(true);
+    try {
+      const page = await fetchMessagePage(selectedConversationId, {
+        created_at: oldest.created_at,
+        id: oldest.id,
+      });
+      setHasMoreMessages(page.length === PAGE_SIZE);
+      if (page.length) {
+        setMessages((prev) => {
+          const known = new Set(prev.map((m) => m.id));
+          return [...page.filter((m) => !known.has(m.id)), ...prev];
+        });
+      }
+    } catch (err) {
+      console.error("Older History Sync Failed:", err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [selectedConversationId, isLoadingOlder, hasMoreMessages, messages, fetchMessagePage]);
 
   useEffect(() => {
     fetchMessages();
@@ -217,7 +292,13 @@ export function useChat(selectedConversationId: string | null) {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const newMessage = payload.new as Message;
 
-        // If the message is in our active chat, add it to history
+        // If the message is in our active chat, add it to history.
+        //
+        // APPEND, never replace. Older pages prepend and realtime inserts
+        // append, so the two never collide -- but a plain refetch here would
+        // discard every older page the reader had loaded. Losing five pages of
+        // scrollback because somebody sent a message is a worse bug than the
+        // one pagination fixes, so the list is only ever added to.
         if (newMessage.conversation_id === selectedConversationId) {
           setMessages((prev) => {
             // Load-bearing only since sendMessage started reconciling the
@@ -362,6 +443,9 @@ export function useChat(selectedConversationId: string | null) {
     isLoadingMessages,
     sendMessage,
     respondToRequest,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingOlder,
     refetchConversations: fetchConversations,
   };
 }

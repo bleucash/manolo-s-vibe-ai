@@ -47,6 +47,9 @@ export default function Messages() {
     isLoadingMessages,
     sendMessage,
     respondToRequest,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingOlder,
   } = useChat(selectedConversationId);
 
   // The requests surface is a separate view, NOT a third tab. PRIMARY/GENERAL
@@ -277,6 +280,9 @@ export default function Messages() {
             currentUserId={currentUserId}
             thread={conversations.find((c) => c.conversation_id === selectedConversationId)}
             isLoading={isLoadingMessages}
+            onLoadOlder={loadOlderMessages}
+            hasMoreMessages={hasMoreMessages}
+            isLoadingOlder={isLoadingOlder}
             onBack={() => setSelectedConversationId(null)}
             onSend={sendMessage}
           />
