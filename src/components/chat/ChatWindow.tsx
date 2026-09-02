@@ -12,22 +12,40 @@ interface ChatWindowProps {
   messages: Message[];
   currentUserId: string | null;
   /**
-   * Only the two fields this component actually renders, rather than `any`.
+   * The thread being rendered, narrowed to the fields this component reads
+   * rather than `any`. As `any` this was the one boundary in messaging where a
+   * removed column could still be read without failing the typecheck; naming
+   * the fields makes the compiler enforce that instead of it resting on
+   * someone having grepped once.
    *
-   * As `any` this was the one boundary in messaging where a removed column
-   * could still be read without failing the typecheck -- which matters now
-   * that `messages.is_read` is unmaintained and scheduled for removal. Naming
-   * the fields makes the compiler enforce that permanently instead of it
-   * resting on someone having grepped once.
+   * `thread_title` rather than `display_name`, and this is the correction that
+   * matters: display_name is the COUNTERPARTY's name, which is only the right
+   * header for a dm. A venue thread with an owner plus one staff member has
+   * exactly one other participant, so display_name is populated and the thread
+   * renders as that person -- which is what shipped, and why both real venue
+   * threads showed a staff member's name instead of the venue's.
+   * thread_title resolves correctly for all three kinds.
    */
-  otherParticipant: { display_name: string | null; avatar_url: string | null } | undefined;
+  thread:
+    | {
+        kind: string | null;
+        thread_title: string | null;
+        avatar_url: string | null;
+        member_avatars: string[] | null;
+      }
+    | undefined;
   isLoading: boolean;
   onBack: () => void;
   onSend: (content: string) => void;
 }
 
-export function ChatWindow({ messages, currentUserId, otherParticipant, isLoading, onBack, onSend }: ChatWindowProps) {
+export function ChatWindow({ messages, currentUserId, thread, isLoading, onBack, onSend }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState("");
+
+  // A dm has a single counterparty, so avatar_url is the right face. A venue
+  // or group thread has no single face; member_avatars is capped at three and
+  // is NOT a member count, so only its first entry is used here.
+  const headerAvatar = (thread?.kind === "dm" ? thread?.avatar_url : thread?.member_avatars?.[0]) || undefined;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,7 +84,7 @@ export function ChatWindow({ messages, currentUserId, otherParticipant, isLoadin
 
         <div className="relative">
           <Avatar className="h-11 w-11 border border-white/10 shadow-xl">
-            <AvatarImage src={otherParticipant?.avatar_url || undefined} />
+            <AvatarImage src={headerAvatar} />
             <AvatarFallback className="bg-muted text-muted-foreground">
               <User className="h-5 w-5" />
             </AvatarFallback>
@@ -76,7 +94,7 @@ export function ChatWindow({ messages, currentUserId, otherParticipant, isLoadin
 
         <div className="flex-1 min-w-0">
           <h2 className="font-display text-xl text-white uppercase tracking-wider italic leading-none">
-            {otherParticipant?.display_name || "NEURAL NODE"}
+            {thread?.thread_title || "NEURAL NODE"}
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <ShieldCheck className="h-3 w-3 text-neon-pink animate-pulse" />

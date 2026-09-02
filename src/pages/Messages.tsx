@@ -5,7 +5,6 @@ import { useChat } from "@/hooks/useChat";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Zap, X, User, Inbox, ChevronRight, ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LoadingState from "@/components/ui/LoadingState";
@@ -70,11 +69,6 @@ export default function Messages() {
     }
   };
 
-  const mainThreads = conversations.filter(
-    (c) => c.last_sender_id === currentUserId || c.display_name?.toLowerCase().includes("manager"),
-  );
-  const generalThreads = conversations.filter((c) => !mainThreads.find((m) => m.conversation_id === c.conversation_id));
-
   if (isLoadingConversations) return <LoadingState />;
 
   const renderConversationList = (threads: typeof conversations) => (
@@ -91,12 +85,28 @@ export default function Messages() {
             )}
           >
             <div className="relative">
-              <Avatar className="h-12 w-12 border border-white/10">
-                <AvatarImage src={conv.avatar_url || undefined} />
-                <AvatarFallback className="bg-zinc-800 text-zinc-500">
-                  <User className="h-5 w-5" />
-                </AvatarFallback>
-              </Avatar>
+              {/* A dm has one face. A venue or group thread has no single face,
+                  so member_avatars is stacked instead. That array CAPS AT THREE
+                  and is not a member count -- never render its length as one. */}
+              {conv.kind === "dm" ? (
+                <Avatar className="h-12 w-12 border border-white/10">
+                  <AvatarImage src={conv.avatar_url || undefined} />
+                  <AvatarFallback className="bg-zinc-800 text-zinc-500">
+                    <User className="h-5 w-5" />
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <div className="flex -space-x-4 h-12 items-center">
+                  {(conv.member_avatars?.length ? conv.member_avatars : [null]).map((a, i) => (
+                    <Avatar key={i} className="h-9 w-9 border-2 border-black">
+                      <AvatarImage src={a || undefined} />
+                      <AvatarFallback className="bg-zinc-800 text-zinc-500">
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+              )}
               {/* Was `(conv as any).unread_count`, casting around a column
                   that did not exist. It is a real column now, so this reads
                   it directly and a future rename becomes a compile error. */}
@@ -108,7 +118,7 @@ export default function Messages() {
             <div className="flex-1 text-left min-w-0">
               <div className="flex justify-between items-start mb-0.5">
                 <p className="text-sm font-bold text-white uppercase italic tracking-tight truncate">
-                  {conv.display_name || "Neural User"}
+                  {conv.thread_title || "Neural User"}
                 </p>
                 <span className="text-[9px] font-black text-zinc-600 uppercase">
                   {/* ✅ FIXED: Changed last_message_time to last_message_at (TS2551) */}
@@ -242,30 +252,20 @@ export default function Messages() {
               </ScrollArea>
             </div>
           ) : (
-          <Tabs defaultValue="main" className="w-full">
-            <TabsList className="w-full bg-zinc-900/50 border border-white/5 p-1 rounded-xl h-11">
-              <TabsTrigger
-                value="main"
-                className="flex-1 text-[9px] font-black uppercase tracking-[0.2em] data-[state=active]:bg-neon-pink data-[state=active]:text-black rounded-lg transition-all"
-              >
-                Primary
-              </TabsTrigger>
-              <TabsTrigger
-                value="general"
-                className="flex-1 text-[9px] font-black uppercase tracking-[0.2em] data-[state=active]:bg-white data-[state=active]:text-black rounded-lg transition-all"
-              >
-                General
-              </TabsTrigger>
-            </TabsList>
+          /* One inbox, ordered by recency. The PRIMARY/GENERAL split was
+             DELETED on 2026-09-02, not simplified -- see the note in CLAUDE.md
+             before re-adding any split. It routed on whether the counterparty's
+             display_name contained the substring "manager", which put the same
+             thread in different tabs for each participant, and put every group
+             and venue thread in General because their display_name is NULL.
+             Wrong in three separate verifications, and nobody noticed
+             organically, which is the evidence it was not carrying weight.
 
-            <TabsContent value="main" className="mt-4 outline-none">
-              <ScrollArea className="h-[calc(100vh-280px)] pr-3">{renderConversationList(mainThreads)}</ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="general" className="mt-4 outline-none">
-              <ScrollArea className="h-[calc(100vh-280px)] pr-3">{renderConversationList(generalThreads)}</ScrollArea>
-            </TabsContent>
-          </Tabs>
+             Ordering comes from fetchConversations' `.order("last_message_at",
+             { ascending: false })`, so recency needs nothing here. */
+          <ScrollArea className="h-[calc(100vh-240px)] pr-3">
+            {renderConversationList(conversations)}
+          </ScrollArea>
           )}
         </div>
       </div>
@@ -275,7 +275,7 @@ export default function Messages() {
           <ChatWindow
             messages={messages}
             currentUserId={currentUserId}
-            otherParticipant={conversations.find((c) => c.conversation_id === selectedConversationId)}
+            thread={conversations.find((c) => c.conversation_id === selectedConversationId)}
             isLoading={isLoadingMessages}
             onBack={() => setSelectedConversationId(null)}
             onSend={sendMessage}

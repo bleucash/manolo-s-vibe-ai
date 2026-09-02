@@ -39,6 +39,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _diag: {
+        Row: {
+          conv: string | null
+          display_name: string | null
+          kind: string | null
+          n: number | null
+          participants: string | null
+          thread_title: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          conv?: string | null
+          display_name?: string | null
+          kind?: string | null
+          n?: number | null
+          participants?: string | null
+          thread_title?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          conv?: string | null
+          display_name?: string | null
+          kind?: string | null
+          n?: number | null
+          participants?: string | null
+          thread_title?: string | null
+          venue_id?: string | null
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -88,20 +118,47 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
+          kind: string
+          title: string | null
           updated_at: string
+          venue_id: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
+          kind?: string
+          title?: string | null
           updated_at?: string
+          venue_id?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
+          kind?: string
+          title?: string | null
           updated_at?: string
+          venue_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       events: {
         Row: {
@@ -1015,13 +1072,17 @@ export type Database = {
           avatar_url: string | null
           conversation_id: string | null
           display_name: string | null
+          kind: string | null
           last_message_at: string | null
           last_message_content: string | null
           last_sender_id: string | null
+          member_avatars: string[] | null
           participant_id: string | null
           participant_state: string | null
+          thread_title: string | null
           unread_count: number | null
           updated_at: string | null
+          venue_id: string | null
         }
         Relationships: [
           {
@@ -1029,6 +1090,13 @@ export type Database = {
             columns: ["participant_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
           {
@@ -1042,11 +1110,19 @@ export type Database = {
       }
     }
     Functions: {
+      add_group_member: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
       check_in_guest: {
         Args: { current_venue_id: string; qr_input: string }
         Returns: Json
       }
       cleanup_expired_posts: { Args: never; Returns: number }
+      create_group_conversation: {
+        Args: { _member_ids: string[]; _title: string }
+        Returns: string
+      }
       generate_verification_code: { Args: never; Returns: string }
       get_talent_spotlight: {
         Args: { limit_count?: number }
@@ -1085,6 +1161,10 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: boolean
       }
+      is_addable_group_member: {
+        Args: { _member: string; _owner: string }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
       is_conversation_participant: {
         Args: { _conversation_id: string }
@@ -1094,9 +1174,14 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: string
       }
+      remove_group_member: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_conversation: { Args: { target_user_id: string }; Returns: string }
+      sync_venue_conversation: { Args: { _venue_id: string }; Returns: string }
       update_user_profile:
         | {
             Args: {
