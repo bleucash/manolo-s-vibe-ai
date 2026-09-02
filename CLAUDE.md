@@ -58,7 +58,11 @@ This is also why the check-in gate is a trigger rather than a policy: a `WITH CH
 
 **Something other than us runs `db push`.** The hosting platform applies migrations from the repo on sync, confirmed 2026-08-17 when a ledger row appeared carrying stored statements that neither the Management API path nor `migration repair` writes. It picked up one migration and not a later one, matching a sync between two pushes.
 
-**So every migration must survive being run twice.** Use `DROP ... IF EXISTS` before `CREATE`, `CREATE OR REPLACE` for functions, `ADD COLUMN IF NOT EXISTS`. Re-check the ledger after platform syncs, not only after our own work. All 20 migrations are currently paired local/remote with zero mismatches, and filenames are 14-digit timestamps so ordering is unambiguous.
+**So every migration must survive being run twice.** Use `DROP ... IF EXISTS` before `CREATE`, `CREATE OR REPLACE` for functions, `ADD COLUMN IF NOT EXISTS`. Re-check the ledger after platform syncs, not only after our own work. Filenames are 14-digit timestamps so ordering is unambiguous.
+
+**HARD RULE: never commit an unrun migration. The commit IS the trigger.** Committing a migration file before running it puts unverified SQL into production within minutes, because the platform applies from the repo on sync. Either run it first and commit after, or commit in the same action that runs it. **This fired for real on `20260901140000`:** the file was swept into an unrelated commit by `git add -A`, and by the next command the ledger already showed it paired — the platform had applied all four group-chat functions to production before any fixture ran. What landed happened to be correct, which is luck, not process.
+
+**The two drift directions are NOT symmetric, and the intuition runs the wrong way.** Repo *behind* production (SQL run, file uncommitted) is untidy but recoverable — committing is the whole fix, and the change is already verified. Repo *ahead* of production (file committed, SQL unrun) is a live unverified change waiting on a sync you do not control. Treat the second as an incident, not a housekeeping item.
 
 ## Phantom columns — never re-add without a real migration
 
