@@ -56,11 +56,40 @@ export interface Message {
   sender_id: string;
   content: string;
   created_at: string;
+  /**
+   * Who sent it, embedded rather than looked up separately.
+   *
+   * messages.sender_id references profiles(id) -- the exception in this
+   * schema, where venues.owner_id, events.created_by and profiles.id all point
+   * at auth.users and therefore cannot be embedded at all. Both embed forms
+   * were checked against the live API before relying on this.
+   *
+   * Optional because a realtime payload is the raw row and carries no embed;
+   * the handler refetches to enrich it. A bubble must render without it.
+   */
+  sender?: { display_name: string | null; avatar_url: string | null } | null;
   // No is_read. Read state is a per-participant cursor now
   // (conversation_participants.last_read_at, 20260901100000). The column still
   // exists on messages but is unmaintained and scheduled for removal; carrying
   // it here would invite someone to read it and believe it.
 }
+
+/**
+ * Union by id, ordered by (created_at, id) — the same ordering the keyset
+ * cursor uses, so merged state and fetched pages agree.
+ *
+ * `incoming` wins on collision because it is the enriched copy: a realtime
+ * payload is the raw row with no embedded sender, so the refetch that follows
+ * replaces it with one that has attribution. Nothing is ever dropped, which is
+ * what keeps loaded scrollback intact when a message arrives.
+ */
+const mergeMessages = (prev: Message[], incoming: Message[]): Message[] => {
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  for (const m of incoming) byId.set(m.id, m);
+  return [...byId.values()].sort((a, b) =>
+    a.created_at === b.created_at ? a.id.localeCompare(b.id) : a.created_at.localeCompare(b.created_at),
+  );
+};
 
 export function useChat(selectedConversationId: string | null) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -208,7 +237,11 @@ export function useChat(selectedConversationId: string | null) {
     async (conversationId: string, before?: { created_at: string; id: string }) => {
       let q = supabase
         .from("messages")
-        .select("*")
+        // The FK is named explicitly rather than relying on `profiles(...)`.
+        // Index.tsx does the same for the same reason: a second FK to profiles
+        // added later would make the bare form ambiguous and break the embed
+        // at runtime. Naming it costs nothing and the alias reads better.
+        .select("*, sender:profiles!messages_sender_id_fkey(display_name, avatar_url)")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
@@ -309,6 +342,19 @@ export function useChat(selectedConversationId: string | null) {
             if (exists) return prev;
             return [...prev, newMessage];
           });
+
+          // The payload is the raw row and carries no embedded sender, so in a
+          // venue or group thread it would render unattributed until the next
+          // fetch. Refetch the NEWEST PAGE and merge to enrich it.
+          //
+          // Refetch rather than resolving the name from the participant list
+          // already in memory: that would put the name-resolution rule in two
+          // places, which is exactly how four presence surfaces drifted apart.
+          // Cheap only because of pagination -- this is 50 rows permanently,
+          // not the whole thread.
+          fetchMessagePage(selectedConversationId)
+            .then((page) => setMessages((prev) => mergeMessages(prev, page)))
+            .catch((err) => console.warn("Sender enrichment failed", err));
           // Automatically mark as read if it's the active chat
           if (newMessage.sender_id !== currentUserId) {
             markAsRead(selectedConversationId);
@@ -323,7 +369,7 @@ export function useChat(selectedConversationId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedConversationId, currentUserId, fetchConversations, markAsRead]);
+  }, [selectedConversationId, currentUserId, fetchConversations, markAsRead, fetchMessagePage]);
 
   // 6. Optimistic Transmission
   const sendMessage = async (content: string) => {

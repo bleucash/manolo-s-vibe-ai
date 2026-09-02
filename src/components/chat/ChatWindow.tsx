@@ -207,8 +207,37 @@ export function ChatWindow({
             )}
             {messages.map((message, idx) => {
               const isMe = message.sender_id === currentUserId;
+
+              // Attribution is for threads with more than two people. In a dm
+              // the header already names the counterparty, so repeating it on
+              // every incoming bubble is noise.
+              const isMultiParty = thread?.kind === "venue" || thread?.kind === "group";
+
+              // Computed at RENDER time from the neighbour in the current
+              // array, deliberately not stored on the message. When an older
+              // page prepends, the message that used to be first suddenly has
+              // a predecessor -- and if that predecessor is the same sender,
+              // its now-redundant attribution has to disappear on its own.
+              // Anything memoised per message would keep showing it.
+              const prev = messages[idx - 1];
+              const startsRun = !prev || prev.sender_id !== message.sender_id;
+              const showAttribution = isMultiParty && !isMe && startsRun;
+
               return (
                 <div key={message.id || idx} className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
+                  {showAttribution && (
+                    <div className="flex items-center gap-2 mb-1.5 ml-1">
+                      <Avatar className="h-5 w-5 border border-white/10">
+                        <AvatarImage src={message.sender?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-zinc-800 text-zinc-500">
+                          <User className="h-2.5 w-2.5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.15em]">
+                        {message.sender?.display_name || "Neural User"}
+                      </span>
+                    </div>
+                  )}
                   <div
                     className={cn(
                       "max-w-[80%] p-5 rounded-[2rem] transition-all duration-700 shadow-2xl",
