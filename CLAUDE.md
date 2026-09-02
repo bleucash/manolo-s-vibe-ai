@@ -177,7 +177,7 @@ Stripe, QR generation, `check_in_guest`, `tickets.scanned_at` all exist and work
 
 Fixed by `is_conversation_participant()` (SECURITY DEFINER, pinned `search_path`, same pattern as `has_role_type`) in all four policies, then scoping the view with `cp.user_id = auth.uid()` and lateral-joining the counterparty's profile, then `security_invoker = true`. **The fix lives in the view, not the client, deliberately: client discipline is exactly what failed.** Note the view now returns zero rows to any non-PostgREST caller, because `auth.uid()` is NULL there — service-role reads look empty and that is correct, not broken.
 
-**Still open:** `venues` and `venue_staff` both carry a `qual: true` SELECT that makes every narrower SELECT beside it inert and every row world-readable. `venue_followers` carries a redundant `FOR ALL` policy overlapping its INSERT/DELETE/SELECT ones, plus its own `qual: true` SELECT. `posts` has no UPDATE/DELETE, so nobody can delete their own post. 15 duplicate/overlapping ticket policies. Possible recursive RLS on `conversation_participants` SELECT, unverified.
+**Still open:** `venues` and `venue_staff` both carry a `qual: true` SELECT that makes every narrower SELECT beside it inert and every row world-readable. `venue_followers` carries a redundant `FOR ALL` policy overlapping its INSERT/DELETE/SELECT ones, plus its own `qual: true` SELECT. `posts` has no UPDATE/DELETE, so nobody can delete their own post. 15 duplicate/overlapping ticket policies. **Full open list with verified detail now lives in `docs/backlog.md`.**
 
 ## Hard operating rules
 
