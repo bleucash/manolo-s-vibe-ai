@@ -163,7 +163,7 @@ Primary/General routing keys on a display-name substring, so one thread lands in
 
 - **Recursive RLS on `conversation_participants` — FALSE, verified false.** The live SELECT policy is `(user_id = auth.uid()) OR is_conversation_participant(conversation_id)`, and that function is `SECURITY DEFINER` with `search_path=public`, so its inner query runs as the owner and never re-enters the policy. `relforcerowsecurity = false` confirms the bypass. Also proven behaviourally: dozens of fixture cases read this table as `authenticated` with no `42P17`. The stale "unverified" warning has been removed from `CLAUDE.md` — a false warning sends a future session hunting a bug that does not exist and devalues the entries around it.
 - **Messaging follow-gate — BUILT** (request queue, 2026-08-31).
-- **Per-message read state — REPLACED** by `conversation_participants.last_read_at`. `messages.is_read` is unmaintained and its drop is gated-and-ready.
+- **Per-message read state — REPLACED and the old column DROPPED** (`20260902120000`). `conversation_participants.last_read_at` is the read cursor; `messages.is_read` is gone. Verified dead rather than merely unused before dropping: no function body, view, index, constraint, policy or trigger referenced it, **and** the data itself carried nothing the cursor cannot reproduce — a cursor cannot express a read/unread/read gap, so that was checked explicitly and found to be zero rows. Dropped without `CASCADE` so an unexpected dependency would fail loudly rather than be silently carried away.
 
 ---
 

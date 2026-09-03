@@ -1,0 +1,39 @@
+-- Drop messages.is_read. Superseded by conversation_participants.last_read_at
+-- (20260901100000), which also removed its write path -- the UPDATE policy and
+-- column grant went at the cutover, so nothing has written this column since.
+--
+-- Scheduled rather than done immediately, and the gate was that the cutover
+-- hold in production. It has: real browser sessions with hard refreshes,
+-- across DMs, venue threads, and a 120-message paginated thread.
+--
+-- The reason for dropping rather than leaving it is the whole point: an
+-- unmaintained column that still LOOKS meaningful is how the next person
+-- builds on a lie. This file already tracks five invented references, and a
+-- real-but-dead column is the same trap with better camouflage.
+--
+-- VERIFIED DEAD BEFORE DROPPING, not merely unused:
+--   * zero function bodies mention it. This is the check that matters, since
+--     Postgres does not validate a plpgsql body against the schema -- which is
+--     exactly how public.follows shipped broken and stayed hidden.
+--   * zero views, indexes, constraints, policies, triggers.
+--   * only per-column SELECT/INSERT/REFERENCES grants, which are the
+--     table-level grants expanded per column, not a dependency. No UPDATE
+--     grant: that was revoked at the cutover.
+--   * src references only two comments explaining its absence.
+--     Notifications.tsx reads notifications.is_read, a DIFFERENT table.
+--
+-- AND THE DATA IS DEAD, which is a separate question from unused.
+-- is_read was per-MESSAGE; last_read_at is a CURSOR, and a cursor cannot
+-- express a gap. Had any conversation held a read/unread/read pattern, the
+-- backfill would have collapsed it to "read up to the newest read message"
+-- and this drop would be lossy. Checked rather than assumed: zero gap rows.
+-- All five messages are is_read = true and the cursor agrees on every one, so
+-- there is no read state here that last_read_at cannot reproduce.
+--
+-- No CASCADE, deliberately. If something unexpected did depend on this column
+-- the drop must FAIL LOUDLY rather than succeed while quietly taking that
+-- dependency with it. Given how much of this codebase's history is silent
+-- success, an error is the better outcome.
+--
+-- IF EXISTS because the platform re-applies migrations from the repo on sync.
+ALTER TABLE public.messages DROP COLUMN IF EXISTS is_read;
