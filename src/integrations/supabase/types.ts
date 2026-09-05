@@ -607,6 +607,7 @@ export type Database = {
           is_active: boolean | null
           location: string | null
           role_type: Database["public"]["Enums"]["app_role"]
+          sort_name: string | null
           sub_role: string | null
           total_lifetime_spend: number | null
           updated_at: string | null
@@ -630,6 +631,7 @@ export type Database = {
           is_active?: boolean | null
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
+          sort_name?: string | null
           sub_role?: string | null
           total_lifetime_spend?: number | null
           updated_at?: string | null
@@ -653,6 +655,7 @@ export type Database = {
           is_active?: boolean | null
           location?: string | null
           role_type?: Database["public"]["Enums"]["app_role"]
+          sort_name?: string | null
           sub_role?: string | null
           total_lifetime_spend?: number | null
           updated_at?: string | null

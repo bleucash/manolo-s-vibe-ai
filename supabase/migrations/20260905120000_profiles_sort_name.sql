@@ -1,0 +1,102 @@
+-- sort_name: the talent directory's sort key, as a real column.
+--
+-- WHY A COLUMN AND NOT AN EXPRESSION INDEX.
+-- The directory must ORDER BY coalesce(display_name, username, '') and, once
+-- it paginates, must also FILTER on that same key for the keyset cursor
+-- (sort_name.gt.X). PostgREST can do neither with an expression. Measured
+-- 2026-09-05 against live: order=coalesce(display_name,username,'').asc
+-- returns 400 in both raw and url-encoded form, while the control
+-- order=sort_name.asc returned 42703 "column profiles.sort_name does not
+-- exist". That error is the proof rather than the symptom: PostgREST resolves
+-- order= by looking the name up as a COLUMN, so no expression can ever work
+-- there. A generated column is the smallest change that makes the settled
+-- sort key expressible through the transport, and it leaves the composable
+-- two-or= filter shape (proved end to end the same day) untouched.
+--
+-- WHY THE '' FALLBACK IS LOAD-BEARING.
+-- display_name is nullable in the schema even though zero talent rows are
+-- null today. coalesce(display_name, username) alone would be NULL for a
+-- future row with neither, and a NULL sort key makes a keyset cursor
+-- ambiguous at exactly the boundary the cursor exists to disambiguate. The ''
+-- tail makes the key total as a property of the EXPRESSION, not of today's
+-- data. This is the correction from the earlier pass, where totality was
+-- claimed from id being the primary key; id is the tiebreak, which is a
+-- different argument and did not cover the sort key itself.
+--
+-- WHY GENERATED rather than a column the app or a trigger writes.
+-- Nothing can forget to maintain it. display_name and username are written
+-- from several surfaces, and any hand-maintained copy would be a fourth
+-- place to keep in sync and a silent drift waiting to happen.
+--
+-- IT CANNOT WIDEN THE WRITE SURFACE. profiles carries table-level grants, so
+-- the new column inherits them, but Postgres rejects any INSERT or UPDATE
+-- naming a generated column (428C9). sort_name is therefore readable by
+-- everyone who can read the row and writable by no one, including via a
+-- direct PostgREST PATCH.
+--
+-- ADDING IT IS SAFE HERE, and both halves of that were checked rather than
+-- assumed:
+--   * It DOES force a full table rewrite. Postgres's fast path for ADD COLUMN
+--     does not apply to STORED generated columns, so this holds an ACCESS
+--     EXCLUSIVE lock for the duration, blocking reads as well as writes.
+--     profiles is 5 rows / 200 kB, so the duration is microseconds. Recorded
+--     because the reasoning is what transfers, not the size: on a large table
+--     this same statement would need a very different plan.
+--   * It CANNOT fail on existing rows. coalesce over two text columns with a
+--     text literal tail is total: it cannot raise and cannot return NULL. No
+--     NOT NULL constraint is added, so there is no violation available to
+--     hit, and the expression is immutable so it is legal in a generated
+--     column at all.
+--   * The rewrite does NOT fire the three row triggers on profiles
+--     (profiles_enforce_check_in, profiles_prevent_privilege_escalation,
+--     update_profiles_updated_at). ALTER TABLE rewrites the heap; it does not
+--     run UPDATEs. So this needs no DISABLE TRIGGER wrapper, unlike the
+--     migrations that write trigger-guarded columns directly, which have
+--     tripped that trap three times.
+--   * The column inherits SELECT automatically. Checked, not assumed:
+--     profiles' relacl holds TABLE-level grants (anon and authenticated both
+--     arwdDxtm), not per-column ones, so a new column is covered with no
+--     explicit GRANT. Had they been column-level, sort_name would have
+--     existed but stayed invisible to PostgREST, which is the silent failure
+--     this check exists to rule out.
+--
+-- NO EXPLICIT NOTIFY. Measured: the event triggers pgrst_ddl_watch
+-- (ddl_command_end) and pgrst_drop_watch are present, so PostgREST reloads
+-- its schema cache on DDL by itself. The reload is asynchronous, so if a
+-- verification 400s on a cold cache the answer is to retry, not to assume the
+-- column is wrong.
+--
+-- IF NOT EXISTS because the platform re-applies migrations from the repo on
+-- sync. NOTE THE LIMIT OF THAT GUARD: were a column named sort_name ever to
+-- exist with a DIFFERENT definition, this silently skips instead of
+-- correcting it. Verified 2026-09-05 that profiles has no sort_name and no
+-- generated columns at all, so there is nothing to skip past today.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS sort_name text
+  GENERATED ALWAYS AS (coalesce(display_name, username, '')) STORED;
+
+
+-- The talent directory's keyset index.
+--
+-- (sort_name, id) in that order because that IS the cursor: sort_name is the
+-- sort key, id is the tiebreak. Without id in the index a page boundary
+-- between two people sharing a sort_name can skip or repeat a row, and the
+-- symptom (one person silently missing from the directory) is close to
+-- undiagnosable after the fact. Same shape and same reason as
+-- idx_messages_conversation_created_id.
+--
+-- PARTIAL on talent because the directory asks for nothing else, and the
+-- predicate carries an explicit ::app_role cast so the planner can prove that
+-- the query's role_type = 'talent' IMPLIES the index predicate. A partial
+-- index whose applicability the planner cannot prove is simply never used.
+--
+-- No CONCURRENTLY: it cannot run inside a transaction block, and at this size
+-- the lock is not worth the added failure modes.
+--
+-- WHAT THIS INDEX DOES NOT DO: it does not serve the search. ilike '%term%'
+-- has a leading wildcard and no btree can help it, so the search predicate is
+-- still evaluated per row. That is a pg_trgm GIN index (pg_trgm is installed,
+-- measured) and a separate decision, deliberately not taken here.
+CREATE INDEX IF NOT EXISTS idx_profiles_talent_directory
+    ON public.profiles (sort_name, id)
+ WHERE role_type = 'talent'::app_role;
