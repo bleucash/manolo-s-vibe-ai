@@ -75,6 +75,32 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 
 `venue_staff.status = 'active'` (affiliation), `profiles.is_active` (tapped in), `venues.is_active` (open). Documented and centralized in `src/lib/presence.ts`. Listed as the archetype of this category, not because it needs work.
 
+### A9. `profiles.heat_score` is user-writable, and the grant is why
+
+Found 2026-09-05 while reading `profiles`' grants before adding a column. Three facts that are individually fine and jointly are the hole:
+
+| Piece | Measured value |
+|---|---|
+| UPDATE policy `Users can update own profile` | `USING (auth.uid() = id)` |
+| Grant in `relacl` | table-level `arwdDxtm` for `anon` and `authenticated`, so UPDATE spans all 21 columns |
+| Row triggers on `profiles` | `enforce_check_in`, `prevent_privilege_escalation` (guards `role_type` only since 2026-08-17), `update_profiles_updated_at` |
+
+**Nothing guards `heat_score`.** The policy admits the row and no grant bounds which columns of it get rewritten, so an authenticated user can PATCH their own `heat_score` to any value. That column is the talent heat ranking, and it is maintained by an `AFTER INSERT` trigger on `post_likes` **specifically so the decay cannot be duplicated or gamed**. A direct write bypasses the trigger and sets the score outright.
+
+This is the exact failure `CLAUDE.md`'s grants-before-policy rule describes, now found on a fourth table. **Fix shape is the one already used twice**, on `messages` (`20260830140000`) and `conversation_participants` (`20260831100000`): revoke the broad UPDATE, grant only the columns a user may edit, leave the rest ungranted. Column grants fail loudly with `42501` and fail closed, which is why they are the right tool rather than another trigger.
+
+**Inferred from the schema, not demonstrated.** Demonstrating it means performing the write, and the only rows available are real accounts. Read the grants and the trigger list before fixing rather than trusting this entry.
+
+**Two smaller things from the same reading, recorded here rather than as their own items.** `anon` holds `d` (DELETE) and `D` (TRUNCATE) on `profiles`. DELETE is masked by the absence of a DELETE policy. **TRUNCATE is not subject to RLS at all**, so nothing masks it; it is unreachable only because `anon` is `NOLOGIN` and PostgREST exposes no TRUNCATE verb. Latent rather than live, but it is masked by circumstance rather than by a boundary. `profiles` also carries duplicate policy pairs (two `USING true` SELECTs, two INSERTs), which is A1's shape on another table.
+
+### A10. `idx_profiles_active_talent` indexes the orphan venue column
+
+`(venue_id, role_type, updated_at) WHERE venue_id IS NOT NULL AND role_type = 'talent'`. But `profiles.venue_id` is the FK-less orphan recorded in A3; the column the application actually uses is `current_venue_id`.
+
+Grepped `src/` 2026-09-05: every profile-related `venue_id` reference is `current_venue_id`, `venue_staff.venue_id`, or `posts.venue_id`. **Nothing filters `profiles.venue_id`.** Measured `idx_scan = 0` since the postmaster started on 2026-07-28 with statistics never reset, though at 5 rows a sequential scan would win regardless, so the zero is consistent with this rather than proof of it.
+
+**Why this belongs here and not in Cleanup:** `CLAUDE.md` names this index as one of exactly two objects that a full `app_role` collapse would have to drop and recreate, and that cost is part of why A5 stays deferred. So some of A5's price is being paid to preserve an index built on the wrong column. Resolve this before pricing A5, not after.
+
 ---
 
 ## B. Pre-launch gates
