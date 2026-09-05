@@ -3,29 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, ArrowLeft, Sparkles, User, TrendingUp, Send } from "lucide-react";
 import { toast } from "sonner";
 import { guestFacingLabel, isOperationalPosition } from "@/config/positions";
 import { useUserMode } from "@/contexts/UserModeContext";
 import { InviteTalentModal } from "@/components/InviteTalentModal";
-
-// 1. SHARED NEON ANIMATION (Matches Discovery.tsx)
-const neonPulseStyles = `
-  @keyframes neon-breathe {
-    0%, 100% { 
-      box-shadow: 0 0 15px rgba(255, 0, 128, 0.3); 
-      border-color: rgba(255, 0, 128, 0.2);
-    }
-    50% { 
-      box-shadow: 0 0 40px rgba(255, 0, 128, 0.7); 
-      border-color: rgba(255, 0, 128, 1);
-    }
-  }
-  .animate-neon-breathe {
-    animation: neon-breathe 3s ease-in-out infinite;
-  }
-`;
 
 interface TalentProfile {
   id: string;
@@ -39,7 +21,6 @@ interface TalentProfile {
   avatar_url: string | null;
   role_type: string;
   sub_role: string | null;
-  is_featured?: boolean;
 }
 
 const TalentDirectory = () => {
@@ -68,12 +49,7 @@ const TalentDirectory = () => {
 
       if (error) throw error;
 
-      const enhancedTalent = (data || []).map((t, i) => ({
-        ...t,
-        is_featured: i === 0 || i === 3 || i === 7, // Featured Logic
-      }));
-
-      setTalent(enhancedTalent);
+      setTalent(data || []);
     } catch (error) {
       console.error(error);
       toast.error("Directory sync failed");
@@ -103,8 +79,6 @@ const TalentDirectory = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <style>{neonPulseStyles}</style>
-
       {/* STICKY HEADER */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-white/10">
         <div className="px-4 py-4 flex items-center gap-3">
@@ -146,31 +120,28 @@ const TalentDirectory = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
             {filteredTalent.map((t) => (
               <div key={t.id} className="relative cursor-pointer group" onClick={() => navigate(`/talent/${t.id}`)}>
-                <div
-                  className={`aspect-[3/4.5] rounded-2xl overflow-hidden relative transition-all duration-500 ${
-                    t.is_featured ? "border-neon-pink animate-neon-breathe" : "border border-white/10"
-                  }`}
-                >
+                <div className="aspect-[3/4.5] rounded-2xl overflow-hidden relative transition-all duration-500 border border-white/10">
                   <img
                     src={t.avatar_url || "https://github.com/shadcn.png"}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
 
-                  {t.is_featured && (
-                    <div className="absolute top-3 right-3 z-10">
-                      <Badge className="bg-neon-pink text-white border-none text-[8px] font-bold px-2 py-0.5 uppercase tracking-widest shadow-lg">
-                        Featured
-                      </Badge>
-                    </div>
-                  )}
-
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <h3 className="text-white font-display text-lg leading-none truncate tracking-tight">
                       {t.display_name || t.username}
                     </h3>
+                    {/* The real position, always. This used to read "Top
+                        Talent" for array indices 0, 3 and 7. That was a
+                        placeholder standing in for the charge system, which
+                        never got wired, so the glow and the badge claimed an
+                        engagement signal that was really just sort order, and
+                        hid the person's actual position to do it. Removed
+                        2026-09-05 rather than deferred: a false claim to
+                        guests is worse than an absent feature. The real
+                        version returns when charges exist. */}
                     <p className="text-neon-pink text-[10px] font-bold uppercase tracking-widest mt-2">
-                      {t.is_featured ? "Top Talent" : guestFacingLabel(t.sub_role) || "Talent"}
+                      {guestFacingLabel(t.sub_role) || "Talent"}
                     </p>
                   </div>
 
