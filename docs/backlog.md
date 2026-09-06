@@ -118,13 +118,31 @@ A guest can hold unlimited pending threads with strangers. The first thing abuse
 
 **`fetchConversations` — NOT a ceiling. Deliberately left unpaginated.** It grows with O(relationships), not O(activity): bounded by how many distinct people and venues you have a relationship with, and it does not grow while you sleep. Even a heavy manager is in the low hundreds. Two further reasons pagination would be *negative* value here: the `last_message_at` sort comes from a lateral subquery and so cannot use an index at all, meaning a `LIMIT` would avoid transferring rows but not computing them; and **a silently truncated inbox is worse than a slow one** — thread 201 vanishing with no indication is exactly the class of quiet wrongness this project keeps finding. Revisit only if a real account crosses ~200 conversations.
 
-### B2b. `TalentDirectory` — genuine ceiling, and **the obvious fix makes it worse**
+### B2b. `TalentDirectory`: RESOLVED 2026-09-06
 
-It fetches **all talent globally**, so it grows with platform size rather than with the user. At 10,000 talent every directory open ships 10,000 rows to every viewer.
+It fetched **all talent globally**, growing with platform size rather than with the user. Now server-side filtered and keyset-paginated at 24, ordered by `(sort_name, id)` and served by `idx_profiles_talent_directory` with no sort node.
 
-**A naive `.limit()` would break search correctness.** Search is client-side — `filteredTalent` filters the already-fetched array — so a limit would silently make the search box search only the first page, and the user would have no way to know their results were incomplete. That turns a performance problem into a correctness problem. **This is the part worth remembering, because `.limit()` is exactly what someone will reach for.**
+**Kept because it is the reusable lesson: a naive `.limit()` would have broken search correctness.** Search was client-side over the already-fetched array, so a limit alone would have silently made the search box search only the first page, with no way for the user to know results were incomplete. A performance problem converted into a correctness problem. `.limit()` is exactly what someone reaches for.
 
-The real fix is three things together: server-side filtering (`ilike` on `username` and `display_name`), pagination, and a `(role_type, username)` composite index which does not currently exist — `idx_profiles_role_type` covers the filter but not the ordering, so a paginated query would sort every talent row. That is a search-architecture change, not a pagination change, and it deserves its own dispatch.
+**Two things this entry previously got wrong, corrected rather than deleted.** The index it named, `(role_type, username)`, was the wrong shape: `username` is NULL on 2 of 3 talent rows and is not what the card renders, so it could not be the sort key. What shipped is `sort_name`, a generated column holding `coalesce(display_name, username, '')`, because **PostgREST `.order()` resolves against real columns only** and cannot take an expression (measured: the expression form returns 400, and the control returned `42703 column ... does not exist`, which is the proof). The `''` tail makes the key total as a property of the expression rather than of today's data.
+
+**Three things were measured against live before any of it was built**, and each would have been a silent defect if assumed:
+
+- **Chained `.or()` calls are ANDed**, not ORed. Tested so that AND, OR, first-wins and last-wins each give a different row count. Had they ORed, the operational exclusion would leak.
+- **`NOT (sub_role IN (...))` drops null `sub_role` rows**, which is 2 of the 3 live talent. The shipped form is `or=(sub_role.is.null,sub_role.not.in.(...))`.
+- **`*`, `%` and `_` are wildcards server-side**, while the old client-side `String.includes()` treated them literally. Typing `%` would have returned the entire directory. Worse, **a single backslash inside a PostgREST double-quoted value is consumed**, so the obvious escape silently evaporates and the metacharacter reverts to a wildcard with HTTP 200. Values inside `or=()` must be double-quoted (an unquoted comma is a 400, and names contain commas) and LIKE escaping must run *before* the quoting so its backslashes get doubled.
+
+**Still deliberately absent:** no `pg_trgm` GIN index. The btree cannot serve `ilike '%term%'`, so the search predicate is evaluated per row. Acceptable now, and a separate decision.
+
+Proven against a 2,000-row fixture inside a transaction that rolled back: 61 pages walked with a seam landing inside a 60-row identical-`sort_name` run, zero gaps, zero repeats, order exact, and a search term matching only a late row still found.
+
+### B2c. Two pagination implementations disagree about "is there more"
+
+`useChat` sets `hasMoreMessages = page.length === PAGE_SIZE`. A thread holding exactly 50 messages therefore renders "Load earlier messages"; clicking it fetches 0 rows and the button then disappears. One dead click, no wrong output.
+
+`TalentDirectory` (2026-09-06) instead fetches `PAGE_SIZE + 1` and renders `PAGE_SIZE`, so `hasMore` is exact for the same single round trip and no button is ever shown that does nothing.
+
+**The cost is not the dead click, it is the disagreement.** Two keyset implementations in one codebase now answer "is there another page" differently, and the next person to paginate something will copy whichever they open first. Align `useChat` to the plus-one form. Filed here rather than in Cleanup because the resolution is a decision about which shape is canonical, not a tidy-up.
 
 ### B3. No rate limiting
 Nothing throttles message sends, follows, or `interactions` writes.
