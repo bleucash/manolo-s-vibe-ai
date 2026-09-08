@@ -1182,17 +1182,6 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_conversation: { Args: { target_user_id: string }; Returns: string }
       sync_venue_conversation: { Args: { _venue_id: string }; Returns: string }
-      update_user_profile:
-        | {
-            Args: {
-              p_avatar_url: string
-              p_bio: string
-              p_display_name: string
-              p_role?: string
-            }
-            Returns: undefined
-          }
-        | { Args: { p_role_type: string }; Returns: undefined }
     }
     Enums: {
       app_role:

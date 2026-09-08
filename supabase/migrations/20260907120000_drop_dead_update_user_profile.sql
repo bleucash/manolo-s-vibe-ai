@@ -1,0 +1,51 @@
+-- Drop both update_user_profile overloads. Dead code with an EXECUTE grant.
+--
+-- Neither is called by anything. Swept 2026-09-07 across six object classes,
+-- each returning zero rows with a sentinel proving the sweep ran: other
+-- function bodies, views, policy USING/WITH CHECK expressions, trigger
+-- definitions, constraint definitions, and pg_depend. The function-body sweep
+-- is the one that matters, because a SECURITY DEFINER call from inside
+-- another body never appears in a src/ grep, which is exactly how
+-- public.follows hid. Repo side: one hit, the generated declaration in
+-- types.ts, which is not a call.
+--
+-- WHY THEY GO RATHER THAN GET FIXED.
+--
+-- update_user_profile(p_role_type text) sets role_type to whatever it is
+-- passed, for auth.uid(), and is EXECUTE-granted to anon and authenticated.
+-- It is held closed by exactly one thing: prevent_profile_privilege_escalation
+-- raising because auth.role() returns 'authenticated' rather than
+-- 'service_role'. CLAUDE.md records three occasions where a migration did
+-- ALTER TABLE ... DISABLE TRIGGER on that same trigger to work around the
+-- auth.role() trap. For the duration of any such migration this is a live
+-- self-promotion endpoint for any signed-in user. A dead function whose only
+-- guard is a trigger this repo routinely disables is worse than no function.
+--
+-- update_user_profile(p_display_name, p_bio, p_avatar_url, p_role) assigns to
+-- profiles.role. That column does not exist; the column is role_type. It is
+-- the SIXTH invented reference found in this codebase and the second to live
+-- in a SQL function body, where no TypeScript type was ever going to catch
+-- it. Postgres does not validate a plpgsql body against the schema at CREATE
+-- time, so it compiled, deployed, and has simply never been called. Fixing it
+-- would mean adopting a profile editor nothing uses; TalentManage already
+-- writes display_name, sub_role and bio directly.
+--
+-- NEITHER CAN CURRENTLY SUCCEED, which is what makes this safe rather than
+-- merely unused: the four-argument one raises 42703 on every call, and the
+-- other raises from the trigger on any real role change and is a no-op when
+-- passed the caller's existing role.
+--
+-- BOTH ARE SECURITY DEFINER WITH NO PINNED search_path, unlike the helpers
+-- around them. That is a second reason not to leave them sitting there.
+--
+-- Argument lists are reproduced exactly as pg_get_function_identity_arguments
+-- reports them. Overloads make the argument list part of the identity, so a
+-- wrong list either errors or drops the wrong function.
+--
+-- No CASCADE, deliberately, same as the messages.is_read drop: pg_depend
+-- showed no dependents, so if something unexpected does depend on these the
+-- drop must fail loudly rather than quietly take it along.
+--
+-- IF EXISTS because the platform re-applies migrations from the repo on sync.
+DROP FUNCTION IF EXISTS public.update_user_profile(p_display_name text, p_bio text, p_avatar_url text, p_role text);
+DROP FUNCTION IF EXISTS public.update_user_profile(p_role_type text);
