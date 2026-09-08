@@ -82,7 +82,7 @@ Found 2026-09-05 while reading `profiles`' grants before adding a column. Three 
 | Piece | Measured value |
 |---|---|
 | UPDATE policy `Users can update own profile` | `USING (auth.uid() = id)` |
-| Grant in `relacl` | table-level `arwdDxtm` for `anon` and `authenticated`, so UPDATE spans all 21 columns |
+| Grant in `relacl` | table-level `arwdDxtm` for `anon` and `authenticated`, so UPDATE spans all 22 columns |
 | Row triggers on `profiles` | `enforce_check_in`, `prevent_privilege_escalation` (guards `role_type` only since 2026-08-17), `update_profiles_updated_at` |
 
 **Nothing guards `heat_score`.** The policy admits the row and no grant bounds which columns of it get rewritten, so an authenticated user can PATCH their own `heat_score` to any value. That column is the talent heat ranking, and it is maintained by an `AFTER INSERT` trigger on `post_likes` **specifically so the decay cannot be duplicated or gamed**. A direct write bypasses the trigger and sets the score outright.
@@ -90,6 +90,26 @@ Found 2026-09-05 while reading `profiles`' grants before adding a column. Three 
 This is the exact failure `CLAUDE.md`'s grants-before-policy rule describes, now found on a fourth table. **Fix shape is the one already used twice**, on `messages` (`20260830140000`) and `conversation_participants` (`20260831100000`): revoke the broad UPDATE, grant only the columns a user may edit, leave the rest ungranted. Column grants fail loudly with `42501` and fail closed, which is why they are the right tool rather than another trigger.
 
 **Inferred from the schema, not demonstrated.** Demonstrating it means performing the write, and the only rows available are real accounts. Read the grants and the trigger list before fixing rather than trusting this entry.
+
+**Re-derived from live 2026-09-07 rather than trusted, and it held.** Two corrections and one addition:
+
+- **22 columns, not 21.** `sort_name` landed in `ad56d21` after this entry was written. Does not change the conclusion.
+- **The UPDATE policy has no explicit `WITH CHECK`.** Postgres falls back to `USING`, so `id` stays pinned and a row cannot be reassigned to someone else, but nothing constrains *which columns* get rewritten. That is A1's "USING with no WITH CHECK" shape, on a third table.
+- **The grant list is EIGHT columns, derived from the code rather than guessed.** Every `.update()` in `src/` was enumerated and resolved to its table; exactly three target `profiles`:
+
+| Site | Columns |
+|---|---|
+| `TalentManage.tsx:82` | `display_name`, `sub_role`, `bio` |
+| `TalentDashboard.tsx:212` | `is_active`, `current_venue_id`, `active_at` |
+| `InteractiveHeroReel.tsx:76` | `hero_reel_url`, when `entityType === 'talent'` |
+
+`InteractiveHeroReel` writes to a **variable** table name (`entityType === "venue" ? "venues" : "profiles"`) and is the one a naive grep misses. There is no INSERT or UPSERT on `profiles` from `src/` at all; row creation is entirely `handle_new_user()`.
+
+**`avatar_url` is the eighth and is added deliberately despite having no writer.** It is rendered on `TalentProfile` and has no write path anywhere in `src/`, which is an omission rather than a decision (see A12). Granting it now avoids a `42501` the day an avatar editor ships.
+
+**The maintenance cost is real and is the right trade:** a new profile field means a new GRANT, and forgetting one fails loudly at runtime with `42501`. The behaviour it replaces failed silently and permissively.
+
+**Nothing legitimate gets locked out.** Measured: zero `SECURITY INVOKER` functions write `profiles`. Every writer (`apply_talent_charge`, `clear_check_in_on_staff_change`, `handle_new_user`) is `SECURITY DEFINER` and runs as owner, and `admin-actions` writes `role_type` as `service_role`, whose grant is untouched. One residual is unmeasured: whether a `BEFORE` trigger setting `updated_at` requires the caller to hold UPDATE on that column. It should not, since privilege checks apply to the statement's target columns, but that is reasoning rather than measurement and is cheap to settle with a rolled-back fixture before shipping.
 
 **Two smaller things from the same reading, recorded here rather than as their own items.** `anon` holds `d` (DELETE) and `D` (TRUNCATE) on `profiles`. DELETE is masked by the absence of a DELETE policy. **TRUNCATE is not subject to RLS at all**, so nothing masks it; it is unreachable only because `anon` is `NOLOGIN` and PostgREST exposes no TRUNCATE verb. Latent rather than live, but it is masked by circumstance rather than by a boundary. `profiles` also carries duplicate policy pairs (two `USING true` SELECTs, two INSERTs), which is A1's shape on another table.
 
@@ -100,6 +120,52 @@ This is the exact failure `CLAUDE.md`'s grants-before-policy rule describes, now
 Grepped `src/` 2026-09-05: every profile-related `venue_id` reference is `current_venue_id`, `venue_staff.venue_id`, or `posts.venue_id`. **Nothing filters `profiles.venue_id`.** Measured `idx_scan = 0` since the postmaster started on 2026-07-28 with statistics never reset, though at 5 rows a sequential scan would win regardless, so the zero is consistent with this rather than proof of it.
 
 **Why this belongs here and not in Cleanup:** `CLAUDE.md` names this index as one of exactly two objects that a full `app_role` collapse would have to drop and recreate, and that cost is part of why A5 stays deferred. So some of A5's price is being paid to preserve an index built on the wrong column. Resolve this before pricing A5, not after.
+
+### A11. The portfolio is built and broken three ways, all silent
+
+Found 2026-09-07. The talent profile portfolio is **not missing**. `PortfolioGallery.tsx` is a real horizontal scroller (`overflow-x-auto snap-x snap-mandatory`), `portfolio_items` is a real table with RLS, two policies, a `media_type` CHECK, an FK and a `UNIQUE (user_id, display_order)`, and `PortfolioUpload.tsx` is a working uploader. None of it functions.
+
+**1. The reader names a column that does not exist.** `PortfolioGallery.tsx:81` renders `src={item.image_url}`. The column is **`media_url`**. Every card would render `<img src={undefined}>`.
+
+**The reader/writer split is the detail worth keeping.** `PortfolioUpload.tsx:64` inserts `media_url` **correctly**. So the schema is right and the writer is right; only the read side is wrong. Nothing catches it because the fetch is `.select("*")` into `useState<any[]>([])`, so no typed boundary exists. Seventh invented reference. `media_type` is also never consulted, so a stored `'video'` would be forced through an `<img>` tag.
+
+**2. Nothing mounts the uploader.** `PortfolioUpload` is imported by **zero** files. The gallery's own empty state reads "Use the Dashboard to upload professional content", and no such control exists. `TalentManage.tsx` numbers its sections `1. HUD HEADER`, `2. HERO REEL EDITOR`, `4. IDENTITY SETTINGS`. **Section 3 is missing**, which is where the uploader would have sat.
+
+**3. The venue gallery cannot hold a row at all.** `Venue.tsx:229` passes `venue.id` as `userId`, but `portfolio_items.user_id` is `FOREIGN KEY ... REFERENCES profiles(id) ON DELETE CASCADE`. A venue id is a different id space, so no row can ever exist for a venue. Not an empty gallery, an impossible one.
+
+**Measured: 0 rows in `portfolio_items`, and no object under a `portfolio/` prefix in the `profile-media` bucket.** That is why none of this has surfaced. Fixing (1) alone would make (2) the visible blocker; fixing (2) would make (3) visible on the venue side only.
+
+### A12. `bio` and `sub_role` are editable and rendered nowhere
+
+`TalentManage.tsx:82` writes `display_name`, `sub_role` and `bio`. `TalentProfile.tsx` renders `hero_reel_url`, `display_name`, `username` as a fallback, and `avatar_url` **only as the hero reel's fallback image**. It renders neither `bio` nor `sub_role`.
+
+**A talent writes a bio into the void.** `sub_role` at least surfaces elsewhere, on the Discovery card and in the directory, so a talent's position is visible everywhere except their own profile page. `bio` has no reader anywhere.
+
+The mirror of it: **`avatar_url` is rendered but has no writer** in `src/`, which is why A9's grant list includes it. Also never written from anywhere: `username` (so nobody can set one after signup, which is why 2 of 3 talent have none), `full_name`, `website`, `location`, `city`, `banner_url`. `banner_url` is a real column with no reader and no writer.
+
+Filed as coherence rather than a feature request: the system collects a field and then does not believe in it, which is the same shape as A8.
+
+### A13. EXECUTE was granted uniformly, including where it can never be used
+
+The third face of the permissive-defaults problem. A1 is the policy half, A9 the grant half, this is the EXECUTE half. Audited 2026-09-07 with `has_function_privilege` rather than by parsing `proacl`, deliberately: a NULL `proacl` means the default applies, and **for functions the default is EXECUTE to PUBLIC**, so parsing the ACL text would have missed every untouched function, which is exactly the population being audited.
+
+**31 non-extension functions in `public` are executable by `anon` and `authenticated`** (plus 31 `pg_trgm` internals, which is normal). Of ours:
+
+- **12 are trigger functions**, where the grant **can never be exercised**: triggers fire with the statement's privileges, not the caller's EXECUTE right. Pure surplus.
+- **5 are policy helpers** (`has_role`, `has_role_type`, `is_conversation_participant`, `is_accepted_conversation_participant`, `is_addable_group_member`). These **need** the grant, since policy expressions evaluate as the querying user.
+- **5 are genuinely called** from `src/`, the complete set of `.rpc(` names: `check_in_guest`, `get_unpaid_commissions`, `get_talent_spotlight`, `mark_conversation_read`, `start_conversation`.
+- **4 are dormant by design**, not dead: `create_group_conversation`, `add_group_member`, `remove_group_member`, `sync_venue_conversation`. Group chat is built; talent group creation is gated.
+- **1 is used but not via `.rpc(`**: `generate_verification_code()` is the DEFAULT on `talent_applications.verification_code`.
+- **2 were dead and were DROPPED** 2026-09-07 (`20260907120000`): both `update_user_profile` overloads. See below.
+
+**Two worth a look, not a claim:**
+
+- **`check_in_guest` and `get_unpaid_commissions` are `SECURITY DEFINER` with no pinned `search_path`, and both ARE called from `src/`.** Every other `SECURITY DEFINER` function here pins it. This is a hardening gap on live code paths, unlike the dropped pair which nothing called.
+- **`is_admin()` is `SECURITY INVOKER`**, so it runs with the caller's privileges, while `CLAUDE.md` describes it as the database's admin boundary. Worth reading the body before relying on it. Not asserting it is wrong.
+
+**One remaining dead function, not dropped:** `cleanup_expired_posts()` returns integer, has no caller in `src/`, is referenced by no column default and no function body, and **`pg_cron` is not installed**, so nothing schedules it. Left alone rather than swept up with the drop, because it is inert rather than dangerous.
+
+**What was dropped and why it was the right first slice.** `update_user_profile(p_role_type text)` set `role_type` to whatever it was passed for `auth.uid()`, EXECUTE-granted to `anon` and `authenticated`, held closed by exactly one thing: `prevent_profile_privilege_escalation` raising because `auth.role()` returns `'authenticated'`. `CLAUDE.md` records three occasions where a migration disabled that same trigger to work around the `auth.role()` trap, and during any such window this was a live self-promotion endpoint. The other overload assigned to `profiles.role`, a column that does not exist, making it the sixth invented reference and the second to live in a SQL function body. Neither could succeed, which is what made the drop safe rather than merely tidy.
 
 ---
 
@@ -174,6 +240,35 @@ The group design makes the creator permanently unremovable from a group they mad
 ### C6. `posts` has no UPDATE or DELETE policy — a decision, not a build
 Verified: `posts` carries only INSERT and SELECT policies. Nobody can edit or delete their own post. This needs a call — ship it or accept it — rather than sitting in a queue implying someone will build it.
 
+### C7. Neither profile page renders posts, and the talent profile has no avatar
+
+Measured 2026-09-07: **neither `TalentProfile.tsx` nor `Venue.tsx` queries `posts` at all.** `TalentProfile` section 5 is a hardcoded placeholder that will never fill:
+
+```tsx
+{/* 5. INTEL FEED (PLACEHOLDER FOR VERTICAL SCROLL) */}
+   <h3 ...>Latest Intel</h3>
+   {[1, 2].map((i) => (
+     <div key={i} className="aspect-square w-full bg-zinc-900/20 ... animate-pulse" />
+   ))}
+```
+
+Two permanently pulsing grey squares that read as loading and are not.
+
+**Against the stated design** (hero reel, avatar floating over it, portfolio in a horizontal scroll, then posts):
+
+| Intended | Talent | Venue |
+|---|---|---|
+| Hero reel | present | present |
+| Floating avatar | **absent** | absent (staff facepile instead) |
+| Portfolio scroll | present but broken, see A11 | present but unfillable, see A11 |
+| Their posts | **absent** | **absent** |
+
+`avatar_url` reaches `TalentProfile` only as `fallbackImageUrl` behind the hero reel. There is no `<Avatar>` element on the page.
+
+**There is no `VenueProfile.tsx`.** The public venue page is `Venue.tsx`. A manager can edit exactly three things across two files: `is_active`/`active_at` (`ManagerDashboard.tsx:185`), `entry_price`/`vip_price` (`VenuePriceEditor.tsx:38`), and `hero_reel_url`. Not `name`, not `image_url`, not `location`.
+
+Filed as a missing feature rather than coherence because the fetch was never written, unlike A11 where the code exists and is wrong.
+
 ---
 
 ## D. Accepted risks — settled, not queued
@@ -214,6 +309,8 @@ Primary/General routing keys on a display-name substring, so one thread lands in
 ## What the grouping reveals
 
 **Three items are one problem: Supabase's permissive defaults.** A1's `qual: true` policies and the full table-level write grants found on `messages`, `conversation_participants` and `conversations` are the same phenomenon — defaults nobody chose that *look* like decisions. The previous doc had the policy half as Tier 1 and the grant half nowhere at all. Together they say: **this database is permissive by default, and every untouched table still is.** One audit pass covers all of it, which makes it the highest-leverage item here.
+
+**Updated 2026-09-07: it has a third face, and the problem is now A1 + A9 + A13.** The same uniform permissiveness was applied to function EXECUTE, including to 12 trigger functions where the grant can never be exercised and 3 functions nothing calls. Two of those three were dropped (`20260907120000`); the audit found the rest. The pattern is identical each time: **the default was applied everywhere, so the places it matters are indistinguishable from the places it does not**, and that is what makes the surface expensive to reason about rather than any single grant being catastrophic.
 
 **Five items are one problem: the schema and the code disagree about the model.** A3, A4, A5, A6 and A7 all reduce to "the database says one thing, the application assumes another" — FKs pointing at `auth.users` where the code wants `profiles`, nullable columns treated as guaranteed, an enum carrying values the product denies, three spellings of "admin", a unique constraint that blocks the workflow it appears to protect. Four of them share a prerequisite: **a data audit before any constraint tightens.**
 
