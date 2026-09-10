@@ -83,7 +83,7 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 
 **Every non-client writer was enumerated before shipping**, since a `SECURITY INVOKER` one would have been a launch-breaking regression. All three foreign-table triggers (`apply_talent_charge` on `post_likes`, `clear_check_in_on_staff_change` on `venue_staff`, `handle_new_user` on `auth.users`) are `SECURITY DEFINER` owned by `postgres`. `admin-actions` writes `role_type` as `service_role`. No `SECURITY INVOKER` writer exists, and no rule rewrites into `profiles`. Note `apply_talent_charge` writes `heat_score` and `heat_updated_at`, **neither of which is granted**, so it is the one that would have broken; `clear_check_in_on_staff_change` writes three columns that are all in the grant and would have survived either way.
 
-**A measurement lesson worth more than the fix.** The first fixture reported `updated_at` NOT stamped on three of four writes and looked like a failure. It was not: `update_updated_at_column()` sets `NEW.updated_at = now()`, and `now()` is `transaction_timestamp()`, constant for the life of a transaction, so only the first write in a transaction can show a change. The probe asked "did the value change" when the question was "did the trigger fire". Corrected by running one write per transaction and comparing against a stored original rather than a value read inside the same transaction. **The grant list was never adjusted to make it pass.**
+**A measurement lesson worth more than the fix.** The first fixture reported `updated_at` NOT stamped on three of four writes and looked like a failure. It was not: `update_updated_at_column()` sets `NEW.updated_at = now()`, and `now()` is `transaction_timestamp()`, constant for the life of a transaction, so only the first write in a transaction can show a change. The probe asked "did the value change" when the question was "did the trigger fire". **Correction, 2026-09-10: this entry previously said the probe was then corrected by running one write per transaction. That did not happen.** The one-write-per-transaction fixture was written but never run: the migration was held for the writer enumeration, and then shipped. What is actually measured: the TalentManage write moved `updated_at` off its stored original while `authenticated` lacked UPDATE on that column, which answers the open question for that shape. The other three shapes each affected exactly 1 row with no `42501`, but their stamping was **not** independently measured. The inference for them is strong, since the same unconditional `BEFORE UPDATE` trigger and the same statement-level privilege check apply, but it is an inference and is recorded as one. **The grant list was never adjusted to make it pass.**
 
 The original entry, kept because the reasoning is the reusable part:
 
@@ -158,7 +158,37 @@ The mirror of it: **`avatar_url` is rendered but has no writer** in `src/`, whic
 
 Filed as coherence rather than a feature request: the system collects a field and then does not believe in it, which is the same shape as A8.
 
-### A13. EXECUTE was granted uniformly, including where it can never be used
+### A15. Two SECURITY DEFINER functions perform no caller authorization
+
+**Ranked above A13, which is why it appears first despite the higher number.** Found 2026-09-09 reading the two live function bodies that A13 was opened for. The `search_path` question turned out to be the smaller half; this is the real finding.
+
+**Both are `SECURITY DEFINER`, so both bypass RLS on `tickets` and `profiles` entirely.** Both carry EXECUTE for `anon`, `authenticated`, `authenticator`, `service_role` and **PUBLIC** (the leading `=X` in `{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}`). Neither body calls `auth.uid()` or checks the caller in any way.
+
+**`get_unpaid_commissions(venue_id_input uuid)` is the serious one.** It takes `venue_id_input` from the caller and never verifies the caller owns that venue, is staff there, or is signed in at all. It returns promoter `full_name`, `username`, ticket counts and unpaid commission totals for **any** venue id. Cross-reference A1: `venues` carries a `qual: true` SELECT policy, so venue ids are world-readable. **There is no secret to guess.** PII plus financial data, no gate, across all 17 venues.
+
+**`check_in_guest(qr_input text, current_venue_id uuid)` is a mutation.** It marks a ticket `used` and stamps `scanned_at`. It does check that the supplied `venue_id` matches the ticket's, but `venue_id` is public, so **the only real secret is the QR code**. The missing caller check means burning a ticket does not require being at the door: anyone holding the QR, including from a photo of it, can invalidate it remotely.
+
+**Current scale, measured:** `tickets` 6 rows, `payout_history` 0 rows, and ticketing is deliberately dormant in the shipped UI. Bounded today.
+
+**Trigger condition: this goes live the day ticketing is surfaced.** Filed as a **gate on that work, not a standalone task**. Whoever turns ticketing on must close this first, because that is exactly the moment nobody will be re-reading these two function bodies.
+
+**Not a mechanical fix.** The fix depends on deciding who may call `get_unpaid_commissions`: the venue owner, venue staff, or an admin. That last option runs straight into A6's three disconnected admin identity mechanisms, so the authorization rule cannot be written until someone decides which "admin" is meant.
+
+**Call sites, both live:** `check_in_guest` at `Bouncer.tsx:82`, `get_unpaid_commissions` at `PayoutsPanel.tsx:28`. Neither is dead.
+
+### A13. `search_path` unpinned on two live SECURITY DEFINER functions
+
+`check_in_guest` and `get_unpaid_commissions`: `prosecdef=true`, `proconfig` NONE, owner `postgres` (`rolsuper=false`). Read live 2026-09-09. See A15 for the more serious problem in the same two functions.
+
+**Both bodies schema-qualify every relation.** Not one unqualified table reference between them: `check_in_guest` uses `public.tickets` twice; `get_unpaid_commissions` uses `public.tickets`, `public.profiles` and `public.payout_history`. The remaining unqualified names are `pg_catalog` functions (`json_build_object`, `row_to_json`, `NOW()`, `COUNT`, `SUM`) and operators, and `pg_temp` is never consulted for function or operator names. Every object and column named in both bodies was also checked against the live schema; none is phantom.
+
+**Why this is theoretical rather than live, measured:** `authenticated` and `anon` have `CREATE=false` on every schema they can see: `public`, `extensions`, `auth`, `storage`, `graphql_public`. `nspacl` on `public` shows PUBLIC holding `U` only, not `C`, so the PG15 default was never loosened. `postgres` also carries a role-level `search_path="$user", public, extensions` in `pg_db_role_setting`. No caller can create an object in any schema these functions resolve through.
+
+**One unresolved residual, recorded as untested rather than as fine.** Both `anon` and `authenticated` have `TEMP` on the database (`true`, measured), and `get_unpaid_commissions` has four unqualified **type** names in casts: `::TEXT` x2, `::BIGINT`, `::NUMERIC`. `pg_temp` is consulted for type names. Whether `pg_temp` precedes `pg_catalog` for type resolution, and so whether a temp relation's implicit composite type could shadow one of those casts, **was not tested**. `check_in_guest` has no casts and so has no exposure even in principle.
+
+**Pinning is behaviour-neutral for both, verified by reading.** Since every relation is already qualified and everything else resolves from `pg_catalog`, `SET search_path = public` or `SET search_path = ''` resolves identically to what runs today. That makes this cheap to fix whenever it is picked up, most naturally in the same change that closes A15.
+
+**Background: the EXECUTE audit this entry came from (2026-09-07).** Kept here because "What the grouping reveals" cites A13 as the EXECUTE face of the permissive-defaults problem.
 
 The third face of the permissive-defaults problem. A1 is the policy half, A9 the grant half, this is the EXECUTE half. Audited 2026-09-07 with `has_function_privilege` rather than by parsing `proacl`, deliberately: a NULL `proacl` means the default applies, and **for functions the default is EXECUTE to PUBLIC**, so parsing the ACL text would have missed every untouched function, which is exactly the population being audited.
 
@@ -173,7 +203,7 @@ The third face of the permissive-defaults problem. A1 is the policy half, A9 the
 
 **Two worth a look, not a claim:**
 
-- **`check_in_guest` and `get_unpaid_commissions` are `SECURITY DEFINER` with no pinned `search_path`, and both ARE called from `src/`.** Every other `SECURITY DEFINER` function here pins it. This is a hardening gap on live code paths, unlike the dropped pair which nothing called.
+- **`check_in_guest` and `get_unpaid_commissions` are `SECURITY DEFINER` with no pinned `search_path`, and both ARE called from `src/`.** Every other `SECURITY DEFINER` function here pins it. **Investigated 2026-09-09; see the top of this entry for the `search_path` result, and A15 for the more serious finding in the same two functions.**
 - **`is_admin()` is `SECURITY INVOKER`**, so it runs with the caller's privileges, while `CLAUDE.md` describes it as the database's admin boundary. Worth reading the body before relying on it. Not asserting it is wrong.
 
 **One remaining dead function, not dropped:** `cleanup_expired_posts()` returns integer, has no caller in `src/`, is referenced by no column default and no function body, and **`pg_cron` is not installed**, so nothing schedules it. Left alone rather than swept up with the drop, because it is inert rather than dangerous.
