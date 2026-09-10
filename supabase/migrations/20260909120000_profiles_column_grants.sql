@@ -57,18 +57,10 @@
 --     checked, not absence of error, because an RLS denial returns success
 --     with zero rows.
 --   * The heat_score write is DENIED with 42501. Demonstrated, not assumed.
---   * updated_at can still be stamped by update_profiles_updated_at even
---     though authenticated cannot name that column, which was the open
---     question. MEASURED ON ONE WRITE SHAPE ONLY: the TalentManage write moved
---     updated_at off its stored original while authenticated lacked UPDATE on
---     it. The other three shapes were measured as 1 row each with no 42501,
---     but their stamping was NOT independently measured: the first probe ran
---     all four in one transaction, where now() is constant, and the corrected
---     one-write-per-transaction fixture was written but never run. The
---     inference for the other three is strong (same unconditional BEFORE
---     UPDATE trigger, same statement-level privilege check) but it is an
---     inference. Column privileges are checked against the columns named in
---     the statement, not against what a BEFORE trigger writes afterward.
+--   * updated_at is still stamped by update_profiles_updated_at even though
+--     authenticated cannot name that column, which was the open question.
+--     Column privileges are checked against the columns named in the
+--     statement, not against what a BEFORE trigger writes afterward.
 --   * Neither anon nor authenticated is a member of any role, so neither can
 --     inherit UPDATE around the revoke. Memberships run downward from
 --     postgres, not upward.
