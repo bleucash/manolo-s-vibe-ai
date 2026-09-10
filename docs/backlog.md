@@ -174,7 +174,42 @@ Filed as coherence rather than a feature request: the system collects a field an
 
 **Trigger condition: this goes live the day ticketing is surfaced.** Filed as a **gate on that work, not a standalone task**. Whoever turns ticketing on must close this first, because that is exactly the moment nobody will be re-reading these two function bodies.
 
-**Not a mechanical fix.** The fix depends on deciding who may call `get_unpaid_commissions`: the venue owner, venue staff, or an admin. That last option runs straight into A6's three disconnected admin identity mechanisms, so the authorization rule cannot be written until someone decides which "admin" is meant.
+**Owner ruling (2026-09-10): payouts are visible to the venue owner and managers only.** Not door staff, not bouncers, not general `venue_staff` membership. This settles the open question this entry previously recorded (owner, venue staff, or an admin).
+
+**The ruling cannot be fully implemented against the current schema. Recorded as a SCHEMA GAP, not as a revised rule.** The product model includes managers who do not own the venue they manage, and the schema cannot represent them:
+
+- `venue_staff.staff_role` is constrained by `venue_staff_staff_role_allowed` to nine values: `host`, `entertainer`, `dj`, `bartender`, `bottle_girl`, `promoter`, `media`, `security`, `event_staff`. None means manager or owner.
+- Ownership exists only on `venues.owner_id`.
+- `profiles.role_type = 'manager'` is account-level and venue-agnostic. It identifies someone as a manager without identifying which venue, so as a gate it would admit a manager of a different venue.
+
+So no per-venue manager is expressible today. See A17.
+
+**Consequence: the A15 gate can only enforce owner-only for now. That is a partial implementation of the ruling, not the ruling.** Recorded explicitly so that owner-only is never later mistaken for the decision. The ruling is unchanged; owner-only is simply all the schema can express until A17 is closed.
+
+**The ruling is already violated beneath the RPC.** Three `tickets` policies admit active venue staff to read ticket rows directly, including `commission_earned` and `promoter_id`. Measured live:
+
+| Policy | Command, roles | Admits |
+|---|---|---|
+| "Staff and Managers can view venue tickets" | SELECT, authenticated | owner or active staff |
+| `Unified_Venue_Access` | ALL, public | owner or active staff |
+| "Venue staff can read venue tickets" | SELECT, public | active staff only |
+
+None of them looks at `staff_role`, so a host or a bouncer at a venue can already read payout-relevant columns without calling `get_unpaid_commissions`. **Gating the function alone does not satisfy the ruling.** `Unified_Venue_Access` is `FOR ALL`, so it admits active staff for every command, not only reads; the table grants on `tickets` for those writes were not measured in this pass.
+
+**No helper exists for "caller owns, or is active staff at, venue X".** Read live 2026-09-10. `is_addable_group_member(_owner, _member)` takes two arbitrary ids and no venue, and never reads `auth.uid()`; `sync_venue_conversation` and `create_group_conversation` write rows; `is_admin()` checks one hardcoded email. The predicate lives inline across **23 policies in four distinct shapes**:
+
+| Shape | Predicate | Policies |
+|---|---|---|
+| Owner only | `venue_id IN (SELECT id FROM venues WHERE owner_id = auth.uid())`, or the equivalent `auth.uid() IN (SELECT owner_id FROM venues WHERE id = <table>.venue_id)`, or `auth.uid() = owner_id` on `venues` itself | 15: `events` 2, `payout_history` 1 (SELECT), `payout_requests` 2, `tickets` 5, `venue_business_applications` 1, `venue_followers` 1, `venue_staff` 2, `venues` 1 |
+| Owner and business-verified | `venue_id IN (SELECT id FROM venues WHERE owner_id = auth.uid() AND business_verified)` | 4: `payout_history` INSERT, and `venue_staff` DELETE, UPDATE and the invite INSERT |
+| Owner or active staff | `venue_id IN (SELECT id FROM venues WHERE owner_id = auth.uid() UNION SELECT venue_id FROM venue_staff WHERE user_id = auth.uid() AND status = 'active')` | 2: "Staff and Managers can view venue tickets", `Unified_Venue_Access` |
+| Active staff only | `EXISTS (SELECT 1 FROM venue_staff WHERE user_id = auth.uid() AND venue_id = tickets.venue_id AND status = 'active')` | 2: "Venue staff can read venue tickets", "Venue staff can scan tickets" |
+
+**A1 confirmed live.** `venues` carries two PERMISSIVE SELECT policies with `USING true` ("Allow public read access for venues", "Enable read access for all users"), `anon` holds SELECT on `id`, and there are 17 rows. That is what makes `get_unpaid_commissions` enumerable: every venue id it accepts is readable by anyone.
+
+**Revoking EXECUTE from `anon` and PUBLIC breaks no call site.** Both functions are reachable only after sign-in. `PayoutsPanel` renders only inside `DashboardGuard`, which requires a session and ownership (`Dashboard.tsx:37`, `DashboardGuard.tsx:63`, `useVenueStatus.ts:15`). `/bouncer` requires `activeVenueId`, which is set only for a signed-in manager from the venues they own (`App.tsx:56-63`, `UserModeContext.tsx:44` and `81-88`). Both calls carry the session token and run as `authenticated`, which holds its own explicit grant (`authenticated=X/postgres`), independent of the `=X` PUBLIC and `anon=X` entries. Every guard above both call sites is client-side; none constrains a direct RPC call made with the anon key.
+
+**`plpgsql.variable_conflict` is `error`.** Measured live, with no database or role override, no `#variable_conflict` directive in either body, and `proconfig` NONE on both. `get_unpaid_commissions` declares `RETURNS TABLE(full_name, promoter_id, ticket_count, total_unpaid, username)`, and those output columns are plpgsql variables that collide with real column names: `promoter_id` (`tickets`, `payout_history`), `ticket_count` (`payout_history`), `full_name` and `username` (`profiles`). Every reference in the body is alias-qualified today. Under `error`, a future unqualified reference raises `column reference is ambiguous` rather than silently changing a predicate. **That safety depends on the mode staying `error`**: under `use_variable` the same reference would resolve silently to the variable. The mode was measured in the Management API session; that PostgREST sessions use the same value is inferred from the absence of any override. `check_in_guest` has no such collision: neither of its parameters is a column of `tickets`, and it never queries `profiles`.
 
 **Call sites, both live:** `check_in_guest` at `Bouncer.tsx:82`, `get_unpaid_commissions` at `PayoutsPanel.tsx:28`. Neither is dead.
 
@@ -235,6 +270,91 @@ Same family as A13: the question is never "does this code work" but "which role 
 Every migration in the repo carries stored statement text in `supabase_migrations.schema_migrations`: 42 of 42. Only a platform apply writes that text; the Management API writes no row at all. So the platform has applied every migration on sync, including ones run by hand first. Re-application is not an occasional risk, it is universal. Every migration must therefore be written to survive running twice.
 
 Measured 2026-09-10: all 42 rows compared against the current files. 41 are identical, 1 differs in comments only (`20260909120000`), and 0 differ in SQL, so no drift exists at the migration layer today. Two rows (`20260104162336`, `20260615001921`) have empty ledger names and UUID filenames; stored text matches both files exactly, harmless.
+
+### A17. Managers who do not own their venue cannot be represented
+
+Found 2026-09-10 during the A15 investigation. **The product model includes managers who do not own the venue they manage. The schema cannot represent them.** The owner has ruled that such managers see payouts (A15), so this gap is exactly what limits A15 to owner-only.
+
+**What exists today, measured live:**
+
+- `venue_staff` has 7 columns: `id`, `created_at`, `venue_id`, `user_id`, `status`, `staff_role`, `commission_rate`. It holds 2 rows, both `staff_role = 'host'` and `status = 'active'`, and both members have `role_type = 'talent'`.
+- Ownership exists only on `venues.owner_id`, a foreign key to `auth.users`. Of 17 venues, 3 are owned and 14 are not; all 3 belong to one account whose `role_type` is `manager`. No owner has a `venue_staff` row at their own venue.
+- `profiles.role_type = 'manager'` is account-level and names no venue.
+- A search of `public` for role-like columns and tables finds only `profiles.role_type`, `profiles.sub_role` and `venue_staff.staff_role` (plus `venues.capacity`, which is occupancy). There is no manager, admin, member, delegate or team table.
+
+**Closing it means altering the `venue_staff.staff_role` CHECK.** `venue_staff_staff_role_allowed` currently permits exactly nine values: `host`, `entertainer`, `dj`, `bartender`, `bottle_girl`, `promoter`, `media`, `security`, `event_staff`. `profiles_sub_role_allowed` carries the identical list (measured live), so the change has to be made knowing the two lists are currently kept in step.
+
+**Adding the value is not enough; the policy shape has to be decided too.** The three `tickets` policies that admit active venue staff ("Staff and Managers can view venue tickets", `Unified_Venue_Access`, "Venue staff can read venue tickets") key on `venue_staff.status = 'active'` and ignore `staff_role`. A manager added as an active `venue_staff` row would be admitted automatically, which matches the ruling. But those same policies already admit hosts and security, whom the owner has ruled out of payout data. So closing this gap requires deciding the policy shape, not only adding a value.
+
+**What blocks granting a delegated manager.** Checked live 2026-09-10:
+
+| Path | Policy | Predicate | Admits a manager account? |
+|---|---|---|---|
+| Manager invites talent from the directory (`InviteTalentModal`, mounted in `TalentDirectory.tsx`) | "Managers invite talent to their venue" (INSERT, authenticated) | `status = 'pending_talent_action' AND venue_id IN (SELECT id FROM venues WHERE owner_id = auth.uid() AND business_verified) AND has_role_type(user_id, 'talent')` | **No.** The account being added must be talent. |
+| Talent requests to work from the venue page (`RequestToWorkModal`, mounted in `Venue.tsx`) | "Talent request to work a venue" (INSERT, authenticated) | `auth.uid() = user_id AND status = 'pending' AND has_role_type(auth.uid(), 'talent')` | **No.** The caller, who is the account being added, must be talent. |
+
+`has_role_type` is `SECURITY DEFINER` with `search_path=public`, and checks `profiles.role_type = _role_type::app_role` exactly. **These are the only two INSERT policies on `venue_staff`.** No function in `public` inserts into `venue_staff`, and no edge function writes it.
+
+**One route the policies do not close.** "Managers can update staff for their owned venues" (UPDATE, authenticated) constrains only `venue_id`, to owned and business-verified venues, in both `USING` and `WITH CHECK`, and `authenticated` holds table-level UPDATE on `venue_staff`. So at the policy level, an owner of a business-verified venue can rewrite an existing row's `user_id` to any profile, including a manager account, and set its `status` to `active`. **This is inferred from the predicate and the grant, not demonstrated**, since demonstrating it means performing the write. No client code issues such an update: `InviteTalentModal.tsx:81` updates only `status` and `staff_role`. It is A9's shape on a second table: the policy bounds which row, and nothing bounds which columns.
+
+**The staff invite link is dead.** `ManagerDashboard.tsx:151` copies `${origin}/venue/<id>/join` and shows "Invite Link Copied". No route in `App.tsx` contains `join`, and the catch-all at `App.tsx:124` redirects to `/discovery`.
+
+**Net:** the dead link is not the only blocker. The two working insert paths admit talent accounts only, so no shipped UI can add a manager account to `venue_staff`, even once `manager` is a valid `staff_role`. The one opening the policies leave is an owner UPDATE that no client performs.
+
+**What was verified, and how:**
+
+- **Verified live against the database:** both INSERT policies and their exact predicates; that no other INSERT policy exists; the body of `has_role_type`; that no function inserts into `venue_staff`; the table grants on `venue_staff`; the owner UPDATE policy's predicate; both CHECK constraints; the three `tickets` policies.
+- **Verified by reading source in this session:** the two client insert sites and where their modals mount; the absence of any `venue_staff` write in edge functions; the route table in `App.tsx`; how the invite link is built.
+- **Not verified:** the owner UPDATE route by performing it; that the invite link lands on `/discovery`, which is inferred from React Router's matching rather than observed in a browser.
+
+### A18. Talent-side sales are already implemented, and must stay separate from `get_unpaid_commissions`
+
+`TalentDashboard.tsx:67` reads `status, price_paid` from `tickets` filtered on `promoter_id` equal to the signed-in user's id, across all venues, and subscribes to live changes on the same filter (`TalentDashboard.tsx:53`). It renders on `/gigs` inside `TalentGuard` (`Gigs.tsx:21`); `/gigs` itself has no route-level guard (`App.tsx:98`). The read is RLS-gated by two `tickets` SELECT policies, `Talent_Commission_View` and `Talent_view_own_referrals`, both `USING (promoter_id = auth.uid())` and duplicates of each other, which is A1's shape.
+
+`tickets.promoter_id` references `profiles(id)` (`ON DELETE SET NULL`), so a promoter is a user profile, not a separate entity. No function or view returns sales scoped to a single promoter across venues; the only functions mentioning promoters are the commission trigger and `get_unpaid_commissions`, which is venue-scoped.
+
+**`get_unpaid_commissions` must never be widened to serve this.** It is venue-scoped and, per the A15 ruling, gated to owner and managers. Talent numbers are promoter-scoped across venues and already have their own read and their own gate. If talent-side sales grow, that is its own function with its own gate.
+
+**A second source of truth for commission.** `TalentDashboard.tsx:42` computes `availableBalance = grossSales * 0.1`, a hardcoded 10%, labelled "10% Commission" at `TalentDashboard.tsx:356`. It never reads `tickets.commission_earned` or `venue_staff.commission_rate`, so it cannot agree with the stored figure (A19) or with any per-staff rate an owner sets.
+
+### A19. Commission is stored at 10x the ticket price
+
+`tr_calculate_commission` (BEFORE INSERT on `tickets`) runs `calculate_ticket_commission()`, which sets `NEW.commission_earned := NEW.price_paid * COALESCE(v_rate, 0)`. `v_rate` is the promoter's active `venue_staff.commission_rate`, falling back to `venues.standard_commission`. Both columns are `numeric(5,2)` defaulting to `10.00`, which the webhook treats as a percentage, and every live value is `10.00` (both staff rows, all 17 venues). So the trigger multiplies the price by 10.
+
+**Measured on live rows:** 5 of 6 tickets carry `commission_earned` at 10x `price_paid` (200.00 on 20.00, 300.00 on 30.00). The sixth is 30.00 with 0.00.
+
+**The webhook computes it correctly and is overwritten.** `stripe-webhook/index.ts:96-97` computes `pricePaid * (ratePercentage / 100)` and passes it as `commission_earned` (`stripe-webhook/index.ts:109`), but the BEFORE INSERT trigger replaces whatever the insert supplied. The trigger also falls back to the venue's standard rate when a ticket has no promoter, which is why 5 tickets with a NULL `promoter_id` carry any commission at all.
+
+**Why it matters:** `get_unpaid_commissions` sums this column. It returns nothing today only because it filters on `promoter_id IS NOT NULL` and no ticket has one.
+
+`venues` carries two commission columns: `commission_rate` (`numeric`, default `0.00`) and `standard_commission` (`numeric(5,2)`, default `10.00`). The trigger reads only `standard_commission`.
+
+**Gate: resolve before ticketing goes live.**
+
+### A20. Ticket status vocabulary: door-scanned tickets vanish from every count
+
+Writers and readers use different words for a ticket's state:
+
+| Writer or reader | Status it uses |
+|---|---|
+| `stripe-webhook/index.ts:113` inserts | `active` |
+| `check_in_guest` (the Bouncer scan) writes | `used` |
+| Policy "Venue staff can scan tickets" requires, in `WITH CHECK` | `Scanned` |
+| `ManagerDashboard.tsx:79-87` counts revenue and tickets sold | `active` or `Scanned` |
+| `ManagerDashboard.tsx:78` and `:88` count occupancy | `Scanned` |
+| `TalentDashboard.tsx:72` counts scanned | `Scanned` |
+
+**Measured:** 5 of 6 live tickets are `used`, and 1 is `Scanned`. Every ticket admitted through Bouncer therefore disappears from the owner's revenue, tickets-sold and occupancy figures, and from the talent's scanned count.
+
+A second consequence: `check_in_guest` treats only `used` as already scanned, so a ticket marked `Scanned` through the staff policy path would not be refused by the RPC. Nothing in `src/` updates `tickets` directly today, so that half is latent.
+
+**Gate: resolve before ticketing goes live.**
+
+### A21. Referral attribution is caller-supplied and unchecked
+
+`create-checkout-session/index.ts:44` reads `referral_id` from the request body, validates nothing about it, and forwards it as Stripe metadata `promoter_id` (`create-checkout-session/index.ts:96`). `stripe-webhook/index.ts:55` reads it back and inserts it as `tickets.promoter_id` (`stripe-webhook/index.ts:108`). Since `tickets.promoter_id` references `profiles(id)`, any existing profile is accepted. **Any signed-in buyer could name any profile as their referrer.** And because the commission trigger (A19) falls back to the venue's standard rate when the named promoter has no active affiliation, an arbitrary referrer would still accrue commission.
+
+**Harmless today:** `TicketPurchaseDialog`, the component that carries a referral id, is imported by nothing, and 0 of 6 live tickets carry a `promoter_id`.
 
 ---
 
