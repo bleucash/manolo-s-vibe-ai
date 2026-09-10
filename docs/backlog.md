@@ -75,7 +75,20 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 
 `venue_staff.status = 'active'` (affiliation), `profiles.is_active` (tapped in), `venues.is_active` (open). Documented and centralized in `src/lib/presence.ts`. Listed as the archetype of this category, not because it needs work.
 
-### A9. `profiles.heat_score` is user-writable, and the grant is why
+### A9. `profiles.heat_score` is user-writable, and the grant is why. CLOSED 2026-09-09
+
+**CLOSED by `20260909120000_profiles_column_grants.sql`.** `authenticated` now holds UPDATE on exactly 8 of 22 columns and `anon` on 0. Verified after applying at the column layer rather than at `relacl`: `heat_score` is false for both, true for `postgres`; `role_type` remains true for `service_role`; `relacl` shows `anon=ardDxtm` and `authenticated=ardDxtm`, the `w` gone from both, while `postgres` and `service_role` keep `arwdDxtm`.
+
+**The coupling this created, which is the cost of the change.** `heat_score` integrity now depends on `apply_talent_charge()` remaining `SECURITY DEFINER` owned by `postgres`, the `profiles` owner. Verified live at ship time: `prosecdef=true`, `owner=postgres`, `search_path=public`, and `postgres` holds implicit owner UPDATE on `heat_score` despite `rolsuper=false`. Flipping that function to `SECURITY INVOKER`, or changing its owner, makes every post like fail with `42501`: loud, since the trigger is `AFTER INSERT` and the raise aborts the like. **Before this migration that flag was inert**, because `authenticated` could write `heat_score` directly. That is the whole point of the change.
+
+**Every non-client writer was enumerated before shipping**, since a `SECURITY INVOKER` one would have been a launch-breaking regression. All three foreign-table triggers (`apply_talent_charge` on `post_likes`, `clear_check_in_on_staff_change` on `venue_staff`, `handle_new_user` on `auth.users`) are `SECURITY DEFINER` owned by `postgres`. `admin-actions` writes `role_type` as `service_role`. No `SECURITY INVOKER` writer exists, and no rule rewrites into `profiles`. Note `apply_talent_charge` writes `heat_score` and `heat_updated_at`, **neither of which is granted**, so it is the one that would have broken; `clear_check_in_on_staff_change` writes three columns that are all in the grant and would have survived either way.
+
+**A measurement lesson worth more than the fix.** The first fixture reported `updated_at` NOT stamped on three of four writes and looked like a failure. It was not: `update_updated_at_column()` sets `NEW.updated_at = now()`, and `now()` is `transaction_timestamp()`, constant for the life of a transaction, so only the first write in a transaction can show a change. The probe asked "did the value change" when the question was "did the trigger fire". Corrected by running one write per transaction and comparing against a stored original rather than a value read inside the same transaction. **The grant list was never adjusted to make it pass.**
+
+The original entry, kept because the reasoning is the reusable part:
+
+---
+
 
 Found 2026-09-05 while reading `profiles`' grants before adding a column. Three facts that are individually fine and jointly are the hole:
 
@@ -164,6 +177,24 @@ The third face of the permissive-defaults problem. A1 is the policy half, A9 the
 - **`is_admin()` is `SECURITY INVOKER`**, so it runs with the caller's privileges, while `CLAUDE.md` describes it as the database's admin boundary. Worth reading the body before relying on it. Not asserting it is wrong.
 
 **One remaining dead function, not dropped:** `cleanup_expired_posts()` returns integer, has no caller in `src/`, is referenced by no column default and no function body, and **`pg_cron` is not installed**, so nothing schedules it. Left alone rather than swept up with the drop, because it is inert rather than dangerous.
+
+### A14. `create-checkout-session` runs as the caller, not as the owner
+
+Found 2026-09-09 while enumerating writers of `profiles` before shipping A9. Of the three edge functions, it is the only one that forwards the caller's JWT:
+
+```ts
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: { headers: { Authorization: authHeader } },
+});
+```
+
+`admin-actions` and `stripe-webhook` both build their write client on `SUPABASE_SERVICE_ROLE_KEY`, so their writes run as `service_role` and are unbound by column grants. This one executes **as the authenticated caller**, so anything it writes is subject to whatever that role holds.
+
+**Nothing today.** Measured: it contains no reference to `profiles` at all, and neither does `stripe-webhook`. So this is not a live problem and there is nothing to fix.
+
+**Why it is worth writing down anyway.** A9 introduced the first real column boundary on `profiles`, and this is the single place in the codebase where a server-side write would land on the caller's side of it. The obvious future change, having checkout stamp something onto the buyer's profile (`total_lifetime_spend` is sitting right there, ungranted), would fail with `42501` from inside an edge function, where the error surfaces further from its cause than a client write would. Whoever adds that write needs to decide deliberately between granting the column and switching the client to the service key.
+
+Same family as A13: the question is never "does this code work" but "which role is it running as", and that is invisible at the call site.
 
 **What was dropped and why it was the right first slice.** `update_user_profile(p_role_type text)` set `role_type` to whatever it was passed for `auth.uid()`, EXECUTE-granted to `anon` and `authenticated`, held closed by exactly one thing: `prevent_profile_privilege_escalation` raising because `auth.role()` returns `'authenticated'`. `CLAUDE.md` records three occasions where a migration disabled that same trigger to work around the `auth.role()` trap, and during any such window this was a live self-promotion endpoint. The other overload assigned to `profiles.role`, a column that does not exist, making it the sixth invented reference and the second to live in a SQL function body. Neither could succeed, which is what made the drop safe rather than merely tidy.
 
