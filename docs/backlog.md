@@ -228,6 +228,12 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 Same family as A13: the question is never "does this code work" but "which role is it running as", and that is invisible at the call site.
 
+### A16. The platform re-applies every migration: 42 of 42 carry stored statement text
+
+Every migration in the repo carries stored statement text in `supabase_migrations.schema_migrations`: 42 of 42. Only a platform apply writes that text; the Management API writes no row at all. So the platform has applied every migration on sync, including ones run by hand first. Re-application is not an occasional risk, it is universal. Every migration must therefore be written to survive running twice.
+
+Measured 2026-09-10: zero SQL differences between stored text and current files across all 41 comparable migrations, so no drift exists at the migration layer today. Two rows (`20260104162336`, `20260615001921`) have empty ledger names and UUID filenames; stored text matches both files exactly, harmless.
+
 **What was dropped and why it was the right first slice.** `update_user_profile(p_role_type text)` set `role_type` to whatever it was passed for `auth.uid()`, EXECUTE-granted to `anon` and `authenticated`, held closed by exactly one thing: `prevent_profile_privilege_escalation` raising because `auth.role()` returns `'authenticated'`. `CLAUDE.md` records three occasions where a migration disabled that same trigger to work around the `auth.role()` trap, and during any such window this was a live self-promotion endpoint. The other overload assigned to `profiles.role`, a column that does not exist, making it the sixth invented reference and the second to live in a SQL function body. Neither could succeed, which is what made the drop safe rather than merely tidy.
 
 ---
