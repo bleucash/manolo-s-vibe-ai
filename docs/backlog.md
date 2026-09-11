@@ -356,6 +356,16 @@ A second consequence: `check_in_guest` treats only `used` as already scanned, so
 
 **Harmless today:** `TicketPurchaseDialog`, the component that carries a referral id, is imported by nothing, and 0 of 6 live tickets carry a `promoter_id`.
 
+### A22. `check_in_guest` returns the full ticket row on `wrong_venue` and `already_used`
+
+Found 2026-09-10 while planning A15, and deliberately left unchanged by `20260910120000_a15_owner_checks.sql`, which kept the response shape as it was.
+
+Both branches return `row_to_json(ticket_record)`: every column of `tickets`, including `user_id`, `qr_code`, `stripe_session_id`, `payment_intent_id`, `price_paid` and `commission_earned`. The scanner renders only two of them: `customer_segment` and `event_name` (`Bouncer.tsx:209` and `Bouncer.tsx:212`).
+
+**The function is `SECURITY DEFINER`, so it bypasses RLS on `tickets`, and the caller can receive data the `tickets` policies would deny them.** Since A15 the caller must own the venue whose door is being scanned, so `wrong_venue` hands the owner of one venue a ticket row from a different venue. Read against the live policies on 2026-09-11, a SELECT on that row would be admitted only if the caller owns the ticket's venue (ruled out on this branch), holds an active `venue_staff` row there, is the buyer (`user_id`), or is the promoter (`promoter_id`). In every other case RLS denies the read and the function returns the row anyway. `already_used` is a different problem: the ticket is at the caller's own venue, which the owner policies already let them read, so nothing is bypassed there, but the response still carries far more than the scanner uses.
+
+Separate from A15 on purpose: A15 changes who may call the function; this changes what the function returns.
+
 ---
 
 ## B. Pre-launch gates
