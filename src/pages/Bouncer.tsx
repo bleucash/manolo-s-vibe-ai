@@ -111,9 +111,28 @@ const Bouncer = () => {
         };
         toast.error(messages[result as keyof typeof messages] || "Access Denied");
       }
-    } catch (err) {
-      toast.error("Ledger Sync Failure");
+    } catch (err: any) {
       console.error(err);
+      // The thrown value is the plain {code, message, details, hint} object
+      // postgrest-js parses from the response, not an Error, so branch on code.
+      //
+      // A credential refusal gets a message the door operator can act on.
+      // Two causes, three codes:
+      //   42501     EXECUTE grant refused: the session is gone and the client
+      //             fell back to the anon key. Measured live as anon, 2026-09-11.
+      //   42501     Owner check RAISE inside check_in_guest: signed in, but not
+      //             the owner of current_venue_id. Inferred from the A15 F1/F3
+      //             fixtures, which measured SQLSTATE 42501 in the database.
+      //             Not measured through PostgREST.
+      //   PGRST301  Token rejected by PostgREST. Measured with a bad signature.
+      //   PGRST303  Token claims fail validation, the expected path for an
+      //             expired token. Not measured.
+      // None of these has been observed rendering this branch.
+      if (err?.code === "42501" || err?.code === "PGRST301" || err?.code === "PGRST303") {
+        toast.error("Not authorized at this venue. Sign in again.");
+      } else {
+        toast.error("Ledger Sync Failure");
+      }
       setScanResult(null);
     }
   };

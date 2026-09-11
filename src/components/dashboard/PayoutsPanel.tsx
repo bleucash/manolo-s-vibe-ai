@@ -15,6 +15,10 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Separate from an empty list on purpose. Payouts starts as [] and a failed
+  // fetch used to leave it there, so a failure rendered "All accounts settled",
+  // a message that must only ever mean a read that succeeded.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (venueId) fetchData();
@@ -22,6 +26,7 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       if (activeTab === "pending") {
         // ✅ Call the new RPC we deployed (No more manual aggregation)
@@ -41,6 +46,20 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
       }
     } catch (err) {
       console.error("Payout fetch error:", err);
+      // Clearing the list is the point, not tidiness. A failed refetch after a
+      // venue switch would otherwise leave the previous venue's rows on screen,
+      // and Settle would insert payout_history with the NEW venueId and the OLD
+      // venue's promoter and amount.
+      //
+      // Every failure lands here with no code-specific branch: 42501 from the
+      // EXECUTE grant (measured live as anon, 2026-09-11); 42501 from the owner
+      // check RAISE inside get_unpaid_commissions (inferred from the A15 F1/F3
+      // fixtures, not measured through PostgREST); PGRST301 (measured with a
+      // bad token signature); an expired token (not measured); and network
+      // failures, which carry code "". None of the credential failures has
+      // been observed rendering this state.
+      setPayouts([]);
+      setLoadFailed(true);
       toast.error("Ledger Sync Failure");
     } finally {
       setLoading(false);
@@ -92,7 +111,11 @@ const PayoutsPanel = ({ venueId }: { venueId: string }) => {
 
       <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pr-1">
         {activeTab === "pending" ? (
-          payouts.length === 0 ? (
+          loadFailed ? (
+            <p className="text-center py-12 text-[9px] font-black text-red-500 uppercase tracking-widest">
+              Payouts could not be loaded
+            </p>
+          ) : payouts.length === 0 ? (
             <p className="text-center py-12 text-[9px] font-black text-zinc-700 uppercase tracking-widest">
               All accounts settled
             </p>
