@@ -382,6 +382,18 @@ Read from code, not exercised: the one ordinary route to the owner-check RAISE i
 
 **The History tab never reads `error`.** `PayoutsPanel.tsx:40-45` (lines 35-40 before `b794fd7`) destructures only `data` from the `payout_history` select. A failed history fetch sets `history` to `[]` and renders nothing: no toast, no failed state, and the list at `PayoutsPanel.tsx:150` has no empty-state message, so failed and genuinely empty look identical. `loadFailed` does not cover it: a supabase query returns its error rather than throwing, so the catch is reached only through the pending branch's `if (error) throw error`. Left out of `b794fd7`, which was scoped to the pending tab.
 
+### A24. PayoutsPanel has no request-ordering guard: a late response can render one venue's payouts under another
+
+Found 2026-09-11 by reading, not reproduced.
+
+`fetchData` (`PayoutsPanel.tsx:27`) writes whatever response arrives into `payouts` (`PayoutsPanel.tsx:38`), with nothing checking that it answers the most recent request. The effect at `PayoutsPanel.tsx:23-25` re-runs on every `venueId` change, and the panel is mounted without a `key` (`ManagerDashboard.tsx:279`), so a venue switch starts a second fetch on the same instance while the first may still be in flight. If the first response lands last, it overwrites the newer one: venue A's rows render while `venueId` is venue B.
+
+**Same money-attribution hazard as the stale-list defect fixed in `b794fd7`, reached by a different path.** Settle inserts `payout_history` with `venue_id: venueId` and the displayed row's `promoter_id` and `total_unpaid` (`PayoutsPanel.tsx:73-75`), so it would record venue A's promoter and amount against venue B. Clearing the list on failure does not cover it: both responses succeed.
+
+**The switch is reachable mid-flight.** The tab buttons are hidden during load, because `if (loading) return <LoadingState />` (`PayoutsPanel.tsx:92`) replaces the whole panel. But `VenueSwitcher` renders outside the panel and outside the Tabs (`ManagerDashboard.tsx:210`, Tabs from `ManagerDashboard.tsx:253`), so it stays clickable while a fetch is pending.
+
+**The fix already exists in this codebase. Use it, do not invent a second pattern.** `TalentDirectory.tsx` discards stale responses with a monotonic `requestIdRef`, added in `7ec156e`: `useRef(0)` (`TalentDirectory.tsx:143`); each new request takes `const myId = ++requestIdRef.current` (`TalentDirectory.tsx:214`); success, failure and the loading flag each return early unless `requestIdRef.current === myId` (`TalentDirectory.tsx:218`, `223`, `228`). Applied here, the guard belongs on the `setPayouts` and `setHistory` writes, on the catch (so a late failure cannot clear a newer good list), and on `setLoading(false)`. Settle's refresh (`PayoutsPanel.tsx:85`) goes through `fetchData`, so it would be covered by the same guard.
+
 ---
 
 ## B. Pre-launch gates
