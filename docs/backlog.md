@@ -360,11 +360,27 @@ A second consequence: `check_in_guest` treats only `used` as already scanned, so
 
 Found 2026-09-10 while planning A15, and deliberately left unchanged by `20260910120000_a15_owner_checks.sql`, which kept the response shape as it was.
 
-Both branches return `row_to_json(ticket_record)`: every column of `tickets`, including `user_id`, `qr_code`, `stripe_session_id`, `payment_intent_id`, `price_paid` and `commission_earned`. The scanner renders only two of them: `customer_segment` and `event_name` (`Bouncer.tsx:209` and `Bouncer.tsx:212`).
+Both branches return `row_to_json(ticket_record)`: every column of `tickets`, including `user_id`, `qr_code`, `stripe_session_id`, `payment_intent_id`, `price_paid` and `commission_earned`. The scanner renders only two of them: `customer_segment` and `event_name` (`Bouncer.tsx:228` and `Bouncer.tsx:231`).
 
 **The function is `SECURITY DEFINER`, so it bypasses RLS on `tickets`, and the caller can receive data the `tickets` policies would deny them.** Since A15 the caller must own the venue whose door is being scanned, so `wrong_venue` hands the owner of one venue a ticket row from a different venue. Read against the live policies on 2026-09-11, a SELECT on that row would be admitted only if the caller owns the ticket's venue (ruled out on this branch), holds an active `venue_staff` row there, is the buyer (`user_id`), or is the promoter (`promoter_id`). In every other case RLS denies the read and the function returns the row anyway. `already_used` is a different problem: the ticket is at the caller's own venue, which the owner policies already let them read, so nothing is bypassed there, but the response still carries far more than the scanner uses.
 
 Separate from A15 on purpose: A15 changes who may call the function; this changes what the function returns.
+
+### A23. Two client failure paths ship unobserved: the credential branches, and a History tab that never reads its error
+
+Found 2026-09-11 shipping the A15 client half (`b794fd7`).
+
+**No credential branch in either component has been observed rendering.** `Bouncer.tsx` shows "Not authorized at this venue. Sign in again." when the caught error's code is `42501`, `PGRST301` or `PGRST303`. `PayoutsPanel.tsx` has no code-specific branch; the same refusals land in its failed state. What stands behind the codes: `42501` from the EXECUTE grant was measured live as anon; `42501` from the owner-check RAISE is inferred from the A15 F1/F3 fixtures, not measured through PostgREST; `PGRST301` was measured with a bad token signature; the expired-token path was not measured. The verification planned for `b794fd7` blocks the request in DevTools, which is a network error with code `""`: it reaches PayoutsPanel's failed state and cleared list, and neither credential path.
+
+**Why they are unreachable by clicking.** The client guards keep both causes away from the RPC:
+
+- *Not the owner.* Both components pass `activeVenueId`, and every writer of it picks an owned venue: `syncProfileAndVenues` from venues where `owner_id` is the user (`UserModeContext.tsx:81-88`), `VenueSwitcher.tsx:42` from that same list, and `Dashboard.tsx:18` only inside `DashboardGuard`, which renders its children only when `useVenueStatus` reads the user as `owner_id` (`DashboardGuard.tsx:63`, `useVenueStatus.ts:33`). `/bouncer` sits behind the same guard (`App.tsx:56-63`).
+- *No session.* `SIGNED_OUT` clears `activeVenueId` (`UserModeContext.tsx:122-131`), which sends the scanner to `/dashboard` (`Bouncer.tsx:56-61`) and unmounts PayoutsPanel (`ManagerDashboard.tsx:279`). The anon-key fallback reaches the RPC only if a token refresh fails at call time (auth-js `__loadSession` returns a null session and supabase-js sends the anon key) before that event lands. Whether a failed refresh emits `SIGNED_OUT` was not read.
+- *Token rejected.* `PGRST301` and `PGRST303` need the server to reject a token the client still considers valid, since auth-js refreshes any token inside its expiry margin before sending. Inferred causes: clock skew or a rotated signing key.
+
+Read from code, not exercised: the one ordinary route to the owner-check RAISE is ownership changing mid-session. An admin revoke nulls `owner_id` while `activeVenueId` still holds the venue, `syncProfileAndVenues` does not clear it when the owner is left with no venues (`UserModeContext.tsx:83`), and `DashboardGuard` re-reads ownership only when the session object changes. Observing either credential branch therefore needs a signed-in test account and either an ownership change on a test venue or a call made outside the UI.
+
+**The History tab never reads `error`.** `PayoutsPanel.tsx:40-45` (lines 35-40 before `b794fd7`) destructures only `data` from the `payout_history` select. A failed history fetch sets `history` to `[]` and renders nothing: no toast, no failed state, and the list at `PayoutsPanel.tsx:150` has no empty-state message, so failed and genuinely empty look identical. `loadFailed` does not cover it: a supabase query returns its error rather than throwing, so the catch is reached only through the pending branch's `if (error) throw error`. Left out of `b794fd7`, which was scoped to the pending tab.
 
 ---
 
