@@ -14,20 +14,96 @@
 
 *Places the system holds two ideas about itself. These produce silent wrongness rather than errors, which is what makes them expensive.*
 
-### A1. Permissive policies that make their stricter siblings inert — live exposure
+### A25. `_diag`: RLS disabled, no policies, and anon can read and write it. Resolve first, ahead of A1
 
-Verified against `pg_policy`, and worse than previously recorded:
+Found 2026-09-13 during the A1 investigation. **Ranked above A1 and the first item to resolve.** Every exposure in A1 is bounded by at least one policy; this table is bounded by nothing.
 
-| Table | SELECT policies | Problem |
+Measured live:
+
+- `relrowsecurity = false`, and no policy exists on the table.
+- `anon` and `authenticated` both hold table-level SELECT, INSERT, UPDATE and DELETE on all 7 columns: `n integer`, `conv text`, `kind text`, `venue_id text`, `thread_title text`, `display_name text`, `participants text`. With RLS off the grants alone decide, so anyone holding the public anon key can read, rewrite or delete every row, unconditionally.
+- 3 rows of messaging metadata: `kind` is `dm` on 1 and `venue` on 2. `display_name` and `thread_title` are populated on all 3.
+- **`participants` was not read.** Measured only that it contains no uuid pattern and is at most 56 characters, so it holds free text rather than ids. That it holds participant names is inferred from its shape and name, not observed.
+
+**Origin unknown.** No migration in the repo creates it. It first appears in `src/integrations/supabase/types.ts` in `526e798` (2026-09-02, "Render thread_title and member avatars; delete the PRIMARY/GENERAL split"), a type regeneration, so it already existed in the live database at that commit and was created outside the repo. Its columns mirror `conversation_summary`'s (`kind`, `venue_id`, `thread_title`, `display_name`), which suggests a diagnostic snapshot from the thread-title work, but that is inference. Who created it and why was not determined.
+
+It is also drift that A16's ledger comparison cannot see: A16 compares migrations against files, and this table has no migration. The messaging RLS work exists to keep who-talks-to-whom scoped to participants; this table sits outside all of it.
+
+### A1. Permissive `USING (true)` policies make their narrower siblings inert: six tables, and the fix must add before it removes
+
+**Rewritten 2026-09-13 from a fresh live dump:** `pg_policies` for all 21 tables in `public`, grants via `has_table_privilege` and `has_column_privilege`, exact row counts, and a read of every caller in `src/` and the edge functions. The previous version of this entry was right about `venues`, `venue_staff` and `venue_followers`, **wrong about `tickets`**, and missed `profiles`, `events` and `portfolio_items`.
+
+Permissive policies OR together, so one `USING (true)` admits every row, and every narrower permissive policy for the same command and an overlapping role is dead. Postgres logs nothing; it just returns more rows. Measured: every `true` policy below is scoped to `{public}`, which covers `anon` and `authenticated`, so it overlaps every sibling. No `1=1`-style equivalent exists, and there is no RESTRICTIVE policy anywhere in `public`.
+
+**Correction: `tickets` does not have this shape.** Its count of 15 policies holds, but its only `true` policy is "Service role can do everything", scoped to `{service_role}`, and `service_role` has `rolbypassrls = true` (measured), so that policy is never consulted. `tickets` has different permissive problems, recorded in A26 and A27.
+
+**The inert policies, measured:**
+
+| Table | SELECT policies with `true` | Inert because of them |
 |---|---|---|
-| `venues` | 4 | **Two** are `USING true`. Both narrower ones (`is_active = true`) are dead. |
-| `venue_staff` | 4 | One `USING true` ("Enable read access for all users"). Three narrower ones dead. |
-| `venue_followers` | 3 + a redundant `FOR ALL` | One `USING true`. Manager-scoped and self-scoped both dead. |
-| `tickets` | 15 total | Confirmed exactly 15. Dormant in the UI; same shape. |
+| venues | "Allow public read access for venues", "Enable read access for all users" | "Anyone can view active venues", "Public venues are viewable by everyone" |
+| venue_staff | "Enable read access for all users" | "Managers can view staff for their owned venues", "Managers view venue staff", "Talent view own status" |
+| venue_followers | "Public can view venue follower counts" | "Users can view their own venue follows", "Venue managers can view venue followers", and the SELECT part of ALL "Users can manage their venue follows" |
+| profiles | "Public Read Access", "Public profiles are viewable by everyone" | "Users can see own profile" |
+| events | "Events are public" | "Public can view active events", and the SELECT part of both ALL owner policies |
+| portfolio_items | "Portfolio items are viewable by everyone" | The SELECT part of ALL "Users can manage own portfolio" |
 
-Permissive policies OR together — the loosest wins, and Postgres logs nothing. Every row in `venues` and `venue_staff` is world-readable regardless of the four policies that appear to restrict it.
+**What the rows actually hold, ranked by content.** `anon` and `authenticated` hold SELECT on every column of all six tables (table-level grant, measured). Counts measured 2026-09-13 as aggregates; no values were read.
 
-**Pull a fresh `pg_policy` dump before fixing.** This schema has recorded cases of migration files disagreeing with live bodies.
+| Rank | Table | Rows | What anon can read |
+|---|---|---|---|
+| 1 | `profiles` | 5 | Real accounts: 1 guest, 3 talent, 1 manager, so `role_type` identifies the manager and guest accounts. Populated: `city` on 5, `display_name` on 4, `bio` on 2. Empty today: `full_name`, `location`, `website`, `total_lifetime_spend` (0 nonzero) and live presence (0 tapped in). Those columns become public the moment they are filled. |
+| 2 | `venue_staff` | 2 | Both `active`: one person at two venues, `commission_rate` set on both. No public reader selects `commission_rate`. |
+| 3 | `venues` | 17 | 15 open, 3 owned, 2 business-verified. Beyond directory data: `owner_id` (joins to a profile), and `commission_rate`, `standard_commission` and `table_min_spend` on all 17. `settings` empty on all, `subscription_tier = 'free'` on all, `ticketing_enabled` on 0. |
+| 4 | `venue_followers` | 1 | One person following one venue. |
+| 5 | `events` | 2 | Both active, price and description set. No reader in code. |
+| 6 | `portfolio_items` | 0 | Empty. |
+
+`posts` and `post_likes` each carry a lone `true` SELECT with no narrower sibling, so they are outside this shape: `posts` exposes its 1 inactive row of 2, and `post_likes` exposes who charged which post (1 row).
+
+**Whether the app depends on the wide read** (read from code 2026-09-13):
+
+- `venues`: **yes, heavily, and there is no owner-scoped or admin-scoped SELECT.** The narrower policies are only `is_active = true`. Closed venues shown publicly: `Discovery.tsx:204`, `Venue.tsx:74`, `TalentProfile.tsx:66`. Owners reading their own venue whatever its state: `UserModeContext.tsx:81`, `useVenueStatus.ts:20-24`, `VenueManage.tsx:95`, `ManagerDashboard.tsx:166` and `184`, `VenuePriceEditor.tsx:37`. Unowned venues for claiming: `ClaimVenueModal.tsx:40-44`, `VenueManage.tsx:69-71`. Admin: `CEODashboard.tsx:82-86`, embeds at 57 and 72. And `conversation_summary`, which is `security_invoker` and LEFT JOINs `venues` for `thread_title`.
+- `venue_staff`: **yes, for the public roster:** `Discovery.tsx:204` (embed, any viewer including anon), `Venue.tsx:77-81`, `TalentProfile.tsx:64-68`. CLAUDE.md records the full-roster facepile as deliberate. Every other reader is own-row or manager-scoped and covered by a narrower policy. The row read is intended; the `commission_rate` column is needed by no public reader.
+- `venue_followers`: **no dependence found.** Only `Discovery.tsx:212` and `useFollow.ts:83-88` read it, both for the caller's own follows. Nothing reads follower counts, despite the policy's name.
+- `profiles`: **yes, everywhere:** directory, public profiles, feed, messaging (`conversation_summary` joins it for names and avatars; `useChat.ts:244`), staff lists, CEO dashboard, payouts. The row read is intended; **the exposure is in the columns.** `select("*")` at `TalentProfile.tsx:46` and `GuestProfile.tsx:40`, and `profiles:user_id (*)` at `Index.tsx:87`, would have to change under any column-level fix.
+- `events`: **no.** Nothing in `src/` or the edge functions reads or writes it.
+- `portfolio_items`: **yes, for viewing someone else's portfolio:** `PortfolioGallery.tsx:24-28`, mounted at `TalentProfile.tsx:142`.
+
+**Sequencing: add the missing policies first, then remove the `true` ones. The reverse order takes the app down.** This is the finding that determines how A1 is done.
+
+- **`venues`.** No SELECT policy admits an owner reading their own closed venue, or an admin. Remove the `true` policies first and an owner of a closed venue (2 of 17 are closed today; which ones was not measured) can no longer read it: `useVenueStatus` returns nothing, so `DashboardGuard` shows Access Denied on `/dashboard` and `/bouncer`, and the venue drops out of `UserModeContext`'s list. **And 20 policies across 7 tables filter through `venues WHERE owner_id = auth.uid()`**, an inner read that runs under the caller's RLS, so they stop matching that venue too:
+
+  | Table | Policies that read `venues` |
+  |---|---|
+  | `tickets` | 7: `Admin_Full_Access`, `Manolo_AI_Admin`, `Manolo_AI_Owner_Access`, `Strict_Owner_Access`, `Unified_Venue_Access`, "Staff and Managers can view venue tickets", "Managers can update ticket commissions" |
+  | `venue_staff` | 5: "Managers can delete staff for their owned venues", "Managers invite talent to their venue", "Managers can view staff for their owned venues", "Managers view venue staff", "Managers can update staff for their owned venues" |
+  | `events` | 2: "Managers can manage their own venue events", "Owners can manage their events" |
+  | `payout_history` | 2: "Managers insert payouts for verified venues", "Managers can view payout history" |
+  | `payout_requests` | 2: "Managers can view venue payout requests", "Managers can update payout requests" |
+  | `venue_business_applications` | 1: "Owners create own pending business applications" |
+  | `venue_followers` | 1: "Venue managers can view venue followers" |
+
+  They are spelled three ways (`venue_id IN (SELECT id FROM venues WHERE owner_id = auth.uid())`, `auth.uid() IN (SELECT owner_id FROM venues WHERE id = ...)`, and one `EXISTS`), and all of them read `venues` as the caller. The owner of a closed venue would lose its tickets, staff management, events, payouts and business application; the claim list, the CEO dashboard, closed venue pages and closed venue thread titles would empty as well. Inferred from the policies and the code, not exercised.
+- **`profiles`.** Remove both `true` SELECTs and only "Users can see own profile" remains, so every read of another user's profile returns nothing: the directory, public profiles, feed authors, messaging names and avatars, staff lists, CEO owner names and payout names all empty. Same order: add the policies for what must stay readable first, then remove.
+- **`venue_staff` and `portfolio_items`** also break for guests and anon (the public roster, someone else's portfolio), since no narrower policy admits them. The four `tickets` policies that read `venue_staff` key on the caller's own row, which "Talent view own status" still admits.
+- **`venue_followers` and `events`:** no break found. "Public can view active events" still admits both event rows.
+- **Removing one of two duplicate `true` policies on `venues` or `profiles` changes nothing**, because its twin still admits everyone. A partial fix will look applied and do nothing.
+
+**A9's shape on the same tables:** a table-level write grant with a policy that bounds only the row. Grants measured 2026-09-13; consequences inferred from the policies, not exercised.
+
+- **`venue_staff`: confirmed.** `authenticated` holds table-level INSERT and UPDATE on all 7 columns, and neither trigger on the table (`venue_staff_clear_check_in`, `venue_staff_sync_conversation`) guards a column.
+  - "Talent respond to their own invitations" checks only `auth.uid() = user_id` and the new `status`. A talent accepting an invite could, in the same UPDATE, rewrite `venue_id` to a venue that never invited them and set their own `commission_rate`, limited only by `unique_venue_user_connection`.
+  - "Talent request to work a venue" does not constrain `commission_rate` either, and approval (`ManagerApprovalPanel.tsx:85`) updates only `status`, so a self-chosen rate would survive approval.
+  - "Managers can update staff for their owned venues" checks only `venue_id`, so a manager could rewrite `user_id` to any profile and set `status = 'active'`, bypassing the invite consent that the INSERT policy pins. Already recorded in A17; now backed by this grant measurement.
+- **`venues`: confirmed.** "Managers can update their own venue" bounds the row to the owner, and `authenticated` holds UPDATE on all 28 columns. The live trigger bodies guard `business_verified` always, `owner_id` against reassignment between two users, and `is_active`, `active_at`, `entry_price` and `vip_price` **only on unverified venues**. Unguarded for any owner: `commission_rate`, `standard_commission`, `table_min_spend`, `base_price`, `subscription_tier`, `ticketing_enabled`, `settings`. **So an owner could enable the paid tier or ticketing for themselves.** Unused today: all 17 are `free` and 0 have ticketing enabled.
+- `events`, `venue_followers`, `portfolio_items`: the same shape at own-row scope, low impact.
+- `profiles`: UPDATE closed by A9 (8 columns, re-measured). INSERT is still table-level on all 22 columns including `role_type`, bounded only by `auth.uid() = id`. Unreachable for an existing account because `handle_new_user` already inserted the row (inferred), and `prevent_profile_privilege_escalation` fires on UPDATE only (measured).
+- `anon` holds table-level writes on all six too, but every write policy keys on `auth.uid()`, which is NULL for anon, so none passes (inferred from the predicates).
+
+**Stale comment.** `Venue.tsx:85-86` says the own-row read is "Self-scoped by the 'Talent view own status' policy". That policy is inert beside "Enable read access for all users"; the query's own `.eq("user_id", session.user.id)` is what scopes it. The outcome is right and the stated mechanism is wrong, which makes a dead policy look live. Recorded here; the comment itself was not edited in this pass.
+
+**Re-dump before fixing.** This schema has recorded cases of migration files disagreeing with live bodies, and this entry is itself a correction of a previous one.
 
 ### A2. `get_talent_spotlight` migration files disagree with the live body
 
@@ -393,6 +469,39 @@ Found 2026-09-11 by reading, not reproduced.
 **The switch is reachable mid-flight.** The tab buttons are hidden during load, because `if (loading) return <LoadingState />` (`PayoutsPanel.tsx:92`) replaces the whole panel. But `VenueSwitcher` renders outside the panel and outside the Tabs (`ManagerDashboard.tsx:210`, Tabs from `ManagerDashboard.tsx:253`), so it stays clickable while a fetch is pending.
 
 **The fix already exists in this codebase. Use it, do not invent a second pattern.** `TalentDirectory.tsx` discards stale responses with a monotonic `requestIdRef`, added in `7ec156e`: `useRef(0)` (`TalentDirectory.tsx:143`); each new request takes `const myId = ++requestIdRef.current` (`TalentDirectory.tsx:214`); success, failure and the loading flag each return early unless `requestIdRef.current === myId` (`TalentDirectory.tsx:218`, `223`, `228`). Applied here, the guard belongs on the `setPayouts` and `setHistory` writes, on the catch (so a late failure cannot clear a newer good list), and on `setLoading(false)`. Settle's refresh (`PayoutsPanel.tsx:85`) goes through `fetchData`, so it would be covered by the same guard.
+
+### A26. Tickets can be minted directly by any signed-in user
+
+Found 2026-09-13 during the A1 investigation. **Inferred from policies and grants, not executed.**
+
+- Measured: `authenticated` holds table-level INSERT on all 18 `tickets` columns (and UPDATE and DELETE).
+- Measured: "Authenticated users can purchase a ticket" (INSERT, `{authenticated}`) is `WITH CHECK (auth.uid() = user_id)` and nothing else.
+- The one BEFORE INSERT trigger is `tr_calculate_commission` (`calculate_ticket_commission`). Its body was not read in this pass, so whether it rejects anything is unverified.
+
+So any signed-in user could insert a row into `tickets` through the database API for any `venue_id`, with a `qr_code`, `price_paid` and `status` of their choosing, bypassing Stripe entirely. `check_in_guest` looks a ticket up by `qr_code`, requires its `venue_id` to match the venue being scanned, and refuses only `status = 'used'`, so the owner's scanner would admit it.
+
+The UI withholds ticketing, but that does not close this: the table and the check-in RPC are live, and the UI is not involved. It is a ticketing gate alongside **A19** (commission stored at 10x) and **A20** (status vocabulary), to resolve before ticketing ships. Related: A14 (`create-checkout-session` runs as the caller) and A21 (referral attribution unchecked).
+
+### A27. `Unified_Venue_Access` is FOR ALL with no WITH CHECK: active staff can write tickets
+
+Found 2026-09-13 during the A1 investigation. Extends what A15's investigation recorded: that this policy admits active staff for every command, with the grants on `tickets` unmeasured at the time. They are now measured.
+
+- Measured: `Unified_Venue_Access` is `FOR ALL`, roles `{public}`, `USING (venue_id IN (SELECT venues.id FROM venues WHERE (venues.owner_id = auth.uid()) UNION SELECT venue_staff.venue_id FROM venue_staff WHERE ((venue_staff.user_id = auth.uid()) AND (venue_staff.status = 'active'::text))))`, with no `WITH CHECK`.
+- Measured: `authenticated` holds table-level INSERT, UPDATE and DELETE on all 18 `tickets` columns.
+
+With no `WITH CHECK`, its `USING` doubles as the check for INSERT and UPDATE. So any active staff member, whatever their `staff_role` (hosts and security included), can insert tickets at their venue, update any column of any ticket there (`price_paid`, `commission_earned`, `promoter_id`, `status`, `qr_code`), and delete them. Because permissive policies OR together, it also makes "Venue staff can scan tickets" ineffective: that policy's `WITH CHECK (status = 'Scanned')` was the only limit on what staff may write, and `Unified_Venue_Access` admits the same caller with no limit at all. Inferred from policies and grants, not executed.
+
+### A28. `get_talent_spotlight` runs as the caller over a table the caller cannot read: Spotlight is empty for everyone
+
+Found 2026-09-13 during the A1 investigation. **Inferred from the catalog, not run.**
+
+- Measured: `get_talent_spotlight(limit_count integer)` is `SECURITY INVOKER` (`prosecdef = false`), and its live body reads `interactions` joined to `profiles`.
+- Measured: `interactions` has RLS enabled and exactly one policy, "Users can log their own interactions", which is INSERT. There is no SELECT policy.
+- Measured: `interactions` holds 8 rows.
+
+A caller-rights function sees only the rows the caller's policies admit, and with no SELECT policy that is none, for `anon` and `authenticated` alike. So the Spotlight call at `Discovery.tsx:211` returns empty for every user regardless of the data. Not executed, so the empty result itself has not been observed. The body also filters to the last 24 hours, so even a readable table might return nothing; how many of the 8 rows fall inside that window was not measured.
+
+This contradicts CLAUDE.md's description of `interactions` as Spotlight's live input: the rows are written, but no caller can read them back through this function. Read with **A2** (the migration files disagree with this live body) and **C3** (the Spotlight rebuild): whichever body C3 builds on, the invoker-versus-RLS question has to be decided with it, or the rebuild ships empty the same way.
 
 ---
 
