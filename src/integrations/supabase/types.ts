@@ -39,36 +39,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _diag: {
-        Row: {
-          conv: string | null
-          display_name: string | null
-          kind: string | null
-          n: number | null
-          participants: string | null
-          thread_title: string | null
-          venue_id: string | null
-        }
-        Insert: {
-          conv?: string | null
-          display_name?: string | null
-          kind?: string | null
-          n?: number | null
-          participants?: string | null
-          thread_title?: string | null
-          venue_id?: string | null
-        }
-        Update: {
-          conv?: string | null
-          display_name?: string | null
-          kind?: string | null
-          n?: number | null
-          participants?: string | null
-          thread_title?: string | null
-          venue_id?: string | null
-        }
-        Relationships: []
-      }
       conversation_participants: {
         Row: {
           conversation_id: string

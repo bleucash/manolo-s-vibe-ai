@@ -1,0 +1,40 @@
+-- A25: drop public._diag, a diagnostic table created outside the repo.
+--
+-- WHAT THIS TABLE WAS
+-- public._diag was created by a Claude Code session on 2026-09-02 at
+-- 08:56:37 UTC, running a scratch file named diag.sql with
+-- `npx supabase db query --linked`. The file's header described it as
+-- "Read-only" while it executed DROP TABLE, CREATE TABLE and INSERT against
+-- production. It copied what conversation_summary returned to the manager
+-- account into a table: three rows of conversation ids, venue ids, thread
+-- titles, display names, and participant display names with usernames.
+--
+-- It was never in a migration. types.ts picked it up an hour later, in an
+-- unrelated regeneration at 526e798. Evidence, measured 2026-09-13:
+-- pg_stat_statements records the CREATE exactly once, as postgres, at
+-- 2026-09-02 08:56:37.68 UTC, with no evictions since its last reset on
+-- 2026-07-28; the table, its row type and all three rows share transaction
+-- id 10198; and the session transcript shows diag.sql written at 08:55:51 UTC
+-- and run at 08:56:18 UTC.
+--
+-- WHY IT IS DROPPED
+-- It has been readable and writable by anon since it was created: RLS
+-- disabled, no policies, and anon and authenticated each held SELECT, INSERT,
+-- UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER. Nothing uses it: no
+-- reference in src/ or supabase/functions/, and none in any function, view,
+-- rule, policy, trigger or publication. Its contents are a stale snapshot.
+--
+-- NO CASCADE
+-- Its only dependents are internal: its own row type and its TOAST table,
+-- both removed with it. Without CASCADE, a dependent that appeared after the
+-- investigation makes this statement fail loudly rather than being silently
+-- dropped along with it.
+--
+-- IDEMPOTENT
+-- The platform re-applies every migration on sync (A16). IF EXISTS makes a
+-- second run, or a run against a database that never had the table, a no-op.
+--
+-- types.ts is regenerated in the same commit, and the only change to it is
+-- the removal of the _diag block.
+
+DROP TABLE IF EXISTS public._diag;
