@@ -14,20 +14,21 @@
 
 *Places the system holds two ideas about itself. These produce silent wrongness rather than errors, which is what makes them expensive.*
 
-### A25. `_diag`: RLS disabled, no policies, and anon can read and write it. Resolve first, ahead of A1
+### A25. `_diag`: RLS disabled, no policies, and anon could read and write it. CLOSED 2026-09-15
 
-Found 2026-09-13 during the A1 investigation. **Ranked above A1 and the first item to resolve.** Every exposure in A1 is bounded by at least one policy; this table is bounded by nothing.
+**CLOSED by `20260913120000_a25_drop_diag.sql` (`196928e`).** Dropped with `DROP TABLE IF EXISTS public._diag`, no CASCADE, after a pre-apply check confirmed it present. Verified after applying: absent from `pg_tables` and `to_regclass`; its row type, TOAST table and `pg_depend` rows gone; no function, view or policy named it; `public` now holds 20 tables and none lacks RLS or a policy. `types.ts` was regenerated in the same commit, and the only change was removal of the 30-line `_diag` block.
 
-Measured live:
+**Production led the repo.** The migration was applied through the Management API before it was committed, and a machine restart then interrupted the finishing steps, so for that interval the drop existed in production with no committed file and no ledger row.
 
-- `relrowsecurity = false`, and no policy exists on the table.
-- `anon` and `authenticated` both hold table-level SELECT, INSERT, UPDATE and DELETE on all 7 columns: `n integer`, `conv text`, `kind text`, `venue_id text`, `thread_title text`, `display_name text`, `participants text`. With RLS off the grants alone decide, so anyone holding the public anon key can read, rewrite or delete every row, unconditionally.
-- 3 rows of messaging metadata: `kind` is `dm` on 1 and `venue` on 2. `display_name` and `thread_title` are populated on all 3.
-- **`participants` was not read.** Measured only that it contains no uuid pattern and is at most 56 characters, so it holds free text rather than ids. That it holds participant names is inferred from its shape and name, not observed.
+**The platform then re-applied it after the push, and the re-application was a clean no-op against an already-absent table.** Confirmed 2026-09-15 by the ledger row for `20260913120000` appearing and by the drop's call count in `pg_stat_statements` going from 2 to 3. The third call is attributed to the platform, not to the session's own rolled-back re-apply test (which also passed: no error, public relations 93 to 93, fingerprint unchanged), because that test ran the drop inside a `DO` block and `pg_stat_statements.track = top` does not count nested statements. **This is the first re-application this backlog records as observed completing on a migration written to be idempotent, rather than inferred from stored statement text.** It belongs with A16 as much as here; see A16.
 
-**Origin unknown.** No migration in the repo creates it. It first appears in `src/integrations/supabase/types.ts` in `526e798` (2026-09-02, "Render thread_title and member avatars; delete the PRIMARY/GENERAL split"), a type regeneration, so it already existed in the live database at that commit and was created outside the repo. Its columns mirror `conversation_summary`'s (`kind`, `venue_id`, `thread_title`, `display_name`), which suggests a diagnostic snapshot from the thread-title work, but that is inference. Who created it and why was not determined.
+**Origin, established 2026-09-13.** Created by a Claude Code session on 2026-09-02 at 08:56:37 UTC, running a scratch file named `diag.sql` with `npx supabase db query --linked`. The file's header described it as "Read-only" while it executed DROP TABLE, CREATE TABLE and INSERT. It copied what `conversation_summary` returned to the manager account into a table. Evidence: `pg_stat_statements` recorded the CREATE exactly once, as `postgres`, at 08:56:37.68 UTC, with no evictions since its last reset on 2026-07-28, and its recorded text begins with `diag.sql`'s own comment line; the table, its row type and all three rows shared transaction id 10198; the session transcript shows the file written at 08:55:51 UTC and run at 08:56:18 UTC. It was never in a migration. `types.ts` picked it up an hour later, in an unrelated regeneration at `526e798`. A later session saw `_diag` in the types on 2026-09-05 and moved on without recording it. The process finding is recorded in CLAUDE.md, beside "Diagnostic calls can be mutations".
 
-It is also drift that A16's ledger comparison cannot see: A16 compares migrations against files, and this table has no migration. The messaging RLS work exists to keep who-talks-to-whom scoped to participants; this table sits outside all of it.
+**What it held and who could reach it, corrected from the original entry:**
+
+- RLS off, no policies. `anon` and `authenticated` each held all seven table privileges: SELECT, INSERT, UPDATE, DELETE, **TRUNCATE, REFERENCES and TRIGGER**. The original entry listed only the first four.
+- 3 rows: two `venue` threads (The Ritz Ybor, 2001 Odyssey) and one `dm`, with conversation ids, venue ids, and a `participants` column holding each participant's display name and username. **On row 3, `display_name` and `thread_title` held the placeholder text `(NULL)`**, written by `diag.sql`'s `coalesce`, not data; the original entry called them populated on all 3. Row 3's `venue_id` was likewise the placeholder `(null)`.
+- Nothing read or wrote it. `pg_stat_statements` held no statement naming it from any role but `postgres`, and its 5 sequential scans were all accounted for by the creating run and the investigation's own reads (inferred).
 
 ### A1. Permissive `USING (true)` policies make their narrower siblings inert: six tables, and the fix must add before it removes
 
@@ -347,6 +348,8 @@ Every migration in the repo carries stored statement text in `supabase_migration
 
 Measured 2026-09-10: all 42 rows compared against the current files. 41 are identical, 1 differs in comments only (`20260909120000`), and 0 differ in SQL, so no drift exists at the migration layer today. Two rows (`20260104162336`, `20260615001921`) have empty ledger names and UUID filenames; stored text matches both files exactly, harmless.
 
+**Re-application observed completing, 2026-09-15 (see A25).** `20260913120000_a25_drop_diag.sql` was applied through the Management API before it was committed, then pushed. After the push its ledger row appeared, and the call count for its `DROP TABLE IF EXISTS public._diag` in `pg_stat_statements` went from 2 to 3, against a database where the table was already gone, with no error. That is the first re-application this backlog records as observed completing on a migration written to be idempotent, rather than inferred from stored statement text as above, and it completed cleanly because the statement carries `IF EXISTS`. Attribution caveat: the third call is attributed to the platform because the session's own rolled-back re-apply test ran the drop inside a `DO` block, which `pg_stat_statements.track = top` does not count.
+
 ### A17. Managers who do not own their venue cannot be represented
 
 Found 2026-09-10 during the A15 investigation. **The product model includes managers who do not own the venue they manage. The schema cannot represent them.** The owner has ruled that such managers see payouts (A15), so this gap is exactly what limits A15 to owner-only.
@@ -502,6 +505,23 @@ Found 2026-09-13 during the A1 investigation. **Inferred from the catalog, not r
 A caller-rights function sees only the rows the caller's policies admit, and with no SELECT policy that is none, for `anon` and `authenticated` alike. So the Spotlight call at `Discovery.tsx:211` returns empty for every user regardless of the data. Not executed, so the empty result itself has not been observed. The body also filters to the last 24 hours, so even a readable table might return nothing; how many of the 8 rows fall inside that window was not measured.
 
 This contradicts CLAUDE.md's description of `interactions` as Spotlight's live input: the rows are written, but no caller can read them back through this function. Read with **A2** (the migration files disagree with this live body) and **C3** (the Spotlight rebuild): whichever body C3 builds on, the invoker-versus-RLS question has to be decided with it, or the rebuild ships empty the same way.
+
+### A29. `realtime.subscription`: RLS off and anon holds SELECT. Supabase-managed, not urgent
+
+Found 2026-09-13 during the A25 investigation, whose item 5 asked whether any other relation sits in `_diag`'s state. Every table in `public` was ruled out. **This is the one relation from that check that was not.**
+
+Measured:
+
+- `relrowsecurity = false`, and no policies.
+- `anon` and `authenticated` both hold SELECT on it, and both hold USAGE on the `realtime` schema.
+- 2 rows.
+- Owned by `supabase_realtime_admin`. Columns: `id bigint`, `subscription_id uuid`, `entity regclass`, `filters realtime.user_defined_filter[]`, `claims jsonb`, `claims_role regrole`, `created_at timestamp without time zone`, `action_filter text`, `selected_columns text[]`. The `claims` column presumably holds subscribers' JWT claims; that is inferred from its name, and no values were read.
+
+**Not checked: whether the `realtime` schema is reachable through the API.** USAGE on a schema is not the same as the API exposing it, and the exposed-schemas setting was not read. If the schema is not exposed, anon holds a grant it has no route to use.
+
+**Supabase-managed, so the fix may not be ours to make.** The table belongs to Supabase's Realtime service and is owned by its admin role. Changing its RLS or grants could break Realtime or be reverted by the platform. The first step is reading the exposed-schemas setting, not altering the table.
+
+The same check also surfaced `extensions.pg_stat_statements` and `pg_stat_statements_info`, where anon also holds SELECT. Those are treated as ruled out because Postgres shows other roles' query text as `<insufficient privilege>`, so anon sees only its own statements. That is from the Postgres documentation, not tested here.
 
 ---
 
