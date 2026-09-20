@@ -106,6 +106,16 @@ Permissive policies OR together, so one `USING (true)` admits every row, and eve
 
 **Re-dump before fixing.** This schema has recorded cases of migration files disagreeing with live bodies, and this entry is itself a correction of a previous one.
 
+### A31. Column exposure on `venues` outranks what A1 leaves behind on that table
+
+Found 2026-09-13, re-measured 2026-09-16. **Rank this against A1, not under it. Once A1's phase 2 lands, this is the larger remaining exposure on `venues`.**
+
+Measured: `anon` and `authenticated` hold table-level SELECT on all 28 columns of `venues`. A1's policy work bounds which **rows** a caller reads and changes nothing about which **columns** come back, so for every one of the 15 active venues anyone holding the public anon key can still read `commission_rate`, `standard_commission` and `table_min_spend` (set on all 17 rows), plus `owner_id`, `subscription_tier` and `ticketing_enabled`. Phase 2 narrows anon from 17 venues to 15; it does not narrow a single column.
+
+The fix is A9's shape on a second table: revoke the broad SELECT, grant only the columns the app reads. **Blocked on narrowing the callers first.** A column grant makes a query that names an ungranted column fail with `42501` rather than return a narrower row, and three readers ask for everything: `Venue.tsx:74` and `VenueManage.tsx:95` use `select("*")`, and `Index.tsx:87` embeds `venues:venue_id (*)`. `UserModeContext.tsx:81`, `CEODashboard.tsx:82-86` and `TalentProfile.tsx:55` already name their columns and would survive unchanged.
+
+Same coupling A9 recorded: the grant list has to be derived from the code, and every new column read later needs a new GRANT. That failure is loud, which is the point.
+
 ### A2. `get_talent_spotlight` migration files disagree with the live body
 
 **Do this before C3, not as filler.** The Spotlight rebuild is currently planned against a function whose migration files do not match what is running: the live body is 1077 bytes, three migration files mention it, none matches. `CLAUDE.md` records that this function's documentation "was once the inverse of reality on four counts."
@@ -522,6 +532,32 @@ Measured:
 **Supabase-managed, so the fix may not be ours to make.** The table belongs to Supabase's Realtime service and is owned by its admin role. Changing its RLS or grants could break Realtime or be reverted by the platform. The first step is reading the exposed-schemas setting, not altering the table.
 
 The same check also surfaced `extensions.pg_stat_statements` and `pg_stat_statements_info`, where anon also holds SELECT. Those are treated as ruled out because Postgres shows other roles' query text as `<insufficient privilege>`, so anon sees only its own statements. That is from the Postgres documentation, not tested here.
+
+### A30. Revoking a closed venue strands it: unowned, invisible, unclaimable and impossible to reopen from the app
+
+Found 2026-09-16 while establishing which accounts A1's phase 1 policies must cover. Not fixed, and neither candidate fix was chosen.
+
+`admin-actions` nulls `owner_id` at `index.ts:230` and never touches `is_active`. So revoking a claim on a venue that is closed at the time produces a venue that is unowned and closed at once.
+
+**Under A1's phase 2 policy set (`is_active = true`, `auth.uid() = owner_id`, `is_admin()`) no condition admits such a row.** It is not active; it has no owner to match; and only the admin would see it. It drops off Discovery and out of `ClaimVenueModal.tsx:40-44`, which lists unowned venues precisely so they can be claimed, so nobody can claim it. It also cannot be reopened from the app: the only UPDATE policy on `venues` requires `auth.uid() = owner_id` and there is no owner, so only the service role or a direct database write can flip `is_active` back. Inferred from the policies and the code, not exercised.
+
+**Measured 2026-09-16:** no venue is in that state today. 14 are unowned and open, 1 is owned and open, 2 are owned and closed. The two closed ones are also the only business-verified venues in the database, so they are the likeliest revoke targets, which is what makes this worth recording rather than filing as theoretical.
+
+**Two candidate fixes, neither chosen:**
+
+- Have revoke set `is_active = true` in the same call that nulls `owner_id`, so the venue stays visible and claimable. This changes what an admin action does to a venue's public state.
+- Admit unowned venues in the read policy (`owner_id IS NULL`), which keeps them visible without changing revoke. This widens a policy that A1 exists to narrow.
+
+Latent rather than live: it needs both a revoke on a closed venue and A1 phase 2, since today's `true` policies would still show the venue either way.
+
+### A32. Two orphan rows found in passing: a profile pointing at no venue, and a post whose author has no profile
+
+Found 2026-09-16 during the A1 reader survey. Both are incidental, neither was investigated, and both are data rather than schema.
+
+- **A `profiles.venue_id` value matches no venue row.** On 2026-09-13 exactly one profile had `venue_id` set. On 2026-09-16 a join from both `profiles.venue_id` and `profiles.current_venue_id` to `venues` returned zero rows, so that value either points at a venue that does not exist or was cleared in between; which one was not measured. This is the column A10 records as the one `idx_profiles_active_talent` indexes, and the column CLAUDE.md records as carrying no foreign key at all, which is exactly what lets it hold a dangling id.
+- **A post tagged to The Ritz Ybor has no matching `profiles` row for its author.** Both posts in the database are tagged to that venue; one joins to a profile and one does not. Whether `posts.user_id` is NULL or holds an id with no profile was not checked. Nothing renders it today, since the feed is follower-scoped, which is why it surfaced only in a catalog join.
+
+Recorded so the next audit recognises them rather than rediscovering them as new findings.
 
 ---
 
