@@ -32,6 +32,14 @@
 
 ### A1. Permissive `USING (true)` policies make their narrower siblings inert: six tables, and the fix must add before it removes
 
+**Status 2026-09-22: `venues` DONE. Five tables still carry the shape: `profiles`, `venue_staff`, `venue_followers`, `events`, `portfolio_items`.**
+
+- **Phase 1, `a688980` (`20260920120000`):** added three PERMISSIVE SELECT policies on `venues` for `authenticated`, removing nothing: owner (`auth.uid() = owner_id`), admin (`(SELECT is_admin())`) and active staff. The staff policy goes through a SECURITY DEFINER helper, `is_active_venue_staff`, because reading `venue_staff` directly closes a cycle with the five `venue_staff` policies that read `venues`. Measured on temp tables in a rolled-back transaction: that cycle raises `42P17`, and a permissive `USING (true)` on the second table does not mask it.
+- **Phase 2, `4d99d2d` (`20260921120000`):** dropped exactly the two `USING (true)` policies, inside a DO block behind a check that the three phase 1 policies exist, so nothing is dropped unless that check passes, whatever runs the file. Rehearsed first in a rolled-back transaction ("A1 REHEARSAL PASSED: all 6 assertions"), then verified against the live state as real roles with real claims: "A1 PHASE 2 LIVE CHECK PASSED: all 5 checks | policies=6 | anon venues=15 closed=0 | owner closed=2 | staff closed=2 thread_titles=2 | admin venues=17".
+- `venues` now holds 6 policies. The two `is_active` policies are duplicates of each other and were left for a separate cleanup. The `venues` row of the inert-policy table below is resolved; the rest of this entry is kept as the record it was written from.
+- **On `venues`, A31 (column exposure) is now the larger remaining exposure.** The rows are bounded; all 28 columns of every readable row are not.
+- **`venue_staff` is the next one to be careful with.** Its `USING (true)` is what serves the public roster on Discovery, the venue page and talent profiles, and no narrower policy admits guests or anon, so it needs the same add-before-remove treatment.
+
 **Rewritten 2026-09-13 from a fresh live dump:** `pg_policies` for all 21 tables in `public`, grants via `has_table_privilege` and `has_column_privilege`, exact row counts, and a read of every caller in `src/` and the edge functions. The previous version of this entry was right about `venues`, `venue_staff` and `venue_followers`, **wrong about `tickets`**, and missed `profiles`, `events` and `portfolio_items`.
 
 Permissive policies OR together, so one `USING (true)` admits every row, and every narrower permissive policy for the same command and an overlapping role is dead. Postgres logs nothing; it just returns more rows. Measured: every `true` policy below is scoped to `{public}`, which covers `anon` and `authenticated`, so it overlaps every sibling. No `1=1`-style equivalent exists, and there is no RESTRICTIVE policy anywhere in `public`.
