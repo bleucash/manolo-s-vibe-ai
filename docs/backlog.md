@@ -38,6 +38,7 @@
 - **Phase 2, `4d99d2d` (`20260921120000`):** dropped exactly the two `USING (true)` policies, inside a DO block behind a check that the three phase 1 policies exist, so nothing is dropped unless that check passes, whatever runs the file. Rehearsed first in a rolled-back transaction ("A1 REHEARSAL PASSED: all 6 assertions"), then verified against the live state as real roles with real claims: "A1 PHASE 2 LIVE CHECK PASSED: all 5 checks | policies=6 | anon venues=15 closed=0 | owner closed=2 | staff closed=2 thread_titles=2 | admin venues=17".
 - `venues` now holds 6 policies. The two `is_active` policies are duplicates of each other and were left for a separate cleanup. The `venues` row of the inert-policy table below is resolved; the rest of this entry is kept as the record it was written from.
 - **On `venues`, A31 (column exposure) is now the larger remaining exposure.** The rows are bounded; all 28 columns of every readable row are not.
+- **Superseded in part on 2026-09-22 by an owner decision recorded in A8: a venue is always visible, and `is_active` is display only.** Phase 2's row narrowing is being reversed on purpose. The trap A1 removed stays removed: the end state is a single `USING (true)` SELECT policy with nothing inert beside it, which means the two `is_active` policies, the three phase 1 policies and `is_active_venue_staff` all go. Read A8 for the reasoning and the intended end state; this entry stays as the record of what was found and shipped.
 - **`venue_staff` is the next one to be careful with.** Its `USING (true)` is what serves the public roster on Discovery, the venue page and talent profiles, and no narrower policy admits guests or anon, so it needs the same add-before-remove treatment.
 
 **Rewritten 2026-09-13 from a fresh live dump:** `pg_policies` for all 21 tables in `public`, grants via `has_table_privilege` and `has_column_privilege`, exact row counts, and a read of every caller in `src/` and the edge functions. The previous version of this entry was right about `venues`, `venue_staff` and `venue_followers`, **wrong about `tickets`**, and missed `profiles`, `events` and `portfolio_items`.
@@ -124,6 +125,10 @@ The fix is A9's shape on a second table: revoke the broad SELECT, grant only the
 
 Same coupling A9 recorded: the grant list has to be derived from the code, and every new column read later needs a new GRANT. That failure is loud, which is the point.
 
+**Promoted 2026-09-22: this is now the ONLY remaining control on `venues`.** The owner decision recorded in A8 makes every venue row public by design, so the row layer stops separating anything on this table. The separation between a venue's public profile, which is meant to be world-readable, and its commercial terms, which are not (`commission_rate`, `standard_commission`, `table_min_spend`, and arguably `owner_id`, `subscription_tier` and `ticketing_enabled`), lives entirely at the column layer. There is no second line behind it: no policy will hide a row from anyone, so a column that is granted is a column that is published.
+
+That also changes how the blocker reads. Narrowing `select("*")` at `Venue.tsx:74` and `VenueManage.tsx:95`, and `venues:venue_id (*)` at `Index.tsx:87`, was previously a chore in front of a fix; it is now the whole gate in front of the only boundary this table has left.
+
 ### A2. `get_talent_spotlight` migration files disagree with the live body
 
 **Do this before C3, not as filler.** The Spotlight rebuild is currently planned against a function whose migration files do not match what is running: the live body is 1077 bytes, three migration files mention it, none matches. `CLAUDE.md` records that this function's documentation "was once the inverse of reality on four counts."
@@ -169,6 +174,20 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 ### A8. "Active" means three different things
 
 `venue_staff.status = 'active'` (affiliation), `profiles.is_active` (tapped in), `venues.is_active` (open). Documented and centralized in `src/lib/presence.ts`. Listed as the archetype of this category, not because it needs work.
+
+**DECISION (owner, 2026-09-22): a venue is always visible. `venues.is_active` is a display concern and never a visibility control.**
+
+A venue is a real public place. Hiding its row protects nothing: a bar's name, address and category are public facts, and a closed bar is still somewhere people look up. `is_active` means open for business right now. It drives a badge, the ordering of Discovery and the presence rule in `src/lib/presence.ts`, and it must never decide whether a row can be read.
+
+What this settles, so it does not get re-litigated:
+
+- A venue card on Discovery leads to that venue's profile page, and that page renders in full whatever `is_active` says: hero reel, evergreen content, posts. A closed venue is a venue with no "open" badge, not a missing one.
+- **Venues have no directory; talent does.** There is no listed-versus-unlisted state for a venue to be in, so no reading of `is_active` as "on the platform" is correct.
+- Visibility is not conditional on ownership, staffing or verification either. Those bound who may **write** a venue, and, through A31, which **columns** a reader gets. They do not bound whether the row exists to a reader.
+
+**Intended end state for `public.venues`:** one SELECT policy, `USING (true)`, for everyone; the UPDATE policy unchanged; the two `is_active` SELECT policies removed, because `is_active` no longer controls visibility; and the three A1 phase 1 policies removed, because a policy admitting every row makes them inert and leaving inert policies is the exact trap A1 existed to remove. `is_active_venue_staff` goes with them: measured 2026-09-22 through `pg_depend`, its only dependent is the policy being removed.
+
+**This reverses part of A1 phase 2 deliberately. It is a decision, not a correction of a mistake.** A1's finding stands and its main result is kept: `venues` carried two `USING (true)` policies beside two narrower ones that were therefore inert, and that trap is gone. Phase 2 additionally narrowed **which rows** the surviving policies admit, and that narrowing is what this decision reverses. The end state is the opposite of the trap rather than a return to it: one policy, saying exactly what it does, with nothing inert beside it. See A1 for the migrations and A31 for what still bounds this table.
 
 ### A9. `profiles.heat_score` is user-writable, and the grant is why. CLOSED 2026-09-09
 
@@ -557,6 +576,10 @@ Found 2026-09-16 while establishing which accounts A1's phase 1 policies must co
 - Admit unowned venues in the read policy (`owner_id IS NULL`), which keeps them visible without changing revoke. This widens a policy that A1 exists to narrow.
 
 Latent rather than live: it needs both a revoke on a closed venue and A1 phase 2, since today's `true` policies would still show the venue either way.
+
+**DOWNGRADED 2026-09-22 by the visibility decision in A8.** Once every venue row is readable regardless of `is_active`, most of this entry stops applying: an unowned closed venue stays visible on Discovery and stays listed in `ClaimVenueModal.tsx:40-44`, so it can be claimed, and claiming gives it an owner who can reopen it. The two candidate fixes above are moot for the visibility half.
+
+**What survives, and it is the smaller half:** a venue that is closed when its claim is revoked stays closed, and nothing in the app can reopen it until someone claims it, because the only UPDATE policy on `venues` requires `auth.uid() = owner_id`. So the venue is visible but sits with no "open" badge until a new owner appears, and `admin-actions` still leaves `is_active` untouched when it nulls `owner_id` (`index.ts:230`). That is a stale-display problem rather than a lockout, which is why this is no longer ranked with the A-section's live defects.
 
 ### A32. Two orphan rows found in passing: a profile pointing at no venue, and a post whose author has no profile
 
