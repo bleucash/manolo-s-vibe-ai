@@ -1131,7 +1131,6 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: boolean
       }
-      is_active_venue_staff: { Args: { _venue_id: string }; Returns: boolean }
       is_addable_group_member: {
         Args: { _member: string; _owner: string }
         Returns: boolean
