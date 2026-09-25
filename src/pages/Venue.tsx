@@ -23,6 +23,9 @@ const Venue = () => {
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Separate from an empty venue on purpose: a failed load must never render
+  // as "does not exist".
+  const [loadFailed, setLoadFailed] = useState(false);
   const [activeStaff, setActiveStaff] = useState<any[]>([]);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
@@ -71,8 +74,13 @@ const Venue = () => {
   const fetchVenueData = async () => {
     if (!id) return;
     try {
-      const { data } = await supabase.from("venues").select("*").eq("id", id).single();
-      if (data) setVenue(data);
+      const { data, error: venueError } = await supabase.from("venues").select("*").eq("id", id).single();
+      setVenue(data ?? null);
+      // Every venues row is public since 787e0fb, so an empty result means the
+      // id does not exist: PGRST116 is zero rows, 22P02 is an id that is not a
+      // uuid (both measured against live PostgREST 2026-09-25). Any other error
+      // is a failed load and must not render as "does not exist".
+      setLoadFailed(!!venueError && venueError.code !== "PGRST116" && venueError.code !== "22P02");
 
       const { data: staff } = await supabase
         .from("venue_staff")
@@ -101,7 +109,17 @@ const Venue = () => {
   };
 
   if (loading || statusLoading) return null;
-  if (!venue) return null; // Guard against null venue
+  if (loadFailed || !venue)
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black text-white px-12 text-center">
+        <p className="text-[10px] font-black uppercase tracking-[0.4em]">
+          {loadFailed ? "Venue could not be loaded" : "This venue does not exist"}
+        </p>
+        <Button onClick={() => navigate("/discovery")} variant="ghost" className="mt-4 text-zinc-500 uppercase text-[10px] font-black">
+          Back to Discovery
+        </Button>
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
