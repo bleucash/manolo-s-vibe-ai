@@ -595,6 +595,45 @@ Found 2026-09-16 during the A1 reader survey. Both are incidental, neither was i
 
 Recorded so the next audit recognises them rather than rediscovering them as new findings.
 
+### A33. Talent sees "Claim Sector via IG" at unowned venues
+
+Found 2026-09-22. **Decision recorded (owner, 2026-09-22). The UI half is the next dispatch and the enforcement half is its own task; neither is implemented here.**
+
+**What happens:**
+
+- `Venue.tsx:160-164` (at `982aeb5`; it sat at `Venue.tsx:146-150` before that commit moved it) renders the claim button whenever `venue.owner_id` is null, and chooses its label on `isManager` alone: "Add This Venue" for a manager, "Claim Sector via IG" for everyone else. Nothing checks for talent, so talent gets the button. MEASURED from source. **Confirmed in the browser by J on 2026-09-22:** talent sees "Claim Sector via IG" at an unowned venue, and the manager account sees "Add This Venue".
+- 14 of 17 venues are unowned, so talent meets this on most venue pages. The 3 owned ones are 2001 Odyssey, The Ritz Ybor and WTR Pool & Grill, all owned by the one manager account. MEASURED 2026-09-25.
+- "Request to Work Here" renders only at owned venues, by design (`Venue.tsx:213-224`): a request at an unowned venue has no approver, because every approval path requires an owner. MEASURED from source.
+
+**The claim cannot be approved, but it can be filed.** Not a security issue: a dead-end action, with one real side effect.
+
+- **Approval is blocked.** `admin-actions` runs `findRoleConflict` before any write (`index.ts:163`), which returns 409 "This account is already talent and cannot also manage a venue" (`index.ts:96-97`), and it fails closed. MEASURED from source.
+- **Filing is normally blocked, not always.** `ClaimSectorModal.tsx:36` calls `checkOtherTrackConflict`, which returns "You Are Already Talent" for a talent account (`roleClaims.ts:86-91`). By design it **fails open on a read error** (`roleClaims.ts:28`), because it is not the enforcement point. MEASURED from source.
+- **The `venue_claims` INSERT policy does not check role.** "Claimants create own pending claims" is `WITH CHECK ((user_id = auth.uid()) AND (status = 'pending'))`. MEASURED 2026-09-13. So when the client check fails open, or anything calls the API directly, a talent account's pending claim is admitted. INFERRED from combining the two.
+
+**Consequence of a stray talent claim. INFERRED, from combining two measured facts.** `unique_venue_claim` is `UNIQUE (venue_id, status)`, per venue and not per user (A7). A pending claim filed by talent therefore occupies that venue's only pending slot, and blocks a legitimate manager from claiming the venue until an admin clears it. Rejecting it consumes the venue's only rejected slot, which A7 records as its own defect. Hiding the button from talent closes the normal route to this; it does not close the API route.
+
+**Two halves, tracked separately:**
+
+- **UI, the next dispatch. Decided by the owner 2026-09-22:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
+- **Enforcement, its own task. Logged, not implemented.** Hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
+
+**Deferred, wanted (owner, 2026-09-22): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
+
+- how long a parked request lasts before it expires;
+- what a new owner sees at claim time, and whether each requester is notified;
+- a per-talent cap on parked requests;
+- whether the count is public on the venue page, or shown only to someone considering a claim.
+
+### A34. `Venue.tsx` keeps stale state when the venue id changes
+
+Found 2026-09-25 while adding the not-found state in `982aeb5`. **Both INFERRED from source, not observed.** Both predate that commit, and it changed neither.
+
+- **`loading` is never reset to `true` when `id` changes.** It starts `true`, and `fetchVenueData` sets it `false` in `finally`, but the effect that refetches on `[id, session?.user?.id]` never sets it back. So moving in-app from one venue to another keeps rendering the previous venue until the new fetch lands. `982aeb5` made the end state correct, since `setVenue(data ?? null)` replaces the old row with the new one or with nothing, but the window before the fetch returns still shows the old venue.
+- **`staffLink` is not reset when the viewer has no session.** It is written only inside `if (session?.user?.id)`, so after signing out on a venue page, the previous viewer's `venue_staff` row stays in state, and the action buttons that read it would still reflect it.
+
+The fix for both is small, resetting the state at the top of `fetchVenueData`, which is why it is logged beside `982aeb5` rather than folded into a commit scoped to the not-found state.
+
 ---
 
 ## B. Pre-launch gates
