@@ -597,13 +597,21 @@ Recorded so the next audit recognises them rather than rediscovering them as new
 
 ### A33. Talent sees "Claim Sector via IG" at unowned venues
 
-Found 2026-09-22. **Decision recorded (owner, 2026-09-22). The UI half is the next dispatch and the enforcement half is its own task; neither is implemented here.**
+Found 2026-09-25. **Decision recorded (owner, 2026-09-25). UI half SHIPPED 2026-09-28 in `ec52ce5`, both entry points. Enforcement half still OPEN.**
 
-**What happens:**
+**Date correction, 2026-09-28.** This entry first said the finding, the owner decisions and J's browser confirmation were 2026-09-22. They were 2026-09-25: the earlier date came from the chat dispatch, not from evidence. Dates on MEASURED lines below are the dates of the measurements themselves and are unchanged.
 
-- `Venue.tsx:160-164` (at `982aeb5`; it sat at `Venue.tsx:146-150` before that commit moved it) renders the claim button whenever `venue.owner_id` is null, and chooses its label on `isManager` alone: "Add This Venue" for a manager, "Claim Sector via IG" for everyone else. Nothing checks for talent, so talent gets the button. MEASURED from source. **Confirmed in the browser by J on 2026-09-22:** talent sees "Claim Sector via IG" at an unowned venue, and the manager account sees "Add This Venue".
-- 14 of 17 venues are unowned, so talent meets this on most venue pages. The 3 owned ones are 2001 Odyssey, The Ritz Ybor and WTR Pool & Grill, all owned by the one manager account. MEASURED 2026-09-25.
-- "Request to Work Here" renders only at owned venues, by design (`Venue.tsx:213-224`): a request at an unowned venue has no approver, because every approval path requires an owner. MEASURED from source.
+**Shipped in `ec52ce5`: talent can no longer reach either claim entry point.** Both gates are on `isTalent`, which `UserModeContext` derives from `profiles.role_type` and never from `mode`, so the Profile mode toggle cannot get around them.
+
+- **`Venue.tsx:161`:** at an unowned venue, talent sees "This venue has not joined Manolo yet", an informational line, instead of the claim button. Managers still see "Add This Venue"; signed-out viewers and other accounts still see the claim button.
+- **`Profile.tsx:261`:** "Do You Manage a Venue?" is hidden from talent. Only the button branch is gated, so "Venue Claim Under Review" stays visible if a claim exists. This second entry point was found during the UI dispatch: a talent account reaches the guest settings card by toggling into guest mode (A35).
+- **Verified in the browser by J before `ec52ce5` was committed, all six passing:** talent at an unowned venue sees the plain line; talent at an owned venue sees "Request to Work Here" (checked at WTR Pool & Grill, since the talent account holds an active link at 2001 Odyssey, where it correctly showed "Host Here"); talent toggled to guest mode sees no "Do You Manage a Venue?" and still sees the plain line at an unowned venue (Crow Bar); the manager sees "Add This Venue"; a signed-out viewer sees the claim button as before; the admin account (role_type guest) still sees "Do You Manage a Venue?".
+
+**What happened before `ec52ce5`:**
+
+- `Venue.tsx:160-164` (at `982aeb5`; it sat at `Venue.tsx:146-150` before that commit moved it) rendered the claim button whenever `venue.owner_id` was null, and chose its label on `isManager` alone: "Add This Venue" for a manager, "Claim Sector via IG" for everyone else. Nothing checked for talent, so talent got the button. MEASURED from source. **Confirmed in the browser by J on 2026-09-25:** talent saw "Claim Sector via IG" at an unowned venue, and the manager account saw "Add This Venue".
+- 14 of 17 venues are unowned, so talent met this on most venue pages. The 3 owned ones are 2001 Odyssey, The Ritz Ybor and WTR Pool & Grill, all owned by the one manager account. MEASURED 2026-09-25.
+- "Request to Work Here" renders only at owned venues, by design (`Venue.tsx:213-224` at `982aeb5`): a request at an unowned venue has no approver, because every approval path requires an owner. MEASURED from source.
 
 **The claim cannot be approved, but it can be filed.** Not a security issue: a dead-end action, with one real side effect.
 
@@ -615,10 +623,11 @@ Found 2026-09-22. **Decision recorded (owner, 2026-09-22). The UI half is the ne
 
 **Two halves, tracked separately:**
 
-- **UI, the next dispatch. Decided by the owner 2026-09-22:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
-- **Enforcement, its own task. Logged, not implemented.** Hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
+- **UI. Decided by the owner 2026-09-25; SHIPPED in `ec52ce5`, see above:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
+- **Enforcement, its own task. Still OPEN: logged, not implemented.** Hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
+  - **A further reason it matters, found 2026-09-28 while scoping the UI half:** both UI gates read `isTalent`, and `UserModeContext` sets roles only `if (profile)` after reading `profiles.role_type` (`UserModeContext.tsx:65-73`). If that read fails, the `catch` only logs and loading still ends, so `isTalent` stays `false` for a talent account and both claim entry points render for it. INFERRED from source, not observed. The UI half cannot close this; only the policy can.
 
-**Deferred, wanted (owner, 2026-09-22): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
+**Deferred, wanted (owner, 2026-09-25): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
 
 - how long a parked request lasts before it expires;
 - what a new owner sees at claim time, and whether each requester is notified;
@@ -633,6 +642,24 @@ Found 2026-09-25 while adding the not-found state in `982aeb5`. **Both INFERRED 
 - **`staffLink` is not reset when the viewer has no session.** It is written only inside `if (session?.user?.id)`, so after signing out on a venue page, the previous viewer's `venue_staff` row stays in state, and the action buttons that read it would still reflect it.
 
 The fix for both is small, resetting the state at the top of `fetchVenueData`, which is why it is logged beside `982aeb5` rather than folded into a commit scoped to the not-found state.
+
+### A35. `Profile.tsx:41-44` gates the `/profile` redirect on `mode`, not `role_type`
+
+Found 2026-09-28 while scoping A33's UI half. Not fixed; deliberately left out of `ec52ce5`.
+
+**What the code does, INFERRED from source.** The effect at `Profile.tsx:38-46` sends `mode === "talent"` to `/talent-manage` and `mode === "manager"` to `/venue/manage`. It never reads `role_type`. The toggle at `Profile.tsx:99-122` lets a talent or manager account set `mode` to `guest` and then navigates to `/profile`, so the redirect does not fire and the page renders the guest settings card. That is the pattern CLAUDE.md rules out: "Do not gate access on `mode`, gate on `role_type`."
+
+**Effect:** a talent account can reach the guest settings card until the next profile sync. `syncProfileAndVenues` realigns `mode` to the role on every sign-in and token refresh (`UserModeContext.tsx:76-78`), and at that point the redirect fires. The window is real but temporary. The reachability itself was **observed by J** during `ec52ce5`'s check 3, which toggled a talent account into guest mode on `/profile`; the realignment ending the window is inferred from source and was not observed.
+
+**What it exposed, and what is already closed:** the guest card's "Do You Manage a Venue?" was the second claim entry point in A33, and `ec52ce5` hid it from talent on the role. "Are You Talent?" is still exposed (A36). Anything else added to that card inherits the same exposure while this stands.
+
+### A36. "Are You Talent?" shows to a talent account in guest mode
+
+Found 2026-09-28 while scoping A33's UI half. Not fixed; deliberately left out of `ec52ce5`.
+
+`Profile.tsx:242-248` renders "Are You Talent?" whenever `hasPendingApplication` is false, with no role check, so a talent account that reaches the guest card through A35 sees an offer to apply as talent. INFERRED from source, and **observed by J** during `ec52ce5`'s check 3, where it still showed for the talent account.
+
+Not checked: what `BecomeTalentModal` does if an existing talent account submits. CLAUDE.md describes the talent onboarding path as "guest-only by construction", and whether that construction holds for a talent account reaching the button this way is the first thing to read before fixing. The fix shape is likely the same one-condition role gate used for "Do You Manage a Venue?" in `ec52ce5`, but that is a guess until the modal is read.
 
 ---
 
