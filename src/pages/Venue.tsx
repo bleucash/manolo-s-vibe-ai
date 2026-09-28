@@ -158,11 +158,23 @@ const Venue = () => {
             <span className="text-[10px] font-black text-white uppercase tracking-widest italic">Neural Link Pending Verification</span>
           </div>
         ) : !venue.owner_id ? (
-          <Button onClick={() => setIsClaimModalOpen(true)} className="w-full h-20 bg-neon-blue text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(0,183,255,0.2)]">
-            {/* An existing manager is adding to what they already run, not
-                becoming a manager for the first time. */}
-            <Instagram className="mr-3 w-5 h-5" /> {isManager ? "Add This Venue" : "Claim Sector via IG"}
-          </Button>
+          isTalent ? (
+            // A33: one account holds one role, so talent can never claim a
+            // venue and the claim button was a dead end. Informational, not an
+            // action. Gated on isTalent, the account role, so the mode toggle
+            // cannot get around it.
+            <div className="w-full h-20 bg-zinc-900/80 border border-white/10 backdrop-blur-md rounded-[2rem] flex items-center justify-center px-6 text-center">
+              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest italic">
+                This venue has not joined Manolo yet
+              </span>
+            </div>
+          ) : (
+            <Button onClick={() => setIsClaimModalOpen(true)} className="w-full h-20 bg-neon-blue text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_30px_rgba(0,183,255,0.2)]">
+              {/* An existing manager is adding to what they already run, not
+                  becoming a manager for the first time. */}
+              <Instagram className="mr-3 w-5 h-5" /> {isManager ? "Add This Venue" : "Claim Sector via IG"}
+            </Button>
+          )
         ) : (
           <div className="grid grid-cols-5 gap-3">
             <Button className="col-span-4 h-20 bg-neon-green text-black font-black uppercase tracking-[0.2em] rounded-[2rem]">

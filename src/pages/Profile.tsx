@@ -258,7 +258,11 @@ const Profile = () => {
                       Venue Claim Under Review
                     </span>
                   </div>
-                ) : (
+                ) : !isTalent ? (
+                  // A33: hidden from talent, gated on the account role and
+                  // never on mode, since a talent account can toggle into
+                  // guest mode and reach this card. The status above stays
+                  // visible so a claim that does exist is never hidden.
                   <Button
                     variant="outline"
                     className="w-full h-16 mb-3 border-neon-blue/20 bg-neon-blue/5 text-neon-blue hover:bg-neon-blue/10 transition-all uppercase font-black text-[10px] tracking-widest rounded-2xl"
@@ -266,7 +270,7 @@ const Profile = () => {
                   >
                     <Building2 className="w-4 h-4 mr-3" /> Do You Manage a Venue?
                   </Button>
-                )}
+                ) : null}
 
                 <Button
                   variant="outline"
