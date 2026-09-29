@@ -536,6 +536,19 @@ Found 2026-09-13 during the A1 investigation. Extends what A15's investigation r
 
 With no `WITH CHECK`, its `USING` doubles as the check for INSERT and UPDATE. So any active staff member, whatever their `staff_role` (hosts and security included), can insert tickets at their venue, update any column of any ticket there (`price_paid`, `commission_earned`, `promoter_id`, `status`, `qr_code`), and delete them. Because permissive policies OR together, it also makes "Venue staff can scan tickets" ineffective: that policy's `WITH CHECK (status = 'Scanned')` was the only limit on what staff may write, and `Unified_Venue_Access` admits the same caller with no limit at all. Inferred from policies and grants, not executed.
 
+### A38. `create-checkout-session` treats a price of 0 as no price
+
+Found 2026-09-28 while fixing the dashboard price editor (A37). **A ticketing gate, beside A19, A20, A26 and A27: resolve before ticketing goes live. Logged only.**
+
+MEASURED from source, `create-checkout-session/index.ts:57-58`:
+
+- `const isVip = price_type === "vip" && venue.vip_price;` A VIP price of 0 is falsy, so a VIP purchase at a venue whose VIP price is 0 silently falls through to the general admission price. **Free VIP charges the entry price.**
+- `const unitPrice = isVip ? parseFloat(venue.vip_price) : parseFloat(venue.entry_price) || 20.0;` An entry price of 0 parses to 0, which is falsy, so it is replaced by the hard-coded 20.0. **Free entry charges $20.**
+
+**Why it matters now.** Since `e6b68fc` a venue can deliberately save a price of 0, and the owner has decided that venues set their own prices. One already has: The Ritz Ybor's VIP price is 0.00 (MEASURED 2026-09-28). So "free" is a real, configured value that checkout would silently override with a charge. Dormant while ticketing is withheld from the UI.
+
+The fix is to test for NULL rather than falsiness. What an intentionally free ticket should do at checkout, a $0 Stripe session or no Stripe session at all, is a separate decision for that task.
+
 ### A28. `get_talent_spotlight` runs as the caller over a table the caller cannot read: Spotlight is empty for everyone
 
 Found 2026-09-13 during the A1 investigation. **Inferred from the catalog, not run.**
@@ -660,6 +673,29 @@ Found 2026-09-28 while scoping A33's UI half. Not fixed; deliberately left out o
 `Profile.tsx:242-248` renders "Are You Talent?" whenever `hasPendingApplication` is false, with no role check, so a talent account that reaches the guest card through A35 sees an offer to apply as talent. INFERRED from source, and **observed by J** during `ec52ce5`'s check 3, where it still showed for the talent account.
 
 Not checked: what `BecomeTalentModal` does if an existing talent account submits. CLAUDE.md describes the talent onboarding path as "guest-only by construction", and whether that construction holds for a talent account reaching the button this way is the first thing to read before fixing. The fix shape is likely the same one-condition role gate used for "Do You Manage a Venue?" in `ec52ce5`, but that is a guess until the modal is read.
+
+### A37. The dashboard price editor opened at $0/$0. FIXED in `e6b68fc`
+
+**Observed by J in the browser on 2026-09-28:** as the manager, the price editor on the dashboard showed $0 for General Admission and $0 for VIP.
+
+**The chain, MEASURED from source.** `ManagerDashboard.tsx:392` passed the editor `activeVenue`, which is the context venue (`ManagerDashboard.tsx:51`). `UserModeContext.tsx:81` selects only `id, name, image_url, hero_reel_url, business_verified`, and its `Venue` type says exactly that. The editor's own prop type declared `entry_price` and `vip_price` as **optional**, so the context venue compiled, and both prices fell back to `?? 0`. Saving without retyping both would have overwritten the real prices with 0. Two further silent-write defects sat in the same save: it checked only `error`, so an RLS-filtered update (200 with zero rows) reported success; and the inputs coerced an empty field to 0 (`parseFloat(...) || 0`).
+
+**Fixed in `e6b68fc`:** the editor fetches `entry_price` and `vip_price` for `venue.id` itself, and its prop type narrows to `{ id, name }`. Inputs render only after a successful fetch; a failed fetch shows "Prices could not be loaded" with no inputs and no Save. An empty or invalid field blocks Save instead of becoming 0. Save ends in `.select("id")` and treats zero rows as "Nothing was saved". The fetch keys on `venue.id`, so a context re-sync no longer resets the inputs. `UserModeContext` was deliberately not widened.
+
+**Verified in the browser by J, all six passing:**
+
+1. 2001 Odyssey: the editor showed the real prices.
+2. Switching to The Ritz Ybor refetched and showed 20 / 0.
+3. Clearing a field blocked Save.
+4. A save with no changes left the prices unchanged.
+5. WTR Pool & Grill showed the Tier 2 notice and blocked Save.
+6. The failed-load branch rendered "Prices could not be loaded" with no inputs and no Save. **How it was exercised:** DevTools blocking could not isolate the editor's fetch, because blocking `rest/v1/venues`, or going offline and switching venues, takes down the whole dashboard first. So a temporary local edit added a nonexistent column to the price select, J observed the failed state, and the edit was reverted by hand before the commit: diff back to 124 added and 69 removed, typecheck passing, the column name absent from `src/`. The test edit was never committed.
+
+**Prices when the defect was found, MEASURED 2026-09-28:** 2001 Odyssey 20.00 / 100.00, The Ritz Ybor 20.00 / 0.00, WTR Pool & Grill 20.00 / 100.00; none NULL. Whether this editor ever wrote any of them was deliberately not investigated. **Owner decision, 2026-09-28: venues set their own prices, and price history is not our concern.**
+
+**Who can reach and change these prices, from source and the live catalog.** The editor mounts only inside `DashboardGuard`, which renders the dashboard only for the venue's owner, and it receives only owned venues. The admin has no path: the admin account owns no venue, and neither `CEODashboard` nor `admin-actions` touches prices. Enforcement is the database's: the only UPDATE policy on `venues` is owner-only, and `venues_require_business_verified` raises on a price change at an unverified venue.
+
+**Nothing else writes these two columns. Function-body search, MEASURED 2026-09-29, `public` schema only, whole-word match:** the only function whose body names `entry_price` or `vip_price` is `venues_require_business_verified`, the definer-rights guard trigger on `venues`, and it never writes a price. In `src/` only the editor reads or writes them. The one other reader is `create-checkout-session`, as the caller, and its handling of a 0 price is A38. For A31: the owner now reads both columns directly, so any column grant must keep SELECT on `id`, `entry_price` and `vip_price`, and UPDATE on the two prices, for `authenticated`.
 
 ---
 
