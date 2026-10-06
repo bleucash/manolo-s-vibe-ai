@@ -130,6 +130,26 @@ Same coupling A9 recorded: the grant list has to be derived from the code, and e
 
 That also changes how the blocker reads. Narrowing `select("*")` at `Venue.tsx:74` and `VenueManage.tsx:95`, and `venues:venue_id (*)` at `Index.tsx:87`, was previously a chore in front of a fix; it is now the whole gate in front of the only boundary this table has left.
 
+**Decisions (owner, 2026-10-03):**
+
+- **Private, to be revoked from `anon` and `authenticated`:** `commission_rate`, `standard_commission`, `subscription_tier`, `ticketing_enabled`, `base_price`, `settings`, `table_min_spend`.
+- **Public:** every other column, including `entry_price`, `vip_price`, `business_verified`, `active_at` and `owner_id`.
+- **`owner_id` stays granted.** It is read as the caller by 21 policies (20 on other tables plus the `venues` UPDATE policy), by `notify_on_scan`, and by six client sites, and it maps only to a profile that is public anyway. Rewriting all of that to hide it is not worth it pre-launch. **Future item, not scheduled:** a public `is_claimed` generated column (`owner_id IS NOT NULL`) for the claim and request branches, plus a definer-rights `owns_venue(venue_id)` helper for the ownership checks and the 21 policies, would let `owner_id` be revoked later.
+- **No owner-only function or separate table now.** When an owner screen first needs a private column, add a definer-rights function that returns the private fields for venues the caller owns.
+
+**Reader inventory, MEASURED 2026-10-03 from source and the live catalog (summary):**
+
+- **Grants:** `anon` and `authenticated` hold table-level `arwdDxtm`; no column-level ACL exists on any of the 28 columns.
+- **Clients:** 17 read sites across `src/`, every one running as `anon` or `authenticated`. Columns used for returning, filtering, ordering or embed joins are all public. The private seven are read by **no client at all**. Three UPDATE sites (`is_active`/`active_at`, the two prices, `hero_reel_url`) filter on `id` and return nothing.
+- **Edge functions:** `create-checkout-session` reads `name, entry_price, vip_price` as the caller; `admin-actions` uses the service role only.
+- **Database:** `conversation_summary` (security invoker) reads `id` and `name`. `calculate_ticket_commission` (caller-rights, BEFORE INSERT on `tickets`) reads `standard_commission`; its only inserter today is `stripe-webhook` as service role, so the revoke makes a direct authenticated ticket insert fail with `42501`, which A26 wants anyway. `notify_on_scan` (caller-rights) reads `owner_id`. Seven definer-rights functions also read `venues` and are unaffected.
+- **Policies:** 20 policies on 7 other tables read `venues` as the caller; all 20 touch `id` and `owner_id`, and 4 also touch `business_verified`. All three stay granted.
+- **Realtime:** `venues` is in no publication.
+
+**Step 1 SHIPPED in `a514da3`:** the four read-everything call sites now name their columns (`Venue.tsx:77`, `VenueManage.tsx:95`, `Discovery.tsx:206`, `Index.tsx:89`), with `PostWithVenue.venues` narrowed to a `Pick` of `id` and `name`. None names a private column. Three of the four hold their results as `any`, so the typecheck does not cover their column lists (A40); J's browser check verified them.
+
+**Step 2 is next: the grant migration.** Revoke table-level SELECT on `venues` from `anon` and `authenticated`, then grant back every column except the seven private ones. Rehearse it first as real roles (`SET LOCAL ROLE` with real claims), and include the 20 cross-table policies, `conversation_summary`, `notify_on_scan` and the owner's price editor in the rehearsal. **Respect A37's constraint:** SELECT on `id`, `entry_price` and `vip_price`, and UPDATE on both prices, must stay granted to `authenticated`. One question to settle in that rehearsal rather than assume: whether revoking a column also breaks a policy or sub-select that references it. The seven private columns are referenced by none of the 21 policies, so the rehearsal should show no policy change, and that is what it must measure.
+
 ### A2. `get_talent_spotlight` migration files disagree with the live body
 
 **Do this before C3, not as filler.** The Spotlight rebuild is currently planned against a function whose migration files do not match what is running: the live body is 1077 bytes, three migration files mention it, none matches. `CLAUDE.md` records that this function's documentation "was once the inverse of reality on four counts."
@@ -610,9 +630,9 @@ Recorded so the next audit recognises them rather than rediscovering them as new
 
 ### A33. Talent sees "Claim Sector via IG" at unowned venues
 
-Found 2026-09-25. **Decision recorded (owner, 2026-09-25). UI half SHIPPED 2026-09-28 in `ec52ce5`, both entry points. Enforcement half still OPEN.**
+Found between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25). **Decision recorded (owner, between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)). UI half SHIPPED 2026-09-28 in `ec52ce5`, both entry points. Enforcement half still OPEN.**
 
-**Date correction, 2026-09-28.** This entry first said the finding, the owner decisions and J's browser confirmation were 2026-09-22. They were 2026-09-25: the earlier date came from the chat dispatch, not from evidence. Dates on MEASURED lines below are the dates of the measurements themselves and are unchanged.
+**Date correction, revised 2026-10-06.** This entry first dated the finding, the owner decisions and J's first browser confirmation 2026-09-22, and a 2026-09-28 correction changed that to 2026-09-25. Neither date was evidenced: the day was never recorded. The commit dates bound it, so each of those three now reads "between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)". Dates on MEASURED lines below are the dates of the measurements themselves and are unchanged.
 
 **Shipped in `ec52ce5`: talent can no longer reach either claim entry point.** Both gates are on `isTalent`, which `UserModeContext` derives from `profiles.role_type` and never from `mode`, so the Profile mode toggle cannot get around them.
 
@@ -622,7 +642,7 @@ Found 2026-09-25. **Decision recorded (owner, 2026-09-25). UI half SHIPPED 2026-
 
 **What happened before `ec52ce5`:**
 
-- `Venue.tsx:160-164` (at `982aeb5`; it sat at `Venue.tsx:146-150` before that commit moved it) rendered the claim button whenever `venue.owner_id` was null, and chose its label on `isManager` alone: "Add This Venue" for a manager, "Claim Sector via IG" for everyone else. Nothing checked for talent, so talent got the button. MEASURED from source. **Confirmed in the browser by J on 2026-09-25:** talent saw "Claim Sector via IG" at an unowned venue, and the manager account saw "Add This Venue".
+- `Venue.tsx:160-164` (at `982aeb5`; it sat at `Venue.tsx:146-150` before that commit moved it) rendered the claim button whenever `venue.owner_id` was null, and chose its label on `isManager` alone: "Add This Venue" for a manager, "Claim Sector via IG" for everyone else. Nothing checked for talent, so talent got the button. MEASURED from source. **Confirmed in the browser by J between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25):** talent saw "Claim Sector via IG" at an unowned venue, and the manager account saw "Add This Venue".
 - 14 of 17 venues are unowned, so talent met this on most venue pages. The 3 owned ones are 2001 Odyssey, The Ritz Ybor and WTR Pool & Grill, all owned by the one manager account. MEASURED 2026-09-25.
 - "Request to Work Here" renders only at owned venues, by design (`Venue.tsx:213-224` at `982aeb5`): a request at an unowned venue has no approver, because every approval path requires an owner. MEASURED from source.
 
@@ -636,11 +656,11 @@ Found 2026-09-25. **Decision recorded (owner, 2026-09-25). UI half SHIPPED 2026-
 
 **Two halves, tracked separately:**
 
-- **UI. Decided by the owner 2026-09-25; SHIPPED in `ec52ce5`, see above:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
+- **UI. Decided by the owner between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25); SHIPPED in `ec52ce5`, see above:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
 - **Enforcement, its own task. Still OPEN: logged, not implemented.** Hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
   - **A further reason it matters, found 2026-09-28 while scoping the UI half:** both UI gates read `isTalent`, and `UserModeContext` sets roles only `if (profile)` after reading `profiles.role_type` (`UserModeContext.tsx:65-73`). If that read fails, the `catch` only logs and loading still ends, so `isTalent` stays `false` for a talent account and both claim entry points render for it. INFERRED from source, not observed. The UI half cannot close this; only the policy can.
 
-**Deferred, wanted (owner, 2026-09-25): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
+**Deferred, wanted (owner, between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
 
 - how long a parked request lasts before it expires;
 - what a new owner sees at claim time, and whether each requester is notified;
@@ -696,6 +716,40 @@ Not checked: what `BecomeTalentModal` does if an existing talent account submits
 **Who can reach and change these prices, from source and the live catalog.** The editor mounts only inside `DashboardGuard`, which renders the dashboard only for the venue's owner, and it receives only owned venues. The admin has no path: the admin account owns no venue, and neither `CEODashboard` nor `admin-actions` touches prices. Enforcement is the database's: the only UPDATE policy on `venues` is owner-only, and `venues_require_business_verified` raises on a price change at an unverified venue.
 
 **Nothing else writes these two columns. Function-body search, MEASURED 2026-09-29, `public` schema only, whole-word match:** the only function whose body names `entry_price` or `vip_price` is `venues_require_business_verified`, the definer-rights guard trigger on `venues`, and it never writes a price. In `src/` only the editor reads or writes them. The one other reader is `create-checkout-session`, as the caller, and its handling of a 0 price is A38. For A31: the owner now reads both columns directly, so any column grant must keep SELECT on `id`, `entry_price` and `vip_price`, and UPDATE on the two prices, for `authenticated`.
+
+### A39. `venues` grants `anon` and `authenticated` every table privilege, including TRUNCATE
+
+Found 2026-10-03 during the A31 investigation. **Log only.**
+
+MEASURED: `relacl` on `venues` gives `anon` and `authenticated` table-level `arwdDxtm`, that is SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER. INSERT, UPDATE and DELETE are masked only by policy: `venues` has no INSERT or DELETE policy, and its one UPDATE policy admits only the owner, as `authenticated`. **TRUNCATE is not subject to RLS at all**, so nothing masks it. It is unreachable today only because `anon` and `authenticated` cannot log in directly and the API exposes no TRUNCATE operation: masked by circumstance, not by a boundary.
+
+This is A9's finding on `profiles` again, on a second table: there, `anon` held DELETE and TRUNCATE, and the same note was made. A31 step 2 changes only SELECT, so it leaves this as it is. Revoking TRUNCATE, REFERENCES and TRIGGER from both roles on every table is the general fix and its own task.
+
+### A40. Three `venues` readers hold their results as `any`, so column drift there is invisible to the typecheck
+
+Found 2026-10-03 while narrowing the A31 call sites in `a514da3`. **Log only.** MEASURED from source:
+
+- `Venue.tsx:24` stores the venue in `useState<any>`.
+- `VenueManage.tsx:28` stores it in `useState<any>`.
+- `Discovery.tsx` types its query array as `PromiseLike<{ data: any }>[]` (line 213), its `venues` state as `useState<any[]>` (186), and `VenueFeedCard` and `ActiveFacepile` take `any` props.
+
+So if a column is dropped from one of those `select` lists, or a column the list does not include is later read, the code still compiles and simply reads `undefined` at runtime. That is exactly how the A37 price editor shipped at $0/$0. After A31 step 2 the cost rises: reading a revoked column does not fail softly, it is a `42501` that empties the page. `Index.tsx` is the counterexample: its result flows into `PostWithVenue`, which is now a `Pick` of the generated row, so a drift there fails the typecheck. **Typing the three sites from the generated `venues` row (or a `Pick` matching each `select`) would close it.** Also noted, outside the four sites: `VenueManage.tsx:78` casts the pending-claim embed with `(data?.venues as any)?.name`.
+
+### A41. Discovery search was never wired
+
+Reported by J on 2026-10-06 during the A31 step 1 browser check, where it made the search check untestable. **MEASURED from source:** `searchQuery` and `setSearchQuery` are declared at `Discovery.tsx:191`, and `combinedFeed` filters on `searchQuery` at line 274, but **nothing ever calls `setSearchQuery`**. The search icon calls `setIsSearchOpen(true)` at line 290, and **nothing ever reads `isSearchOpen`** (declared at line 192). So tapping the icon does nothing visible, there is no search input, and the name filter at line 274 always matches everything. Predates `a514da3` (J measured it at `9ca0f5f`).
+
+### A42. Changing the Discovery category scrolls the feed to the top
+
+Reported by J on 2026-10-06: annoying, not a bug. **Cause not determined.** The inference given with the report was that `setLoading(true)` swaps the page for the loader. **The source does not support that as stated:** `setLoading(true)` is at `Discovery.tsx:199`, but the only place `loading` is rendered is line 305, which swaps the Spotlight rail for three placeholder cards; the venue feed itself is not replaced. A layout shift from that rail, or the feed re-rendering with new data, are both possible and neither was checked. Read the render path before fixing.
+
+### A43. Signed-out Home is blank with no message
+
+Reported by J on 2026-10-06 during the A31 step 1 browser check. **MEASURED from source:** `Index.tsx:36-39` loads the follower feed and the viewer's charges only when there is a `currentUserId`; signed out, only `fetchActiveNodes()` runs. Active Nodes lists talent present at an open venue, and that is currently none (A44). So a signed-out visitor gets an empty page with nothing explaining why or what to do next. **It needs an empty state:** for example, a line pointing to Discovery, and a sign-in prompt for the following feed. Log only.
+
+### A44. The presence ring cannot be observed right now: no talent is tapped in
+
+MEASURED 2026-10-06, read-only: **0** talent profiles have `is_active = true` with `current_venue_id` pointing at an open venue, and **0** are tapped in at any venue at all. So Discovery's green presence ring, Home's Active Nodes and the "live at" line on talent profiles have nothing to render, which is why J did not see a ring during the A31 step 1 check. This is a gap in what a browser check can verify, not a defect. Verifying presence needs a test account to tap in at an open venue. CLAUDE.md already notes that talent surfaces should push tapping in, because presence is worth nothing if the toggle is not used.
 
 ---
 
