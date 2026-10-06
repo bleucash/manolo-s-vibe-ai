@@ -74,7 +74,13 @@ const Venue = () => {
   const fetchVenueData = async () => {
     if (!id) return;
     try {
-      const { data, error: venueError } = await supabase.from("venues").select("*").eq("id", id).single();
+      // Explicit columns, not "*": A31 revokes the private commercial columns
+      // from anon and authenticated, and "*" would then fail with 42501.
+      const { data, error: venueError } = await supabase
+        .from("venues")
+        .select("id, name, image_url, hero_reel_url, owner_id")
+        .eq("id", id)
+        .single();
       setVenue(data ?? null);
       // Every venues row is public since 787e0fb, so an empty result means the
       // id does not exist: PGRST116 is zero rows, 22P02 is an id that is not a

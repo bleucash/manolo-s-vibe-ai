@@ -83,15 +83,19 @@ export interface Ticket {
  * it was a trap for the next person rather than a broken feature.
  *
  * The embedded shapes are composed on top because Index.tsx selects
- * `*, profiles:user_id (*), venues:venue_id (*)`. Both of those FKs are real,
- * so PostgREST resolves them; contrast events.created_by, which points at
- * auth.users and cannot be embedded at all.
+ * `*, profiles:user_id (*), venues:venue_id (id, name)`. Both of those FKs are
+ * real, so PostgREST resolves them; contrast events.created_by, which points
+ * at auth.users and cannot be embedded at all.
+ *
+ * venues is a Pick, not the full row, because the embed selects only id and
+ * name (A31 revokes the private commercial columns). Keeping it a Pick of the
+ * generated row means a field the embed does not select is a compile error.
  */
 export type Post = GeneratedDatabase["public"]["Tables"]["posts"]["Row"];
 
 export type PostWithVenue = Post & {
   profiles: GeneratedDatabase["public"]["Tables"]["profiles"]["Row"];
-  venues: GeneratedDatabase["public"]["Tables"]["venues"]["Row"] | null;
+  venues: Pick<GeneratedDatabase["public"]["Tables"]["venues"]["Row"], "id" | "name"> | null;
 };
 
 export interface Database {

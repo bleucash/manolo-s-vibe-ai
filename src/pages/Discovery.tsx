@@ -201,7 +201,9 @@ const Discovery = () => {
         // profiles.is_active + current_venue_id come along so the facepile can
         // compute presence per person against this venue's own is_active,
         // rather than issuing a second query with its own rule.
-        let venueQuery = supabase.from("venues").select("*, venue_staff(user_id, status, profiles(avatar_url, username, is_active, current_venue_id))").eq("venue_staff.status", "active").order("is_active", { ascending: false }).limit(20);
+        // Explicit venue columns, not "*": A31 revokes the private commercial
+        // columns from anon and authenticated, and "*" would then fail with 42501.
+        let venueQuery = supabase.from("venues").select("id, name, location, image_url, hero_reel_url, is_active, venue_staff(user_id, status, profiles(avatar_url, username, is_active, current_venue_id))").eq("venue_staff.status", "active").order("is_active", { ascending: false }).limit(20);
         if (activeCategory !== "All Vibes") venueQuery = venueQuery.eq("category", activeCategory);
         // Annotated rather than inferred. TypeScript types this array from its
         // first element, the venues builder, so pushing a followers builder is

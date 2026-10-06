@@ -92,7 +92,13 @@ const VenueManage = () => {
     if (!activeVenueId) return;
 
     try {
-      const { data: venueData } = await supabase.from("venues").select("*").eq("id", activeVenueId).single();
+      // Explicit columns, not "*": A31 revokes the private commercial columns
+      // from anon and authenticated, and "*" would then fail with 42501.
+      const { data: venueData } = await supabase
+        .from("venues")
+        .select("id, name, image_url, hero_reel_url")
+        .eq("id", activeVenueId)
+        .single();
 
       if (venueData) {
         setVenue(venueData);
