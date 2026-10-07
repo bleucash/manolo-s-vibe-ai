@@ -130,14 +130,14 @@ Same coupling A9 recorded: the grant list has to be derived from the code, and e
 
 That also changes how the blocker reads. Narrowing `select("*")` at `Venue.tsx:74` and `VenueManage.tsx:95`, and `venues:venue_id (*)` at `Index.tsx:87`, was previously a chore in front of a fix; it is now the whole gate in front of the only boundary this table has left.
 
-**Decisions (owner, 2026-10-03):**
+**Decisions (owner, 2026-09-28):** made after the A31 investigation report (sent 2026-09-28) and before J's price-editor check the same day (A37); they reached this session on 2026-10-03 and were recorded in `63ff357`.
 
 - **Private, to be revoked from `anon` and `authenticated`:** `commission_rate`, `standard_commission`, `subscription_tier`, `ticketing_enabled`, `base_price`, `settings`, `table_min_spend`.
 - **Public:** every other column, including `entry_price`, `vip_price`, `business_verified`, `active_at` and `owner_id`.
 - **`owner_id` stays granted.** It is read as the caller by 21 policies (20 on other tables plus the `venues` UPDATE policy), by `notify_on_scan`, and by six client sites, and it maps only to a profile that is public anyway. Rewriting all of that to hide it is not worth it pre-launch. **Future item, not scheduled:** a public `is_claimed` generated column (`owner_id IS NOT NULL`) for the claim and request branches, plus a definer-rights `owns_venue(venue_id)` helper for the ownership checks and the 21 policies, would let `owner_id` be revoked later.
 - **No owner-only function or separate table now.** When an owner screen first needs a private column, add a definer-rights function that returns the private fields for venues the caller owns.
 
-**Reader inventory, MEASURED 2026-10-03 from source and the live catalog (summary):**
+**Reader inventory, MEASURED 2026-09-28** from source and the live catalog during the A31 investigation (summary); the four call sites were re-read from source on 2026-10-03.
 
 - **Grants:** `anon` and `authenticated` hold table-level `arwdDxtm`; no column-level ACL exists on any of the 28 columns.
 - **Clients:** 17 read sites across `src/`, every one running as `anon` or `authenticated`. Columns used for returning, filtering, ordering or embed joins are all public. The private seven are read by **no client at all**. Three UPDATE sites (`is_active`/`active_at`, the two prices, `hero_reel_url`) filter on `id` and return nothing.
@@ -719,7 +719,7 @@ Not checked: what `BecomeTalentModal` does if an existing talent account submits
 
 ### A39. `venues` grants `anon` and `authenticated` every table privilege, including TRUNCATE
 
-Found 2026-10-03 during the A31 investigation. **Log only.**
+Found 2026-09-28 during the A31 investigation. **Log only.**
 
 MEASURED: `relacl` on `venues` gives `anon` and `authenticated` table-level `arwdDxtm`, that is SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER. INSERT, UPDATE and DELETE are masked only by policy: `venues` has no INSERT or DELETE policy, and its one UPDATE policy admits only the owner, as `authenticated`. **TRUNCATE is not subject to RLS at all**, so nothing masks it. It is unreachable today only because `anon` and `authenticated` cannot log in directly and the API exposes no TRUNCATE operation: masked by circumstance, not by a boundary.
 
@@ -727,7 +727,7 @@ This is A9's finding on `profiles` again, on a second table: there, `anon` held 
 
 ### A40. Three `venues` readers hold their results as `any`, so column drift there is invisible to the typecheck
 
-Found 2026-10-03 while narrowing the A31 call sites in `a514da3`. **Log only.** MEASURED from source:
+Found 2026-10-03, while preparing to narrow the A31 call sites later committed in `a514da3` (2026-10-06). **Log only.** MEASURED from source:
 
 - `Venue.tsx:24` stores the venue in `useState<any>`.
 - `VenueManage.tsx:28` stores it in `useState<any>`.
@@ -737,15 +737,15 @@ So if a column is dropped from one of those `select` lists, or a column the list
 
 ### A41. Discovery search was never wired
 
-Reported by J on 2026-10-06 during the A31 step 1 browser check, where it made the search check untestable. **MEASURED from source:** `searchQuery` and `setSearchQuery` are declared at `Discovery.tsx:191`, and `combinedFeed` filters on `searchQuery` at line 274, but **nothing ever calls `setSearchQuery`**. The search icon calls `setIsSearchOpen(true)` at line 290, and **nothing ever reads `isSearchOpen`** (declared at line 192). So tapping the icon does nothing visible, there is no search input, and the name filter at line 274 always matches everything. Predates `a514da3` (J measured it at `9ca0f5f`).
+Reported by J between the narrowing edits (2026-10-03) and a514da3 (2026-10-06); the report reached this session on 2026-10-06. It came from the A31 step 1 browser check, where it made the search check untestable. **MEASURED from source:** `searchQuery` and `setSearchQuery` are declared at `Discovery.tsx:191`, and `combinedFeed` filters on `searchQuery` at line 274, but **nothing ever calls `setSearchQuery`**. The search icon calls `setIsSearchOpen(true)` at line 290, and **nothing ever reads `isSearchOpen`** (declared at line 192). So tapping the icon does nothing visible, there is no search input, and the name filter at line 274 always matches everything. Predates `a514da3` (J measured it at `9ca0f5f`).
 
 ### A42. Changing the Discovery category scrolls the feed to the top
 
-Reported by J on 2026-10-06: annoying, not a bug. **Cause not determined.** The inference given with the report was that `setLoading(true)` swaps the page for the loader. **The source does not support that as stated:** `setLoading(true)` is at `Discovery.tsx:199`, but the only place `loading` is rendered is line 305, which swaps the Spotlight rail for three placeholder cards; the venue feed itself is not replaced. A layout shift from that rail, or the feed re-rendering with new data, are both possible and neither was checked. Read the render path before fixing.
+Reported by J between the narrowing edits (2026-10-03) and a514da3 (2026-10-06); the report reached this session on 2026-10-06. J: annoying, not a bug. **Cause not determined.** The inference given with the report was that `setLoading(true)` swaps the page for the loader. **The source does not support that as stated:** `setLoading(true)` is at `Discovery.tsx:199`, but the only place `loading` is rendered is line 305, which swaps the Spotlight rail for three placeholder cards; the venue feed itself is not replaced. A layout shift from that rail, or the feed re-rendering with new data, are both possible and neither was checked. Read the render path before fixing.
 
 ### A43. Signed-out Home is blank with no message
 
-Reported by J on 2026-10-06 during the A31 step 1 browser check. **MEASURED from source:** `Index.tsx:36-39` loads the follower feed and the viewer's charges only when there is a `currentUserId`; signed out, only `fetchActiveNodes()` runs. Active Nodes lists talent present at an open venue, and that is currently none (A44). So a signed-out visitor gets an empty page with nothing explaining why or what to do next. **It needs an empty state:** for example, a line pointing to Discovery, and a sign-in prompt for the following feed. Log only.
+Reported by J between the narrowing edits (2026-10-03) and a514da3 (2026-10-06); the report reached this session on 2026-10-06. It came from the A31 step 1 browser check. **MEASURED from source:** `Index.tsx:36-39` loads the follower feed and the viewer's charges only when there is a `currentUserId`; signed out, only `fetchActiveNodes()` runs. Active Nodes lists talent present at an open venue, and that is currently none (A44). So a signed-out visitor gets an empty page with nothing explaining why or what to do next. **It needs an empty state:** for example, a line pointing to Discovery, and a sign-in prompt for the following feed. Log only.
 
 ### A44. The presence ring cannot be observed right now: no talent is tapped in
 
