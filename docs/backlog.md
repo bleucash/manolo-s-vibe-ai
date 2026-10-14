@@ -219,6 +219,10 @@ Verified live. Permits only one row per (venue, status), so **a venue can never 
 
 `talent_applications` deliberately took the correct shape and is the fix pattern: a partial unique index, `ON (user_id) WHERE status = 'pending'`.
 
+**Extended 2026-10-14 (found during A33's enforcement pre-flight). INFERRED, from the constraint and the INSERT policy, not exercised:** the constraint is per venue, not per user, so any signed-in guest or manager can hold a venue's **single pending slot** by filing a claim, and while it stands no one else can claim that venue. The INSERT policy checks only the caller, the status and (since `33647c2`) the talent role, so nothing bounds how many venues one account can hold this way. It ends only when an admin rejects the claim, and that rejection then occupies the venue's only rejected slot, which is the defect above. A33 closed this route for talent; it remains open to every other signed-in account.
+
+**Coupling to A46, read before fixing this:** today this constraint is also what stops `approve_venue_claim` from reassigning an already-owned venue, by accident. The fix here must not land before A46's.
+
 ### A8. "Active" means three different things
 
 `venue_staff.status = 'active'` (affiliation), `profiles.is_active` (tapped in), `venues.is_active` (open). Documented and centralized in `src/lib/presence.ts`. Listed as the archetype of this category, not because it needs work.
@@ -657,9 +661,21 @@ Found 2026-09-16 during the A1 reader survey. Both are incidental, neither was i
 
 Recorded so the next audit recognises them rather than rediscovering them as new findings.
 
-### A33. Talent sees "Claim Sector via IG" at unowned venues
+### A33. Talent sees "Claim Sector via IG" at unowned venues. DONE 2026-10-14
 
-Found between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25). **Decision recorded (owner, between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)). UI half SHIPPED 2026-09-28 in `ec52ce5`, both entry points. Enforcement half still OPEN.**
+Found between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25). **Decision recorded (owner, between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)). UI half SHIPPED 2026-09-28 in `ec52ce5`, both entry points. Enforcement half SHIPPED 2026-10-14 in `33647c2` (commit date; applied to production the same day, before the commit). A33 is DONE.**
+
+**Enforcement half, shipped in `33647c2`.** Migration `20261014140000_a33_venue_claims_reject_talent.sql`, sha256 `48308411a21dd30201713c1c38d9260b5c64635ee15efa73a5fd2c268b36b126`, checked against the approved hash immediately before it was applied and again on the committed blob. It drops and recreates "Claimants create own pending claims" with one added clause, `NOT has_role_type(auth.uid(), 'talent')`, then a post-check that fails the migration unless exactly one INSERT-capable policy exists and carries that clause. Safe to re-apply (A16).
+
+- **Owner decisions, given in the dispatch that approved the rehearsal:** the rule is "not talent", not "guest or manager", because both existing gates (`roleClaims.ts`, `findRoleConflict`) treat talent as the only conflicting role and a manager adding another venue must stay allowed. A guest with a pending talent application stays out of the policy: a pending application is not a role, and `findRoleConflict` still blocks it at approval.
+- **Pre-flight, MEASURED 2026-10-14, read-only:** no claim of any status is held by a talent account (3 claims, all approved, all by the manager account that owns each venue), so the new clause invalidates no existing row. All three talent accounts are on the do-not-touch list, so the rehearsal used throwaway accounts.
+- **Rehearsal, run 2026-10-14 (query time), one DO block with no COMMIT, rolled back.** Returned verbatim: `ERROR: P0001: A33E_REHEARSAL_PASS`, at `line 179 at RAISE`, the pass branch. That message is raised only when all ten flags are true; the flags are not printed on the pass path, so their values are known from the branch taken, not from output: `start_ok`, `fixtures_ok`, `talent_before_allowed`, `reapply_ok`, `talent_after_rejected`, `guest_allowed`, `manager_allowed`, `approved_rejected`, `spoof_rejected`, `tally_ok`. What they cover: a throwaway talent account inserted a pending claim under the old policy (one row; this is what proves the new check can fail); the migration body ran twice; the same account was then rejected with `42501` "new row violates row-level security policy"; a throwaway guest and the real manager account (adding a fourth venue) each inserted one row; a guest was still rejected for `status = 'approved'` and for another user's `user_id`; exactly three fixture claims existed at the end. Every authorization case ran as `SET LOCAL ROLE authenticated` with that account's `request.jwt.claims`; fixture setup and the tally ran as `postgres`.
+- **Snapshots, before and after the rehearsal, MEASURED 2026-10-14, all eight values identical:** `venue_claims` 3 rows, md5 `aaf60b39ba4b7b039233a5aa12787bad`; `profiles` 5 rows, md5 `44dc70eab87b6ef2465fef0db0beb7b7`; `auth.users` 5 rows, id md5 `0c3c61b65667519dd85067ff25ae58af`; `venue_claims` policy md5 `ef8d8e72c33579bde7a2fe1bcea4e52d`; INSERT check unchanged at `((user_id = auth.uid()) AND (status = 'pending'::text))`.
+- **Post-apply dump, MEASURED 2026-10-14, every policy on `venue_claims`:**
+  - "Claimants create own pending claims", INSERT, PERMISSIVE, `{authenticated}`, `WITH CHECK ((user_id = auth.uid()) AND (status = 'pending'::text) AND (NOT has_role_type(auth.uid(), 'talent'::text)))`.
+  - "Claimants read own claims", SELECT, PERMISSIVE, `{authenticated}`, `USING ((user_id = auth.uid()) OR is_admin())`.
+  - Exactly one INSERT-capable policy, no `ALL` policy, carrying the talent clause. `types.ts` unaffected: policies are not in the generated types, and the file was not regenerated.
+- **Client behaviour on the new rejection:** both modals (`ClaimSectorModal.tsx`, `ClaimVenueModal.tsx`) show a generic "System Error" toast on the `42501`. Unreachable for talent today, since `ec52ce5` hides both entry points; it is what a talent account would see only if the UI gate failed (see the `isTalent` note below). A rejected INSERT is a real error, not a silent zero-row result, so the absent `.select()` on these inserts does not hide it.
 
 **Date correction, revised 2026-10-06.** This entry first dated the finding, the owner decisions and J's first browser confirmation 2026-09-22, and a 2026-09-28 correction changed that to 2026-09-25. Neither date was evidenced: the day was never recorded. The commit dates bound it, so each of those three now reads "between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)". Dates on MEASURED lines below are the dates of the measurements themselves and are unchanged.
 
@@ -686,8 +702,8 @@ Found between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25). **Decision reco
 **Two halves, tracked separately:**
 
 - **UI. Decided by the owner between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25); SHIPPED in `ec52ce5`, see above:** hide the claim button from talent. At an unowned venue, talent sees a plain line that the venue has not joined Manolo yet. **Do not replace that line with anything else without revisiting this entry.**
-- **Enforcement, its own task. Still OPEN: logged, not implemented.** Hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
-  - **A further reason it matters, found 2026-09-28 while scoping the UI half:** both UI gates read `isTalent`, and `UserModeContext` sets roles only `if (profile)` after reading `profiles.role_type` (`UserModeContext.tsx:65-73`). If that read fails, the `catch` only logs and loading still ends, so `isTalent` stays `false` for a talent account and both claim entry points render for it. INFERRED from source, not observed. The UI half cannot close this; only the policy can.
+- **Enforcement, its own task. SHIPPED 2026-10-14 in `33647c2`, see the top of this entry.** As originally logged: hiding the button is the UI half only. The `venue_claims` INSERT policy should reject talent accounts, using the `has_role_type` pattern already on `venue_staff`'s talent INSERT policy, "Talent request to work a venue": `WITH CHECK ((auth.uid() = user_id) AND (status = 'pending') AND has_role_type(auth.uid(), 'talent'))`. The claim policy needs the opposite test, for example `AND NOT has_role_type(auth.uid(), 'talent')`; the exact predicate is that task's decision.
+  - **A further reason it matters, found 2026-09-28 while scoping the UI half:** both UI gates read `isTalent`, and `UserModeContext` sets roles only `if (profile)` after reading `profiles.role_type` (`UserModeContext.tsx:65-73`). If that read fails, the `catch` only logs and loading still ends, so `isTalent` stays `false` for a talent account and both claim entry points render for it. INFERRED from source, not observed. The UI half cannot close this; only the policy can, and since `33647c2` it does: the claim is refused with `42501` and the talent account sees the generic "System Error".
 
 **Deferred, wanted (owner, between `a2ad6d6` (2026-09-22) and `982aeb5` (2026-09-25)): parked work requests at unowned venues**, surfaced to a prospective owner as a recruiting hook. The RLS INSERT policy already permits them: "Talent request to work a venue" checks the caller, the status and the talent role, and nothing about the venue having an owner. MEASURED 2026-09-16. Only the UI withholds the button. Open decisions before building:
 
@@ -746,13 +762,15 @@ Not checked: what `BecomeTalentModal` does if an existing talent account submits
 
 **Nothing else writes these two columns. Function-body search, MEASURED 2026-09-29, `public` schema only, whole-word match:** the only function whose body names `entry_price` or `vip_price` is `venues_require_business_verified`, the definer-rights guard trigger on `venues`, and it never writes a price. In `src/` only the editor reads or writes them. The one other reader is `create-checkout-session`, as the caller, and its handling of a 0 price is A38. For A31: the owner now reads both columns directly, so any column grant must keep SELECT on `id`, `entry_price` and `vip_price`, and UPDATE on the two prices, for `authenticated`.
 
-### A39. `venues` grants `anon` and `authenticated` every table privilege, including TRUNCATE
+### A39. `venues` and `venue_claims` grant `anon` and `authenticated` every table privilege, including TRUNCATE
 
 Found 2026-09-28 during the A31 investigation. **Log only.**
 
 MEASURED: `relacl` on `venues` gives `anon` and `authenticated` table-level `arwdDxtm`, that is SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER. INSERT, UPDATE and DELETE are masked only by policy: `venues` has no INSERT or DELETE policy, and its one UPDATE policy admits only the owner, as `authenticated`. **TRUNCATE is not subject to RLS at all**, so nothing masks it. It is unreachable today only because `anon` and `authenticated` cannot log in directly and the API exposes no TRUNCATE operation: masked by circumstance, not by a boundary.
 
 This is A9's finding on `profiles` again, on a second table: there, `anon` held DELETE and TRUNCATE, and the same note was made. A31 step 2 changes only SELECT, so it leaves this as it is. Revoking TRUNCATE, REFERENCES and TRIGGER from both roles on every table is the general fix and its own task.
+
+**Also on `venue_claims`, MEASURED 2026-10-14 during A33's enforcement pre-flight. Log only, same shape:** `relacl` is `{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}`, so `anon` and `authenticated` hold every table privilege, TRUNCATE included. UPDATE and DELETE are masked only by the absence of any UPDATE or DELETE policy (deliberate, since approve and reject run through `admin-actions` as service role), and `anon` writes only by the absence of any policy for `anon`. TRUNCATE, again, is masked by nothing but circumstance. `33647c2` changed only the INSERT policy and left this as it is. Per CLAUDE.md, any future UPDATE or DELETE policy on this table must revoke first.
 
 ### A40. Three `venues` readers hold their results as `any`, so column drift there is invisible to the typecheck
 
@@ -789,6 +807,16 @@ Found 2026-10-14 during J's A31 step 2 browser check, while confirming that "Liv
 - So a failed request renders exactly like a talent with no gigs: the "Live Dates" section, gated on `schedule.length > 0` (`TalentProfile.tsx:154`), simply does not appear, and nothing is logged.
 
 Same family as the `Venue.tsx` fix in `982aeb5`, where a discarded error made a failed load look like a missing venue. Raised in priority by A31: a request that names a revoked `venues` column now fails with `42501`, and this site would hide that failure.
+
+### A46. `approve_venue_claim` sets `owner_id` unconditionally, so approving a claim on an owned venue would reassign it. NEXT PRIORITY
+
+Found 2026-10-14 during A33's enforcement pre-flight. **Log only. INFERRED from code, not exercised; only manual review prevents it today.**
+
+- **The approve path does not look at the venue's current owner.** `admin-actions/index.ts:167-171` runs three writes as service role: set the claim `approved`, then `venues.update({ owner_id: user_id }).eq("id", venue_id)`, then set the claimant's `role_type` to `manager`. Nothing reads `venues.owner_id` first. `prevent_venue_owner_change` returns at its first line for `service_role` (CLAUDE.md records the body), so it does not stop this. MEASURED from source.
+- **Nothing upstream stops a claim on an owned venue from being filed.** The INSERT policy checks the caller, `status = 'pending'` and the talent role, and nothing about the venue (post-apply dump in A33, MEASURED 2026-10-14). Both UI entry points offer only unowned venues: `Venue.tsx` renders the claim button only when `owner_id` is null, and `ClaimVenueModal.tsx:43` filters `.is("owner_id", null)`. So a claim on an owned venue arrives by a direct API call, or from a page loaded before another claim on that venue was approved. INFERRED.
+- **`venue_id` and `user_id` come from the request payload**, not from the claim row (`index.ts:159`), so the approve does not check that they match the claim being approved. The caller is the admin, so this is a consistency gap, not an escalation. MEASURED from source.
+- **Why it has not fired, INFERRED from the constraint and the data:** the first write sets the claim to `approved`, and A7's `UNIQUE (venue_id, status)` already holds that venue's approved row for each of the three owned venues (MEASURED 2026-10-14: 3 approved claims, one per owned venue, each by its owner). That write would fail `23505` and return 500 before `owner_id` is touched. **The protection is an accident of A7's defect, and it does not cover a venue owned without an approved claim row.** It also means fixing A7 (the partial unique index on pending) would remove it. Fix this first, or in the same change.
+- **Fix shape, not decided:** the approve should refuse when `venues.owner_id` is non-null and differs from the claimant, read from the database rather than trusted from the payload, together with taking `venue_id` and `user_id` from the claim row. Whether the INSERT policy should also refuse claims on owned venues is that task's decision. It could read `venues.owner_id` directly, since `owner_id` is one of A31's granted columns and `venues` is publicly readable.
 
 ---
 
