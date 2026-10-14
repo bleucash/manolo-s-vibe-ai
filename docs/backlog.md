@@ -116,7 +116,7 @@ Permissive policies OR together, so one `USING (true)` admits every row, and eve
 
 **Re-dump before fixing.** This schema has recorded cases of migration files disagreeing with live bodies, and this entry is itself a correction of a previous one.
 
-### A31. Column exposure on `venues` outranks what A1 leaves behind on that table
+### A31. Column exposure on `venues` outranks what A1 leaves behind on that table. DONE 2026-10-14, except the logged `owner_id` option 2
 
 Found 2026-09-13, re-measured 2026-09-16. **Rank this against A1, not under it. Once A1's phase 2 lands, this is the larger remaining exposure on `venues`.**
 
@@ -149,6 +149,33 @@ That also changes how the blocker reads. Narrowing `select("*")` at `Venue.tsx:7
 **Step 1 SHIPPED in `a514da3`:** the four read-everything call sites now name their columns (`Venue.tsx:77`, `VenueManage.tsx:95`, `Discovery.tsx:206`, `Index.tsx:89`), with `PostWithVenue.venues` narrowed to a `Pick` of `id` and `name`. None names a private column. Three of the four hold their results as `any`, so the typecheck does not cover their column lists (A40); J's browser check verified them.
 
 **Step 2 is next: the grant migration.** Revoke table-level SELECT on `venues` from `anon` and `authenticated`, then grant back every column except the seven private ones. Rehearse it first as real roles (`SET LOCAL ROLE` with real claims), and include the 20 cross-table policies, `conversation_summary`, `notify_on_scan` and the owner's price editor in the rehearsal. **Respect A37's constraint:** SELECT on `id`, `entry_price` and `vip_price`, and UPDATE on both prices, must stay granted to `authenticated`. One question to settle in that rehearsal rather than assume: whether revoking a column also breaks a policy or sub-select that references it. The seven private columns are referenced by none of the 21 policies, so the rehearsal should show no policy change, and that is what it must measure.
+
+**Step 2 SHIPPED 2026-10-14 in `9863cbf`:** `20261014120000_a31_venues_column_grants.sql`, sha256 `8a245ba77400a8a323dd102c260734dcf4aef5d8a504846973866c415c92efb2`. `anon` and `authenticated` lost table-level SELECT on `venues`, kept SELECT on the 21 public columns by name, and hold none of the seven private ones. Only SELECT changed. `postgres` and `service_role` keep table-level SELECT. A37's constraint holds: `id`, `entry_price` and `vip_price` stay readable, and UPDATE on the prices is untouched.
+
+- **Block B dropped (owner decision; it reached this session 2026-10-14).** The draft would have made `calculate_ticket_commission` definer-rights so ticket inserts kept working unchanged. Dropped because the only legitimate ticket inserter is `stripe-webhook` as `service_role`, which keeps full SELECT, while keeping authenticated inserts working would have left `standard_commission` derivable through A26's direct-insert hole (an inserted ticket's `commission_earned` is `price_paid` times `standard_commission` when there is no promoter rate). The function is unchanged, so a ticket inserted directly as `authenticated` now fails with `42501`. Recorded as a side effect in A26, not as a fix.
+- **The table-level revoke is conditional** (approved): it runs only while table-level SELECT is still held, because revoking it strips every column-level SELECT and an isolated re-run would otherwise remove a column granted later by another migration.
+- **Pre-flight, MEASURED 2026-10-14:** no migration grants `ON ALL TABLES` or alters default privileges, and none re-grants table-level SELECT on `venues`; no trigger on any table the rehearsal wrote to, and no function in `public`, calls anything that leaves the database, and `pg_net`, `http` and the webhook schemas are absent.
+- **Rehearsal, 2026-10-14, one rolled-back transaction, as real roles with real claims, verbatim:** "A31 STEP 2 REHEARSAL PASSED: all 12 checks | 1 unmigrated: anon and talent read all 7 private columns and select * (16 probes, none denied) | 2 migration applied twice, catalog end state exact, calculate_ticket_commission unchanged | 3 migrated: anon and talent denied 42501 on select * and each private column (16 of 16) | 4 all 29 read shapes and policy counts unchanged for anon, talent, staff, owner, admin (145 values) | 5 the 20 cross-table policies return the same counts (inside check 4) | 6 staff venue thread titles = 2 | 7 owner price update returning id = 1 row | 8 non-owner price update = 0 rows | 9 owner no-op updates equal visible rows (tickets=0 events=0 venue_staff=1 payout_requests=0), zero-row deletes 0 | 10 owner inserts 3 of 3 (payout_history, venue_staff invite, business application) | 11 service_role and postgres read every column (17 venues) | 12 owner direct ticket insert allowed before, denied 42501 on venues after | rolled back"
+- **Check 9's limit:** at 2001 Odyssey, three of its four no-op updates (`tickets`, `events`, `payout_requests`) touched 0 rows. For those three it proves only that the policies still evaluate without `42501`, not that a matching row stays writable; `venue_staff` touched 1 row.
+- **Nothing persisted, MEASURED before and after the rehearsal:** row counts and an md5 over every row were identical for all 11 tables it wrote to directly or through a trigger (`venues` 17, `tickets` 6, `events` 2, `venue_staff` 2, `payout_requests` 0, `payout_history` 0, `venue_business_applications` 2, `notifications` 3, `conversations` 3, `conversation_participants` 6, `profiles` 5), and the grants were still unmigrated.
+- **Applied 2026-10-14** through the Management API, gated on the sha256 above; the post-check passed. It was applied before it was committed, so production led the repo until the push.
+- **Catalog after applying, MEASURED:** `relacl` shows `anon=awdDxtm` and `authenticated=awdDxtm` (no table-level `r`), and column ACLs grant `r` to both roles on exactly the 21 public columns.
+- **Wire, as anon with the shipped key, MEASURED 2026-10-14:** `select=*` returns HTTP 401 with code `42501`; `select=commission_rate` returns HTTP 401 with code `42501`; `select=id,name,entry_price,vip_price` returns HTTP 200 with 17 rows.
+- **Browser, J, 2026-10-14, all eleven passing after a hard refresh:**
+  1. Signed out: Discovery cards, open venues first, category filter.
+  2. Signed out: the Crow Bar and 2001 Odyssey venue pages render in full.
+  3. Guest: the "Do You Manage a Venue?" venue list loads.
+  4. Manager: Home feed venue names.
+  5. Manager: dashboard, venue switcher, and the price editor at 2001 Odyssey showing $20 / $100, with a no-change save.
+  6. Manager: VenueManage.
+  7. Manager: posting from Home works and its venue list loads.
+  8. Manager: Messages venue thread names.
+  9. Admin: CEO dashboard venue lists, claims and business applications.
+  10. A talent profile viewed by another account: "Live Dates" lists the venues. Viewed by the talent itself the section never renders, because it is gated on `!isSelfView` (`TalentProfile.tsx:154`); not a defect.
+  11. Talent dashboard venue names.
+- `types.ts` is unchanged: generated types describe columns, not grants.
+
+**A31 is DONE**, except the logged future item: `owner_id` option 2 (a public `is_claimed` generated column plus a definer-rights `owns_venue` helper), which would let `owner_id` be revoked later.
 
 ### A2. `get_talent_spotlight` migration files disagree with the live body
 
@@ -547,6 +574,8 @@ So any signed-in user could insert a row into `tickets` through the database API
 
 The UI withholds ticketing, but that does not close this: the table and the check-in RPC are live, and the UI is not involved. It is a ticketing gate alongside **A19** (commission stored at 10x) and **A20** (status vocabulary), to resolve before ticketing ships. Related: A14 (`create-checkout-session` runs as the caller) and A21 (referral attribution unchecked).
 
+**Side effect of A31 step 2 (`9863cbf`, 2026-10-14). NOT A FIX: A26 stays open.** The trigger's body has now been read (MEASURED 2026-10-14): `calculate_ticket_commission` runs with the caller's rights and reads `venues.standard_commission` when the promoter has no staff rate. That column was revoked from `anon` and `authenticated`, so **a ticket inserted directly as `authenticated` now fails with `42501`**. This was rehearsed (check 12: the owner's direct insert succeeded before the migration and was denied on `venues` after). The insert is still admitted by the INSERT policy; it fails only because the trigger can no longer read a revoked column, which also stops the hole exposing `standard_commission` through the inserted row's `commission_earned`. `stripe-webhook`, the only legitimate inserter, runs as `service_role` and is unaffected. **If any client path ever inserts tickets as `authenticated`, this trigger must be revisited**: either make it definer-rights (and accept that `standard_commission` becomes derivable again until this hole is closed), or move the commission read elsewhere. The real fix for A26 is still a narrower INSERT policy.
+
 ### A27. `Unified_Venue_Access` is FOR ALL with no WITH CHECK: active staff can write tickets
 
 Found 2026-09-13 during the A1 investigation. Extends what A15's investigation recorded: that this policy admits active staff for every command, with the grants on `tickets` unmeasured at the time. They are now measured.
@@ -750,6 +779,16 @@ Reported by J between the narrowing edits (2026-10-03) and a514da3 (2026-10-06);
 ### A44. The presence ring cannot be observed right now: no talent is tapped in
 
 MEASURED 2026-10-06, read-only: **0** talent profiles have `is_active = true` with `current_venue_id` pointing at an open venue, and **0** are tapped in at any venue at all. So Discovery's green presence ring, Home's Active Nodes and the "live at" line on talent profiles have nothing to render, which is why J did not see a ring during the A31 step 1 check. This is a gap in what a browser check can verify, not a defect. Verifying presence needs a test account to tap in at an open venue. CLAUDE.md already notes that talent surfaces should push tapping in, because presence is worth nothing if the toggle is not used.
+
+### A45. TalentProfile's "Live Dates" fetch discards its error
+
+Found 2026-10-14 during J's A31 step 2 browser check, while confirming that "Live Dates" renders only for other viewers. **Log only.** MEASURED from source at `1af31b8` (the file is unchanged at `9863cbf`):
+
+- `TalentProfile.tsx:64-68` fetches the talent's active affiliations with `venue_staff` and an embedded `venues(id, name, location)`, destructuring only `data`.
+- `TalentProfile.tsx:70` sets the schedule only `if (staffData)`. supabase-js returns errors rather than throwing, so the `catch` at line 78 never sees a failed request.
+- So a failed request renders exactly like a talent with no gigs: the "Live Dates" section, gated on `schedule.length > 0` (`TalentProfile.tsx:154`), simply does not appear, and nothing is logged.
+
+Same family as the `Venue.tsx` fix in `982aeb5`, where a discarded error made a failed load look like a missing venue. Raised in priority by A31: a request that names a revoked `venues` column now fails with `42501`, and this site would hide that failure.
 
 ---
 
