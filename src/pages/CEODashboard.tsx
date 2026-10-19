@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +31,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/**
+ * admin-actions answers every refusal with a JSON body { error }. On any
+ * non-2xx, functions.invoke returns a FunctionsHttpError whose context is the
+ * unread Response, so the server's message is only reachable by reading that
+ * body. Returns null when the call succeeded.
+ */
+const adminActionError = async (error: unknown, data: unknown): Promise<string | null> => {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await (error.context as Response).json();
+      if (typeof body?.error === "string") return body.error;
+    } catch {
+      // Not a JSON body; fall back to the client's own message below.
+    }
+  }
+  if (error) return error instanceof Error ? error.message : "Request failed.";
+  const bodyError = (data as { error?: unknown } | null)?.error;
+  return typeof bodyError === "string" ? bodyError : null;
+};
 
 const CEODashboard = () => {
   const [venueClaims, setVenueClaims] = useState<any[]>([]);
@@ -122,15 +143,18 @@ const CEODashboard = () => {
           ? { action: "approve_venue_claim", payload: { claim_id: claimId, venue_id: venueId, user_id: userId } }
           : { action: "reject_venue_claim", payload: { claim_id: claimId } },
       });
-      if (error || (data as any)?.error) {
-        toast.error("Handshake Error");
+      const failure = await adminActionError(error, data);
+      if (failure) {
+        toast.error(approve ? "Approval Refused" : "Rejection Failed", { description: failure });
         return;
       }
       if (approve) toast.success("Sector Link Verified");
       else toast.error("Claim Denied");
       fetchOversightData();
     } catch (err) {
-      toast.error("Handshake Error");
+      toast.error(approve ? "Approval Refused" : "Rejection Failed", {
+        description: err instanceof Error ? err.message : "Request failed.",
+      });
     }
   };
 
@@ -164,8 +188,9 @@ const CEODashboard = () => {
           payload: { venue_id: revokeTarget.id, user_id: revokeTarget.owner_id },
         },
       });
-      if (error || (data as any)?.error) {
-        toast.error("Revocation Error");
+      const failure = await adminActionError(error, data);
+      if (failure) {
+        toast.error("Revocation Error", { description: failure });
         return;
       }
       const downgraded = (data as any)?.downgraded ?? 0;
