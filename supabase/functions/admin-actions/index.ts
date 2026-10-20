@@ -157,6 +157,25 @@ Deno.serve(async (req) => {
     switch (parsed.data.action) {
       case "approve_venue_claim": {
         const { claim_id, venue_id, user_id } = parsed.data.payload;
+
+        // A46. Every check below runs before the first write, so a refusal
+        // leaves nothing behind. The claim row is the source of truth; the
+        // payload's venue_id and user_id are only a cross-check against it,
+        // because this used to write whatever the payload named.
+        const { data: claim, error: claimErr } = await admin
+          .from("venue_claims")
+          .select("id, venue_id, user_id, status")
+          .eq("id", claim_id)
+          .maybeSingle();
+        if (claimErr) return json({ error: `Claim lookup failed: ${claimErr.message}` }, 500);
+        if (!claim) return json({ error: "Claim not found." }, 404);
+        if (claim.status !== "pending") {
+          return json({ error: `This claim is ${claim.status ?? "in an unknown state"}, not pending.` }, 409);
+        }
+        if (claim.venue_id !== venue_id || claim.user_id !== user_id) {
+          return json({ error: "Request does not match the claim. Refresh and try again." }, 409);
+        }
+
         // Gate before ANY write. Previously this overwrote role_type
         // unconditionally, so approving a venue claim for someone already
         // talent silently flipped them to manager.
@@ -164,12 +183,83 @@ Deno.serve(async (req) => {
         if (gate.readError) return json({ error: `Role check failed: ${gate.readError}` }, 500);
         if (gate.conflict) return json({ error: gate.conflict }, 409);
 
-        const r1 = await admin.from("venue_claims").update({ status: "approved" }).eq("id", claim_id);
-        if (r1.error) return json({ error: r1.error.message }, 500);
-        const r2 = await admin.from("venues").update({ owner_id: user_id }).eq("id", venue_id);
-        if (r2.error) return json({ error: r2.error.message }, 500);
-        const r3 = await admin.from("profiles").update({ role_type: "manager" }).eq("id", user_id);
-        if (r3.error) return json({ error: r3.error.message }, 500);
+        // Refuse a venue someone else already owns. The database refuses it
+        // too (prevent_venue_owner_change, A46), but only at the owner write;
+        // this says why, before anything is written. Owned by this claimant
+        // already is allowed: that is a retry of an approval that set the
+        // owner and then failed a later step.
+        const { data: venue, error: venueErr } = await admin
+          .from("venues")
+          .select("id, owner_id")
+          .eq("id", venue_id)
+          .maybeSingle();
+        if (venueErr) return json({ error: `Venue lookup failed: ${venueErr.message}` }, 500);
+        if (!venue) return json({ error: "Venue not found." }, 404);
+        if (venue.owner_id && venue.owner_id !== user_id) {
+          return json({ error: "This venue already has an owner. Revoke it before approving another claim." }, 409);
+        }
+
+        // A leftover approved claim would make the LAST step below fail on
+        // unique_venue_claim (venue_id, status), A7, after owner_id is already
+        // set, and every retry would fail the same way. Refuse it up front.
+        const { data: approvedRows, error: approvedErr } = await admin
+          .from("venue_claims")
+          .select("id")
+          .eq("venue_id", venue_id)
+          .eq("status", "approved")
+          .limit(1);
+        if (approvedErr) return json({ error: `Claim check failed: ${approvedErr.message}` }, 500);
+        if (approvedRows && approvedRows.length > 0) {
+          return json({ error: "This venue already holds an approved claim. Resolve that one first." }, 409);
+        }
+
+        // ORDER MATTERS, and is the reverse of what this used to do. These are
+        // separate calls with no transaction around them, so each step must
+        // leave a state the next attempt can finish. The claim is closed LAST:
+        // until then it stays pending in the review queue, and approving it
+        // again resumes, since the owner check above lets the same claimant
+        // through and setting an owner to itself is not a change.
+
+        // 1. Owner. Conditional on the venue still being unowned or already
+        //    this claimant's, so a second approval racing this one matches
+        //    zero rows instead of overwriting it. Exactly one row, or stop.
+        const rOwner = await admin
+          .from("venues")
+          .update({ owner_id: user_id })
+          .eq("id", venue_id)
+          .or(`owner_id.is.null,owner_id.eq.${user_id}`)
+          .select("id");
+        if (rOwner.error) return json({ error: rOwner.error.message }, 500);
+        if ((rOwner.data?.length ?? 0) !== 1) {
+          return json({ error: "The venue was taken by another approval while this one ran. Nothing was changed." }, 409);
+        }
+
+        // 2. Role.
+        const rRole = await admin
+          .from("profiles")
+          .update({ role_type: "manager" })
+          .eq("id", user_id)
+          .select("id");
+        if (rRole.error) {
+          return json({ error: `Venue assigned, but the role update failed: ${rRole.error.message}. Approve again to finish.` }, 500);
+        }
+        if ((rRole.data?.length ?? 0) !== 1) {
+          return json({ error: "Venue assigned, but no profile matched the claimant. Approve again to finish." }, 500);
+        }
+
+        // 3. Close the claim, only if it is still pending.
+        const rClaim = await admin
+          .from("venue_claims")
+          .update({ status: "approved" })
+          .eq("id", claim_id)
+          .eq("status", "pending")
+          .select("id");
+        if (rClaim.error) {
+          return json({ error: `Venue assigned and role set, but closing the claim failed: ${rClaim.error.message}. Approve again to finish.` }, 500);
+        }
+        if ((rClaim.data?.length ?? 0) !== 1) {
+          return json({ error: "Venue assigned and role set, but the claim was no longer pending. Check the review queue." }, 409);
+        }
         return json({ ok: true });
       }
       case "reject_venue_claim": {
