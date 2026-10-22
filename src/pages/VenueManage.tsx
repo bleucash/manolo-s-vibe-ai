@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Film, Calendar, Settings, Zap, ArrowLeft, ShieldCheck, LogOut, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 
 /**
  * `return null` renders nothing, which shows whatever is behind the app,
@@ -165,7 +166,8 @@ const VenueManage = () => {
               Your claim on {pendingClaimVenue} is under review.
             </p>
             <p className="text-zinc-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed border-t border-white/5 pt-4">
-              Venue Studio unlocks once an Admin verifies your IG Handshake.
+              DM @{VERIFICATION_INSTAGRAM_HANDLE} on Instagram from the venue's account. Venue Studio
+              unlocks once we see the message and approve.
             </p>
           </div>
 

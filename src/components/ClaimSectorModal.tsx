@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Instagram, ShieldCheck, Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 
 interface ClaimSectorModalProps {
   venueId: string;
@@ -39,22 +40,23 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
         return;
       }
 
+      const handle = instagram.replace("@", "");
       const { error } = await supabase.from("venue_claims").insert({
         user_id: session?.user?.id,
         venue_id: venueId,
-        instagram_handle: instagram.replace("@", ""),
+        instagram_handle: handle,
         status: "pending"
       });
 
       if (error) throw error;
 
-      toast.success(isManager ? "Venue Added to Review" : "Claim Initialized", {
-        description: "Neural handshake sent. Our team will verify your IG link shortly."
+      toast.success(isManager ? "Venue Added to Review" : "Claim Filed", {
+        description: `Now DM @${VERIFICATION_INSTAGRAM_HANDLE} on Instagram from @${handle}. We approve once it arrives.`
       });
       onClose();
     } catch (err: any) {
-      // unique_venue_claim is UNIQUE (venue_id, status), not per user, so a
-      // pending claim by anyone on this venue collides here.
+      // One pending claim per venue (A7), not per user, so a pending claim by
+      // anyone on this venue collides here.
       if (err?.code === "23505") {
         toast.error("Already Under Review", {
           description: "A claim on this venue is already being verified."
@@ -81,7 +83,7 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
           <DialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
             {isManager
               ? "Adding this venue to the ones you already run. Verified via Instagram, same as the rest."
-              : "Identity verification required via Instagram."}
+              : "Enter the venue's Instagram. You verify by messaging us from that account."}
           </DialogDescription>
         </DialogHeader>
 
@@ -100,8 +102,8 @@ export const ClaimSectorModal = ({ venueId, venueName, isOpen, onClose }: ClaimS
             <p className="text-[9px] text-zinc-400 leading-relaxed uppercase font-black tracking-[0.2em]">
               <Zap className="w-3 h-3 text-neon-green inline mr-2" />
               {isManager
-                ? "This venue joins your existing control panel once verified. Your current sectors are unaffected while it is in review."
-                : 'Claiming grants temporary "Vibe" access. Financial and Staffing sectors unlock after our IG handshake is verified.'}
+                ? `After you submit, DM @${VERIFICATION_INSTAGRAM_HANDLE} from this venue's Instagram. It joins your control panel once we see the message and approve. Your current venues are unaffected.`
+                : `After you submit, DM @${VERIFICATION_INSTAGRAM_HANDLE} from the venue's Instagram account. We approve once that message arrives. Nothing about the venue can be edited until then.`}
             </p>
           </div>
 

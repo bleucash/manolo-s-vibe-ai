@@ -14,12 +14,13 @@ import { RequestToWorkModal } from "@/components/RequestToWorkModal";
 import { toast } from "sonner";
 import { positionLabel } from "@/config/positions";
 import { useVenueStatus } from "@/hooks/useVenueStatus";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 
 const Venue = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { session, isManager, isTalent } = useUserMode();
-  const { isOwner, isTempManager, hasPendingClaim, loading: statusLoading } = useVenueStatus(id || "");
+  const { isOwner, hasPendingClaim, pendingClaimHandle, loading: statusLoading } = useVenueStatus(id || "");
 
   const [venue, setVenue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +130,8 @@ const Venue = () => {
 
   return (
     <div className="min-h-screen bg-black pb-40 animate-in fade-in duration-700">
-      {/* 1. HERO REEL (Editable by Temp Manager) */}
+      {/* 1. HERO REEL (editable by the verified owner only; a pending claim
+          confers nothing until approved) */}
       <div className="relative w-full">
         <AspectRatio ratio={16 / 9} className="bg-zinc-900">
           <InteractiveHeroReel
@@ -137,7 +139,7 @@ const Venue = () => {
             entityType="venue"
             currentReelUrl={venue.hero_reel_url}
             fallbackImageUrl={venue.image_url || "/placeholder.svg"}
-            isOwner={isTempManager}
+            isOwner={isOwner}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
@@ -159,9 +161,26 @@ const Venue = () => {
             <ShieldCheck className="mr-3 w-5 h-5" /> Operation Control
           </Button>
         ) : hasPendingClaim ? (
-          <div className="w-full h-20 bg-zinc-900/80 border border-neon-blue/30 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3">
-            <Loader2 className="w-4 h-4 text-neon-blue animate-spin" />
-            <span className="text-[10px] font-black text-white uppercase tracking-widest italic">Neural Link Pending Verification</span>
+          // Pending verification: nothing about the venue is editable until an
+          // admin has seen the DM from the venue's Instagram and approved.
+          <div className="w-full bg-zinc-900/80 border border-neon-blue/30 backdrop-blur-md rounded-[2rem] px-6 py-5 text-center space-y-3">
+            <div className="flex items-center justify-center gap-3">
+              <Loader2 className="w-4 h-4 text-neon-blue animate-spin" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest italic">Pending Verification</span>
+            </div>
+            <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.15em] leading-relaxed">
+              DM @{VERIFICATION_INSTAGRAM_HANDLE} on Instagram from{" "}
+              {pendingClaimHandle ? `@${pendingClaimHandle}` : "this venue's account"}. We approve once the
+              message arrives from that account. Nothing here can be edited until then.
+            </p>
+            <a
+              href={`https://instagram.com/${VERIFICATION_INSTAGRAM_HANDLE}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-neon-pink"
+            >
+              <Instagram className="w-3 h-3" /> Open @{VERIFICATION_INSTAGRAM_HANDLE}
+            </a>
           </div>
         ) : !venue.owner_id ? (
           isTalent ? (
@@ -260,9 +279,9 @@ const Venue = () => {
         </div>
       )}
 
-      {/* 4. PORTFOLIO (Editable by Temp Manager) */}
+      {/* 4. PORTFOLIO (editable by the verified owner only) */}
       <div className="mt-12">
-        <PortfolioGallery userId={venue.id} isEditable={isTempManager} />
+        <PortfolioGallery userId={venue.id} isEditable={isOwner} />
       </div>
 
       <ClaimSectorModal

@@ -2,6 +2,7 @@ import { ShieldCheck, ArrowLeft, Loader2, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useVenueStatus } from "@/hooks/useVenueStatus";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 
 interface DashboardGuardProps {
   venueId: string;
@@ -49,7 +50,8 @@ export const DashboardGuard = ({ venueId, children }: DashboardGuardProps) => {
         
         <div className="mt-6 space-y-4 max-w-sm">
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] leading-relaxed">
-            Your IG Handshake for this sector is currently under review. 
+            Your claim is pending verification. DM @{VERIFICATION_INSTAGRAM_HANDLE} on Instagram from the
+            venue's account; we approve once the message arrives.
           </p>
           <p className="text-zinc-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed border-t border-white/5 pt-4">
             Financial Systems, Staffing Rosters, and Secure Entry tools remain locked until identity is verified by an Admin.

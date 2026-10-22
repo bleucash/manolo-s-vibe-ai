@@ -6,6 +6,9 @@ export const useVenueStatus = (venueId: string) => {
   const { session, isLoading: contextLoading } = useUserMode();
   const [isOwner, setIsOwner] = useState(false);
   const [hasPendingClaim, setHasPendingClaim] = useState(false);
+  // The venue Instagram the claimant named, so the pending state can tell them
+  // which account to DM from. Null when there is no pending claim.
+  const [pendingClaimHandle, setPendingClaimHandle] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +32,7 @@ export const useVenueStatus = (venueId: string) => {
         // per venue can exist, so .limit(1) drops nothing.
         supabase
           .from("venue_claims")
-          .select("id")
+          .select("id, instagram_handle")
           .eq("venue_id", venueId)
           .eq("user_id", session.user.id)
           .eq("status", "pending")
@@ -45,14 +48,17 @@ export const useVenueStatus = (venueId: string) => {
 
       setIsOwner(venueRes.data?.owner_id === session.user.id);
       setHasPendingClaim((claimRes.data?.length ?? 0) > 0);
+      setPendingClaimHandle(claimRes.data?.[0]?.instagram_handle ?? null);
       setLoading(false);
     };
 
     checkStatus();
   }, [venueId, session, contextLoading]);
 
-  // "Temporary Manager" is someone who has a pending claim OR is the official owner
-  const isTempManager = isOwner || hasPendingClaim;
-
-  return { isOwner, isTempManager, hasPendingClaim, loadFailed, loading };
+  // There is no "temporary manager". A pending claim confers nothing until an
+  // admin has verified the Instagram handshake and approved it (owner
+  // decision, 2026-10-21): it used to unlock hero-reel and portfolio edit
+  // controls here, whose saves RLS then refused silently. Edit rights come
+  // from isOwner alone.
+  return { isOwner, hasPendingClaim, pendingClaimHandle, loadFailed, loading };
 };

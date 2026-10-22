@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Building2, Instagram, Search, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 
 interface ClaimVenueModalProps {
   isOpen: boolean;
@@ -87,14 +88,14 @@ export const ClaimVenueModal = ({ isOpen, onClose, onSubmitted }: ClaimVenueModa
       if (error) throw error;
 
       toast.success("Claim Filed", {
-        description: "We verify the Instagram you named before this venue is assigned.",
+        description: `Now DM @${VERIFICATION_INSTAGRAM_HANDLE} on Instagram from @${handle}. We approve once it arrives.`,
       });
       onSubmitted?.();
       resetAndClose();
     } catch (err: any) {
-      // unique_venue_claim is UNIQUE (venue_id, status), not per user, so a
-      // pending claim by anyone else on this venue collides here. That is a
-      // queue conflict, not a system fault, and the applicant can retry later.
+      // One pending claim per venue (A7), not per user, so a pending claim by
+      // anyone else on this venue collides here. That is a queue conflict,
+      // not a system fault, and the applicant can retry later.
       if (err?.code === "23505") {
         toast.error("Already Under Review", {
           description: "A claim on this venue is already being verified.",
@@ -124,7 +125,7 @@ export const ClaimVenueModal = ({ isOpen, onClose, onSubmitted }: ClaimVenueModa
           </DialogTitle>
           <DialogDescription className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">
             {selectedVenue
-              ? `Claiming ${selectedVenue.name}. We verify the Instagram you name.`
+              ? `Claiming ${selectedVenue.name}. Enter its Instagram, then DM @${VERIFICATION_INSTAGRAM_HANDLE} from that account. We approve once the message arrives.`
               : "Pick the venue you run. Every claim is checked before it is granted."}
           </DialogDescription>
         </DialogHeader>

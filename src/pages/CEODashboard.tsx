@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { positionLabel } from "@/config/positions";
+import { VERIFICATION_INSTAGRAM_HANDLE } from "@/config/brand";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -277,6 +278,38 @@ const CEODashboard = () => {
                       <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Claimant Identity:</p>
                       <p className="text-white font-bold">{claim.profiles?.display_name || claim.profiles?.username}</p>
                     </div>
+
+                    {/* The claimant was told to DM the brand account from the
+                        venue's Instagram. That DM, from that handle, is the
+                        evidence; the decision is still manual. */}
+                    <div className="mt-6 rounded-lg border border-neon-green/20 bg-black/40 py-3 text-center">
+                      <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.3em]">
+                        Expect DM to @{VERIFICATION_INSTAGRAM_HANDLE}
+                      </p>
+                      <p className="text-[10px] text-neon-green font-black uppercase tracking-[0.2em]">
+                        from @{claim.instagram_handle || "unknown"}
+                      </p>
+                    </div>
+
+                    {/* Gates Approve only, as on talent cards: a reviewer who
+                        has not seen the DM is exactly who should still be
+                        able to reject. */}
+                    <label
+                      htmlFor={`dm-claim-${claim.id}`}
+                      className="mt-4 flex items-start gap-3 text-left cursor-pointer select-none"
+                    >
+                      <Checkbox
+                        id={`dm-claim-${claim.id}`}
+                        checked={!!dmConfirmed[`claim-${claim.id}`]}
+                        onCheckedChange={(checked) =>
+                          setDmConfirmed((prev) => ({ ...prev, [`claim-${claim.id}`]: checked === true }))
+                        }
+                        className="mt-0.5 border-white/20 data-[state=checked]:bg-neon-green data-[state=checked]:border-neon-green data-[state=checked]:text-black"
+                      />
+                      <span className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.15em] leading-relaxed">
+                        Confirmed the DM came from that account
+                      </span>
+                    </label>
                   </div>
 
                   <div className="mt-12 flex gap-3">
@@ -285,7 +318,13 @@ const CEODashboard = () => {
                         <a href={`https://instagram.com/${claim.instagram_handle}`} target="_blank" rel="noreferrer"><Instagram className="w-3 h-3 mr-2 text-neon-pink" /> Verify IG</a>
                       </Button>
                     )}
-                    <Button onClick={() => handleVenueApproval(claim.id, claim.venue_id, claim.user_id, true)} className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase"><CheckCircle className="w-3 h-3 mr-2" /> Approve</Button>
+                    <Button
+                      onClick={() => handleVenueApproval(claim.id, claim.venue_id, claim.user_id, true)}
+                      disabled={!dmConfirmed[`claim-${claim.id}`]}
+                      className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-2" /> Approve
+                    </Button>
                     <Button onClick={() => handleVenueApproval(claim.id, claim.venue_id, claim.user_id, false)} variant="ghost" className="h-12 w-12 rounded-xl text-zinc-700 hover:text-red-500 transition-colors"><XCircle className="w-5 h-5" /></Button>
                   </div>
                 </Card>
