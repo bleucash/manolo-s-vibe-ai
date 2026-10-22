@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
         }
 
         // A leftover approved claim would make the LAST step below fail on
-        // unique_venue_claim (venue_id, status), A7, after owner_id is already
+        // venue_claims_one_approved_per_venue (A7) after owner_id is already
         // set, and every retry would fail the same way. Refuse it up front.
         const { data: approvedRows, error: approvedErr } = await admin
           .from("venue_claims")
@@ -264,8 +264,21 @@ Deno.serve(async (req) => {
       }
       case "reject_venue_claim": {
         const { claim_id } = parsed.data.payload;
-        const r = await admin.from("venue_claims").update({ status: "rejected" }).eq("id", claim_id);
+        // A7: only a pending claim can be rejected. Rejecting an approved one
+        // would leave its venue owned while the claim reads as refused;
+        // revoke_venue_claim is the action for that. Conditional on pending,
+        // so a claim already decided in another tab matches zero rows and is
+        // reported instead of being silently re-stamped.
+        const r = await admin
+          .from("venue_claims")
+          .update({ status: "rejected" })
+          .eq("id", claim_id)
+          .eq("status", "pending")
+          .select("id");
         if (r.error) return json({ error: r.error.message }, 500);
+        if ((r.data?.length ?? 0) !== 1) {
+          return json({ error: "This claim is not pending, so nothing was rejected. Refresh the queue." }, 409);
+        }
         return json({ ok: true });
       }
       case "revoke_venue_claim": {
@@ -274,6 +287,34 @@ Deno.serve(async (req) => {
         // Distinct from reject_venue_claim, which only ever applies to a
         // pending claim. This undoes an approval that has already taken
         // effect: a live manager account losing a venue it currently runs.
+
+        // A7. Read before any write. The approved claim matched on venue, user
+        // and status is the record this revoke marks, so it must exist; and
+        // the venue must be this account's, or already released by an earlier
+        // revoke of the same claim that stopped part way (a resumable retry).
+        // Before this, the payload's user_id was trusted: a mismatched id
+        // released the venue and then deleted nothing.
+        const { data: approvedClaim, error: approvedErr } = await admin
+          .from("venue_claims")
+          .select("id")
+          .eq("venue_id", venue_id)
+          .eq("user_id", user_id)
+          .eq("status", "approved")
+          .maybeSingle();
+        if (approvedErr) return json({ error: `Claim lookup failed: ${approvedErr.message}` }, 500);
+        if (!approvedClaim) {
+          return json({ error: "No approved claim for this venue and account. Nothing was changed." }, 409);
+        }
+        const { data: venueRow, error: venueErr } = await admin
+          .from("venues")
+          .select("owner_id")
+          .eq("id", venue_id)
+          .maybeSingle();
+        if (venueErr) return json({ error: `Venue lookup failed: ${venueErr.message}` }, 500);
+        if (!venueRow) return json({ error: "Venue not found." }, 404);
+        if (venueRow.owner_id !== null && venueRow.owner_id !== user_id) {
+          return json({ error: "This venue is owned by a different account. Nothing was changed." }, 409);
+        }
 
         // 1. Release the venue first. If a later step fails, the venue is
         //    already re-claimable and the operator can retry; the reverse
@@ -317,26 +358,33 @@ Deno.serve(async (req) => {
         const downgraded = rStaff.data?.length ?? 0;
 
         // Only now release the venue.
-        const rVenue = await admin.from("venues").update({ owner_id: null }).eq("id", venue_id);
+        const rVenue = await admin
+          .from("venues")
+          .update({ owner_id: null })
+          .eq("id", venue_id)
+          .select("id");
         if (rVenue.error) return json({ error: rVenue.error.message }, 500);
+        if ((rVenue.data?.length ?? 0) !== 1) {
+          return json({ error: "Any active staff were moved to pending, but the venue was not released. Revoke again to finish." }, 500);
+        }
 
-        // 2. Delete the approved claim row rather than marking it terminal.
-        //    unique_venue_claim is UNIQUE (venue_id, status), so a retained
-        //    row of ANY status permanently occupies that (venue, status)
-        //    slot: leaving it "approved" makes the next approval collide,
-        //    and a "revoked" status collides on the second revoke of the
-        //    same venue. Deleting is what actually leaves the venue
-        //    re-claimable, which is the point of this action. The tradeoff
-        //    is that revocation leaves no audit row; recording that properly
-        //    needs its own table, not a status value this constraint blocks.
+        // 2. Mark the approved claim 'revoked' and keep it as history (A7).
+        //    This used to DELETE it, as a workaround for the old
+        //    UNIQUE (venue_id, status) constraint, under which a retained
+        //    'approved' row blocked the next approval and a second 'revoked'
+        //    row on the same venue collided. The constraint is now one pending
+        //    and one approved claim per venue, so a revoked row blocks nothing
+        //    and the venue is claimable again. Matched on the row read above
+        //    and still approved, and exactly one row, or stop.
         // Steps 3 and 4 have the same no-transaction exposure but fail safe,
         // so they stay in this order:
         //
-        //   claim delete fails  -> venue is released and staff downgraded, but
-        //     an 'approved' claim row lingers. unique_venue_claim is
-        //     UNIQUE (venue_id, status), so that stale row blocks the NEXT
-        //     approval on this venue. Annoying and visible, not a rights
-        //     leak, and clearable by re-running revoke.
+        //   claim mark fails    -> venue is released and staff downgraded, but
+        //     the claim still reads 'approved', and the one-approved-per-venue
+        //     index blocks the next approval on this venue (A46's approve
+        //     pre-check says so before any write). Visible, not a rights
+        //     leak, and finished by re-running revoke, which the read above
+        //     allows because the venue is now unowned.
         //
         //   demote fails        -> the account keeps role_type 'manager' while
         //     owning nothing. Manager surfaces already handle zero owned
@@ -347,11 +395,14 @@ Deno.serve(async (req) => {
         // which is the property that actually matters here.
         const rClaim = await admin
           .from("venue_claims")
-          .delete()
-          .eq("venue_id", venue_id)
-          .eq("user_id", user_id)
-          .eq("status", "approved");
+          .update({ status: "revoked" })
+          .eq("id", approvedClaim.id)
+          .eq("status", "approved")
+          .select("id");
         if (rClaim.error) return json({ error: rClaim.error.message }, 500);
+        if ((rClaim.data?.length ?? 0) !== 1) {
+          return json({ error: "Venue released, but the claim was not marked revoked. Revoke again to finish." }, 500);
+        }
 
         // 3. Demote only if this was their last venue. A manager running
         //    several venues who loses one is still a manager; dropping them
