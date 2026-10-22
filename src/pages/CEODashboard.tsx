@@ -536,9 +536,10 @@ const CEODashboard = () => {
         </Tabs>
       </div>
 
-      {/* Revoking pulls a venue out from under a live manager account, and the
-          claim row is deleted to keep the venue re-claimable, so there is no
-          one-click undo. Hence a named confirmation rather than a bare click. */}
+      {/* Revoking pulls a venue out from under a live manager account. The
+          claim is kept as history, marked revoked (A7), but undoing a revoke
+          means a new claim and a new approval, so there is no one-click undo.
+          Hence a named confirmation rather than a bare click. */}
       <AlertDialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
         <AlertDialogContent className="bg-zinc-950 border-white/10 rounded-[2.5rem] p-8">
           <AlertDialogHeader className="space-y-4">
@@ -550,7 +551,7 @@ const CEODashboard = () => {
               {revokeTarget?.owner?.display_name || revokeTarget?.owner?.username || "its owner"} and
               makes it claimable again. If it is the last venue they run, the account drops to guest.
               Any confirmed staff there move back to pending, so nobody stays able to tap in at a venue
-              with no owner. The approved claim record is removed and cannot be restored from here.
+              with no owner. The claim is kept as history, marked revoked; restoring the venue takes a new claim.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 gap-3">
