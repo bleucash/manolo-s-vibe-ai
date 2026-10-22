@@ -10,12 +10,26 @@ interface DashboardGuardProps {
 
 export const DashboardGuard = ({ venueId, children }: DashboardGuardProps) => {
   const navigate = useNavigate();
-  const { isOwner, hasPendingClaim, loading } = useVenueStatus(venueId);
+  const { isOwner, hasPendingClaim, loadFailed, loading } = useVenueStatus(venueId);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-black">
         <Loader2 className="w-8 h-8 text-neon-blue animate-spin" />
+      </div>
+    );
+  }
+
+  // A failed read is not "Access Denied": the owner would be told they have no
+  // business here. Say what happened and let them retry.
+  if (loadFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black px-12 text-center text-white">
+        <p className="text-[10px] font-black uppercase tracking-[0.4em]">Could not check your access</p>
+        <p className="mt-3 text-zinc-500 text-[9px] font-bold uppercase tracking-widest">Check your connection and try again.</p>
+        <Button onClick={() => window.location.reload()} variant="ghost" className="mt-4 text-zinc-500 uppercase text-[10px] font-black">
+          Try Again
+        </Button>
       </div>
     );
   }
