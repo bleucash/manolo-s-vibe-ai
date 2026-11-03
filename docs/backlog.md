@@ -211,9 +211,46 @@ Previously filed as cosmetic cleanup. It is not cosmetic: `UserModeContext.tsx` 
 
 Nothing syncs them, and that desync silently broke every approval once. **This is what blocks making `revoke_venue_claim` atomic** — its four sequential writes should be one `SECURITY DEFINER` RPC, but the edge function authorizes on the secret while an RPC would have to use `is_admin()`. Converting means picking one mechanism first.
 
-### A7. `unique_venue_claim UNIQUE (venue_id, status)`
+### A7. `unique_venue_claim UNIQUE (venue_id, status)`. DONE 2026-11-03
 
-Verified live. Permits only one row per (venue, status), so **a venue can never have two rejected claims**, and any retained terminal row blocks the next approval.
+**SHIPPED 2026-10-22 in five commits (all pushed between 08:05Z and 09:17Z), verified end to end 2026-11-03. A7 is DONE.** The original finding follows the shipped record, unchanged.
+
+**Owner decisions (option B), given in dispatch:** one pending claim per venue, first come; at most one approved claim per venue; rejected and revoked history unlimited; `status` NOT NULL with CHECK (`pending`, `approved`, `rejected`, `revoked`); revoke marks the claim `revoked` instead of deleting it; reject requires a pending claim; A46's "already holds an approved claim" pre-check stays. Also decided: ownership is granted only after an admin verifies an Instagram handshake, a DM to @getmanolo from the venue's own Instagram account, and a pending claimant gets no edit controls before approval.
+
+**What shipped, in deploy order (commit and push times from git, UTC):**
+
+- **`d4807a2`, frontend (pushed 08:05:29Z).** `useVenueStatus` reads only the live pending claim and returns `loadFailed` instead of discarding read errors; `DashboardGuard` shows "Could not check your access" on a failed read.
+- **`ba70a56`, pending state (pushed 08:07:08Z).** `isTempManager` removed, so hero reel and portfolio editing follow `isOwner` only; the venue page shows "Pending Verification" with "DM @getmanolo on Instagram from @{handle}" and an "Open @getmanolo" link; both claim modals drop the promise of pre-approval "Vibe" access and give the DM instruction; `DashboardGuard` and `VenueManage` pending screens carry it; the CEO claim card shows the DM to expect and a "Confirmed the DM came from that account" checkbox gating Approve (Reject ungated, as on talent cards). **Checked in the browser by J before commit** (report reached this session 08:01:25Z): the owner keeps edit controls at 2001 Odyssey; signed out, Bad Monkey shows none and the new claim wording; `/ceo` loads.
+- **`704ee58`, migration and `types.ts` (pushed 09:02:48Z).** `20261021120000_a7_venue_claims_one_pending_per_venue.sql`, sha256 `393c2abd6d3cfbe4ee49dae8989f9f6effe76e004d5e8ecdbd7c3f494e79e40a`, applied 2026-10-22 08:13:21Z before the commit. It drops `unique_venue_claim`, adds `venue_claims_one_pending_per_venue` and `venue_claims_one_approved_per_venue` (partial unique on `venue_id`), and makes `status` NOT NULL with `venue_claims_status_allowed`. A guard refuses violating data; a post-check fails the migration unless that exact end state holds; safe to re-apply (A16).
+  - **Rehearsal, run 2026-10-22 00:16:45Z (query time)**, one DO block, rolled back, throwaway fixtures, claims filed as `authenticated` and admin writes as `service_role`. Returned verbatim `ERROR: P0001: A7R_REHEARSAL_PASS`, `line 380 at RAISE`, the pass branch. Flips proven: a venue's second rejection (refused before, allowed after); NULL and unknown status (allowed before, refused after); a second revoked row on one venue (refused before, allowed after). Kept rules: a second pending and a second approved claim stay refused, by `unique_venue_claim` before and by the new indexes after (constraint name asserted). Revoke-as-update leaves history and the venue claimable again; migration run twice. **Snapshots before and after the rehearsal identical on all 15 values, and identical again immediately before the apply.**
+  - **Post-apply dump:** `status` NOT NULL, default `'pending'`; the CHECK lists the four values; both partial indexes with their exact `WHERE`; `unique_venue_claim` gone as constraint and index.
+  - **`types.ts` regenerated unedited** (sha256 `cf1fe5d3…`): `status` loses `| null` in Row, Insert and Update, and `PostgrestVersion` moves `"14.5"` to `"14.1"`. That value is generator-owned: `"14.1"` in `633061d`, `"14.17"` in `73e2791`, `"14.5"` from `b173b1d`, `"14.1"` from the generator now (CLI 2.111.0).
+- **`438fbe7`, `admin-actions` (pushed 09:11:25Z),** committed file sha256 `60173577c4be95ff5644d968029ca81d67063f5cfcb2b5ca7edb4df181729f75` (LF-normalized). Reject requires a pending claim and checks rows affected; revoke reads the approved claim and the venue before any write, requires the venue to be that user's or already unowned (a resumable retry), marks the claim `revoked`, and checks rows affected on the release and the mark. **Push did not deploy it, MEASURED again:** at 09:15:07Z it was still version 11 with source `174988…`. **Deployed** at 09:15:51Z as **version 12** (09:15:59Z); the downloaded source hashed to `601735…`, the committed file. `deno check`: only the two A47 TS2345 errors.
+- **`27e7bed`, revoke dialog wording (pushed 09:17:06Z)**, after the deploy so it was never ahead of the behaviour: "The claim is kept as history, marked revoked; restoring the venue takes a new claim."
+
+**End-to-end test, 2026-11-02 to 2026-11-03 (UTC times from query runs, row timestamps and when J's reports reached this session).** Venue: Bad Monkey (`8272cd6d-3e37-40ea-af62-9c44fe5f9183`). An earlier S0 was taken 2026-10-29 06:10Z but the test paused; a fresh **S0 v2** was taken 2026-11-03 02:55:04Z, identical to it on all 15 values, Bad Monkey row md5 `2b37b84b5e265e88f00131641b47eab6`.
+
+1. J created test account T2 (`8f707471-d824-4db1-ad46-d4cc96c6bc55`, 03:02:06Z) and filed claim `0742e96a-24b1-4bc8-bb88-9ee96d96e058` (03:24:52Z). Read-only check: pending, the only claim on Bad Monkey, `interactions` and `notifications` unchanged. **Browser, as T2 (reported 03:53Z):** Bad Monkey showed "Pending Verification" with the DM @getmanolo from @manolotest instruction and a working "Open @getmanolo" link; no edit controls; `/profile` showed "Venue Claim Under Review"; `/dashboard/8272cd6d-…` showed the pending screen. Plain `/dashboard` showed "Access Denied", **correct by design (owner decision): no button leads a pending claimant there.**
+2. **Admin `/ceo`:** the card showed the DM box and the checkbox, Approve greyed out while unchecked. J pressed Reject; toast "Claim denied". Read-only check: `0742e96a` rejected and kept, the other claims identical to S0, Bad Monkey unowned, T2 guest.
+3. **The admin account filed a claim by mistake** (`424cb20d-013a-4d54-be84-ade816b49c53`, 03:55:54Z, `329ee81b`), found by the read-only check, and J rejected it from `/ceo`. That made **two rejections on one venue live**, the case the old constraint refused. T2 then filed `eb54e27b-d2f0-4820-8bb3-c9892a47790c` (04:04:39Z): T2 held a rejected and a pending claim on one venue. **Browser, as T2 (reported 04:07Z):** the pending state still showed, the case the `useVenueStatus` fix exists for.
+4. **Admin approved** with the checkbox ticked; toast "Sector Link Verified" (T2's `updated_at` 04:21:40Z dates it). Read-only check: `eb54e27b` approved, Bad Monkey owned by T2, T2 manager owning one venue, 0 threads and 0 staff, `profiles` without T2 equal to S0. **Browser, as T2:** owner controls (Operation Control, hero reel upload, portfolio editing) and the manager dashboard at `/dashboard/8272cd6d-…`; J changed nothing.
+5. **Admin revoked** from a reloaded `/ceo`; the dialog showed `27e7bed`'s wording; toast "Sector Released" (its smaller text was not quoted, so only the title is recorded; T2's `updated_at` 17:55:05Z dates it). Read-only check: `eb54e27b` **revoked, not deleted**; Bad Monkey unowned with row md5 back to `2b37b84b…`; T2 guest owning nothing; every other table equal to S0.
+6. J deleted T2 in the Supabase dashboard; both of its claims cascaded away (verified 18:17Z). **Owner decision: the admin's mistaken claim is test noise, not history.** With J's approval, `DELETE FROM public.venue_claims WHERE id = '424cb20d-…' AND user_id = '329ee81b-…' AND venue_id = '8272cd6d-…' AND status = 'rejected' RETURNING id` returned exactly that one id (18:18:46Z). **Final snapshot (18:19:18Z): identical to S0 v2 on all 15 values**, including `venue_claims` 3 rows `aaf60b39…`, `profiles` 4 rows `42964261…` and `auth.users` 4 rows `685f5ff2…`.
+
+The function's invocation log was not obtained: the Management API's `logs.all` endpoint was retired (410 Gone) and its ClickHouse replacement rejected the queries tried (no `function_edge_logs`, no `source_name`, no `SELECT *`). The data shows every call landed as intended.
+
+**Found during A7 and fixed by it:**
+
+- Pending claimants were shown hero-reel and portfolio edit controls through `isTempManager`, while RLS silently refused their saves and any uploaded hero reel stayed in storage (fixed `ba70a56`).
+- Under the old constraint a venue's second rejection failed with 23505, so a second squatter could not be cleared from the dashboard (fixed `704ee58`; exercised live in step 3).
+- `status` had no NOT NULL and no CHECK (fixed `704ee58`).
+- The claim modal promised pre-approval "Vibe" access, and claimants were never told to DM anyone (fixed `ba70a56`).
+- `useVenueStatus` treated a claimant with two claim rows on one venue as a stranger: an unfiltered `.maybeSingle()` errored and the error was discarded (fixed `d4807a2`; exercised live in step 3).
+- `DashboardGuard` showed "Access Denied" on a failed read (fixed `d4807a2`).
+
+Still open: `Venue.tsx` does not use `useVenueStatus`' `loadFailed` (A49).
+
+**The original finding, as logged before the fix.** Verified live. Permits only one row per (venue, status), so **a venue can never have two rejected claims**, and any retained terminal row blocks the next approval.
 
 **Reframing that matters for whoever fixes this:** `revoke_venue_claim` deleting the approved claim row rather than marking it terminal has been treated as a design choice. It is not — it is a **workaround for this constraint**. Anyone "improving" that function by preserving an audit row will reintroduce the block.
 
@@ -852,6 +889,15 @@ Found 2026-10-14 during A33's enforcement pre-flight. **SHIPPED 2026-10-19 (loca
 
 Found 2026-10-19 during the A46 investigation. **Log only.** MEASURED from source at `22b57d1` unless marked. `approve_venue_claim` was fixed in A46; these are the other actions.
 
+**Status after A7 (`438fbe7`, deployed as v12 2026-10-22):**
+
+- **CLOSED: revoke trusts the `user_id` it is given.** Revoke now reads the approved claim matched on venue, user and status before any write (409 if none) and requires the venue to be owned by that user or already unowned, as a resumable retry (409 otherwise). Owner decision.
+- **CLOSED: reject accepts a claim in any state.** Reject updates only a pending claim and returns 409 on zero rows.
+- **PARTLY CLOSED: writes not checking rows affected.** Reject and revoke now check rows affected on every write. `approve_talent`, `reject_talent`, `approve_business` and `reject_business` still check only `error`: **open.**
+- **OPEN: the two `findRoleConflict` TS2345 errors.** Still present in `438fbe7` (lines 182 and 433), unchanged by A7.
+
+The original items follow, as logged.
+
 - **`revoke_venue_claim` trusts the `user_id` it is given.** It releases the venue by `venue_id` alone, but deletes the approved claim and decides the demotion using the payload's `user_id`, and nothing checks that `user_id` is the venue's actual owner. With a mismatched id the venue is released, the real owner's approved claim row stays (blocking the next approval on A7), and the demotion check runs against the wrong account. INFERRED; the dashboard sends the owner it read from `venues`, so this needs a direct call by the admin.
 - **`reject_venue_claim` accepts a claim in any state.** It sets `status = 'rejected'` by `claim_id` with no check that the claim is pending, so a direct call can "reject" an approved claim while its venue stays owned. The dashboard offers Reject only on pending cards.
 - **The other writes do not check rows affected.** `reject_venue_claim`, `revoke_venue_claim` (except its staff downgrade, which uses `.select("id")`), `approve_talent`, `reject_talent`, `approve_business` and `reject_business` check only `error`. As service role they are not filtered by RLS, so a zero-row result means an id that matched nothing, which they report as success.
@@ -860,6 +906,10 @@ Found 2026-10-19 during the A46 investigation. **Log only.** MEASURED from sourc
 ### A48. `supabase/config.toml` lists an `mcp` function with no folder
 
 Found 2026-10-19 while establishing what deploys `supabase/functions/` for A46. **Log only.** MEASURED: `config.toml` has `[functions.mcp] verify_jwt = false` beside entries for `create-checkout-session` and `stripe-webhook`, but there is no `supabase/functions/mcp/` directory, and the project's deployed functions are `admin-actions`, `create-checkout-session` and `stripe-webhook` only. Origin not investigated. It matters because the entries in this file appear to be what gets redeployed on push (A46), so a folder added under that name would plausibly start deploying on the next push.
+
+### A49. `Venue.tsx` ignores `useVenueStatus`' `loadFailed`
+
+Found 2026-10-21 during A7. **Log only.** MEASURED from source at `ba70a56`, the last commit to touch `Venue.tsx`, and unchanged since: `useVenueStatus` now returns `loadFailed` instead of swallowing read errors, and `DashboardGuard` uses it, but `Venue.tsx` does not: its hook call (`Venue.tsx:23`) does not take `loadFailed`. **Do not be misled by a grep:** `Venue.tsx` has its own, unrelated `loadFailed` state (`:29`), which is the venue row's load failure from `982aeb5`. A failed status read on the venue page therefore still renders like "no claim and not the owner": a pending claimant would see the claim button, and an owner would lose the "Operation Control" button and the edit controls until a reload. INFERRED effect; not observed. The fix shape is the one `DashboardGuard` uses: render a "could not check" state when `loadFailed` is true.
 
 ---
 

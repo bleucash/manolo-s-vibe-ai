@@ -129,7 +129,7 @@ Both directions of `venue_staff` now exist, each proven against real JWTs rather
 
 Separate tables, no cross-check, so both can be open at once even though the roles are mutually exclusive. **Accepted at launch scale (2026-08-03):** every approval is manually reviewed by one person who would notice. Since 2026-08-17 both submission paths and both approve paths check the other track, so this is mostly closed in practice; the tables still have no constraint spanning them.
 
-**Separate pre-existing bug, unfixed:** `unique_venue_claim UNIQUE (venue_id, status)` permits only one row per (venue, status), so a venue can never have two rejected claims, and a retained terminal row blocks the next approval. This is why `revoke_venue_claim` deletes the approved claim row rather than marking it. `talent_applications` deliberately does not copy this shape.
+**Claim history is kept (A7).** `venue_claims` allows one `pending` and one `approved` claim per venue (partial unique indexes `venue_claims_one_pending_per_venue`, `venue_claims_one_approved_per_venue`), with `rejected` and `revoked` history unlimited, and `status` is NOT NULL, limited to those four values. `revoke_venue_claim` marks the approved claim `revoked` rather than deleting it. It used to delete it, as a workaround for the old `unique_venue_claim UNIQUE (venue_id, status)`, which also made a venue's second rejection fail. Do not reintroduce a per-(venue, status) constraint: it brings both problems back.
 
 ## Following — built for talent and venues
 
