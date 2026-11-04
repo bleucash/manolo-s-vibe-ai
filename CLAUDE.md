@@ -213,6 +213,28 @@ Fixed by `is_conversation_participant()` (SECURITY DEFINER, pinned `search_path`
 - **Scratch SQL run against the linked project is a production write, whatever its header says.** `npx supabase db query --linked` and the Management API query endpoint both execute directly against production as `postgres`, which bypasses RLS, and neither writes a migration ledger row or leaves anything in git. On 2026-09-02 a scratch file, `diag.sql`, whose header said "Read-only", ran DROP TABLE, CREATE TABLE and INSERT and left `public._diag` behind with RLS off and every privilege granted to `anon`. It went unnoticed for eleven days: a session saw it in regenerated types on 2026-09-05 and moved on, and it was caught on 2026-09-13 only because an unrelated whole-schema dump listed every table (A25, dropped by `20260913120000`). **Read the statements, not the header.** A scratch file that creates anything persistent is a migration that skipped review: use `CREATE TEMP TABLE`, or run the work in a transaction that cannot commit (a `DO` block with no `COMMIT` and no exception handler, ending in `RAISE`). If a persistent object gets created anyway, drop it in the same action or record it before moving on. Same family as the rule above: what a call is labelled is not what it does.
 - **A commit is not shipped until it is pushed. Reporting "committed" as done is a false completion claim.** Lovable syncs from the **remote**, so a local commit has reached production in no sense at all, and it has not reached the owner to verify either: a local-only commit is invisible from both ends while reading as finished. Fired on `2cb119d` (2026-09-05), reported as committed while it sat only in the local repo. **This is the complement of the migration hard rule, not a restatement of it.** That rule says never commit unrun SQL, because the push will apply it; this one says the push is a separate act that has to actually happen and does not follow from the commit. The sequence is run, commit, push, then report, and the report names the push.
 
+## Working rules (EGM sessions)
+
+Set by J; reached a session on 2026-11-03. They apply to every session, not only EGM ones.
+
+1. **Usage pacing.** EGM runs many parallel subagents, and the 2026-11-03 drift check hit the usage limit. Keep reviews scoped to one area or one design at a time. Do not launch large fan-outs unless J asks, and tell J before starting anything that will spawn more than a few subagents.
+2. **GitHub and Lovable sync.** This repo syncs with Lovable through GitHub.
+   - Run `git pull` at the start of each session.
+   - Never commit or push without J's explicit go-ahead. Approval of one commit or push does not cover the next.
+   - Commit each fix separately, with a clear message, so J can check it in Lovable's preview before moving on.
+   - Never change a file in `supabase/migrations/` that is already applied. Add a new migration instead.
+3. **MVP goal.** Every fix should build toward an investor-ready MVP. Think big but smart: choose solutions that will scale (more admins, more cities, more users) without over-building for the current stage. Flag anything that would block scaling.
+4. **One fix per dispatch.** Work through these fixes one at a time, in this order, and stop after each one for J's review. Most come from the 2026-11-03 drift report (`2026-11-03_DRIFT_REPORT.md`); fix 4 was added by J on 2026-11-04 (the date it reached a session).
+   1. Add the `dmConfirmed` gate to the CEODashboard business Verify button, matching venue-claim and talent approvals. (Done: `d39c907`.)
+   2. Make the Discovery `interactions` insert actually send.
+   3. Make the three migrations that cannot be re-run safe to re-run, through new migrations, not edits to applied ones.
+   4. Server-side verification audit trail for all three approval types (venue claims, talent, business). Each approval records who approved it, when, and which verification check was confirmed. `admin-actions` rejects any approval that is missing the confirmation. Build it through a new migration plus an `admin-actions` update, once for all three gates.
+   5. Check the row count of the `venue_staff` write in the admin-actions revoke path.
+   6. Fix the Wallet realtime channel leak.
+   7. Resolve the conflict between the `calculate_ticket_commission` trigger and stripe-webhook. This must be done before ticketing is re-enabled.
+
+**Roadmap (not scheduled).** Before investor demos, set up a realistic demo dataset and, ideally, a separate test database, so testing and demos never touch real user data.
+
 ## Build order
 
 Items 1-6 closed 2026-08-02 to 2026-08-11: phantom purge, claim modal fix, `Dashboard` wiring, talent onboarding, `posts` INSERT lock, Tier 2 verification. Builds 1-4 closed 2026-08-17 to 2026-08-21: position enum + config, talent-requests-venue, check-in constraint + talent exits, manager-invites-talent. **Item 8, the messaging follow-gate, closed 2026-08-31** (request queue; see Messaging).
