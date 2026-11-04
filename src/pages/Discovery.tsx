@@ -227,9 +227,25 @@ const Discovery = () => {
     fetchDiscoveryData();
   }, [activeCategory, currentUserId]);
 
+  // Click-through tracking, Spotlight's input. Fire-and-forget: navigation
+  // never waits on it and the user never sees a failure. It must still be
+  // consumed, because a supabase-js builder sends nothing until it is awaited
+  // or .then'd; the bare call that used to be here never reached the database
+  // (newest row before this fix: 2026-03-28). 23505 is the expected answer to
+  // a repeat tap (UNIQUE on user, target, type and interaction type), so it is
+  // not logged.
   const handleCardClick = (id: string, type: string, path: string) => {
     navigate(path);
-    if (currentUserId) supabase.from("interactions").insert({ user_id: currentUserId, target_id: id, target_type: type, interaction_type: "charge", action_value: 1 });
+    if (!currentUserId) return;
+    supabase
+      .from("interactions")
+      .insert({ user_id: currentUserId, target_id: id, target_type: type, interaction_type: "charge", action_value: 1 })
+      .then(
+        ({ error }) => {
+          if (error && error.code !== "23505") console.warn("interactions insert failed:", error);
+        },
+        (err) => console.warn("interactions insert failed:", err),
+      );
   };
 
   // Uses writeFollow rather than useFollow: initial state is already loaded in
