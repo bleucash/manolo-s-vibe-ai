@@ -53,6 +53,11 @@ const adminActionError = async (error: unknown, data: unknown): Promise<string |
   return typeof bodyError === "string" ? bodyError : null;
 };
 
+// Provisional. Tier 2 means direct contact with the venue's owner or manager
+// plus proper business documentation, and the exact requirements are not
+// settled. Change the wording here; the business card reads only this.
+const BUSINESS_VERIFICATION_CHECK_LABEL = "Confirmed business documentation with the owner/manager";
+
 const CEODashboard = () => {
   const [venueClaims, setVenueClaims] = useState<any[]>([]);
   const [pendingTalent, setPendingTalent] = useState<any[]>([]);
@@ -511,12 +516,33 @@ const CEODashboard = () => {
                           </p>
                         </div>
                       </div>
+
+                      {/* Gates Verify only, as on claim and talent cards. There
+                          is no DM for Tier 2, so this attests to the business
+                          check rather than to a message. */}
+                      <label
+                        htmlFor={`dm-business-${app.id}`}
+                        className="mt-6 flex items-start gap-3 text-left cursor-pointer select-none"
+                      >
+                        <Checkbox
+                          id={`dm-business-${app.id}`}
+                          checked={!!dmConfirmed[`business-${app.id}`]}
+                          onCheckedChange={(checked) =>
+                            setDmConfirmed((prev) => ({ ...prev, [`business-${app.id}`]: checked === true }))
+                          }
+                          className="mt-0.5 border-white/20 data-[state=checked]:bg-neon-green data-[state=checked]:border-neon-green data-[state=checked]:text-black"
+                        />
+                        <span className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.15em] leading-relaxed">
+                          {BUSINESS_VERIFICATION_CHECK_LABEL}
+                        </span>
+                      </label>
                     </div>
 
                     <div className="mt-12 flex gap-3">
                       <Button
                         onClick={() => handleBusinessApproval(app.venue_id, true)}
-                        className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase"
+                        disabled={!dmConfirmed[`business-${app.id}`]}
+                        className="flex-1 h-12 rounded-xl bg-white text-black text-[9px] font-black uppercase disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <CheckCircle className="w-3 h-3 mr-2" /> Verify
                       </Button>
