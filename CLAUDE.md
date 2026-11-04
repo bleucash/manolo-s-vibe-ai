@@ -227,13 +227,15 @@ Set by J; reached a session on 2026-11-03. They apply to every session, not only
 4. **One fix per dispatch.** Work through these fixes one at a time, in this order, and stop after each one for J's review. Most come from the 2026-11-03 drift report (`2026-11-03_DRIFT_REPORT.md`); fix 4 was added by J on 2026-11-04 (the date it reached a session).
    1. Add the `dmConfirmed` gate to the CEODashboard business Verify button, matching venue-claim and talent approvals. (Done: `d39c907`.)
    2. Make the Discovery `interactions` insert actually send.
-   3. Make the three migrations that cannot be re-run safe to re-run, through new migrations, not edits to applied ones.
-   4. Server-side verification audit trail for all three approval types (venue claims, talent, business). Each approval records who approved it, when, and which verification check was confirmed. `admin-actions` rejects any approval that is missing the confirmation. Build it through a new migration plus an `admin-actions` update, once for all three gates.
+   3. Make the three migrations that cannot be re-run safe to re-run, through new migrations, not edits to applied ones. **First, investigate read-only** how Lovable and Supabase apply migrations: whether a file already recorded in the ledger is ever re-applied, or only new files run. The fix depends on that answer.
+   4. Server-side verification audit trail for all three approval types (venue claims, talent, business). **Design it for the future admin model, not for today's single `ADMIN_USER_ID` secret:** admin accounts will eventually be an in-house admin system, with automated approvals added when needed. Each approval records the approver's user id, the timestamp, which verification check was confirmed, and an approval source (`manual` or `automated`). `admin-actions` rejects, server-side, any approval that is missing the confirmation. Build it through a new migration plus an `admin-actions` update, once for all three gates. Multi-admin support itself is not part of this fix (see the roadmap note below).
    5. Check the row count of the `venue_staff` write in the admin-actions revoke path.
    6. Fix the Wallet realtime channel leak.
    7. Resolve the conflict between the `calculate_ticket_commission` trigger and stripe-webhook. This must be done before ticketing is re-enabled.
 
-**Roadmap (not scheduled).** Before investor demos, set up a realistic demo dataset and, ideally, a separate test database, so testing and demos never touch real user data.
+**Roadmap (not scheduled).**
+- Before investor demos, set up a realistic demo dataset and, ideally, a separate test database, so testing and demos never touch real user data.
+- Multi-admin support: an in-house admin system replacing the single `ADMIN_USER_ID` secret, with automated approvals added when needed. A separate future fix from fix 4. It overlaps Build order item 9 (unify the three admin identity mechanisms).
 
 ## Build order
 
