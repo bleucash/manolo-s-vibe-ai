@@ -223,17 +223,23 @@ Set by J; reached a session on 2026-11-03. They apply to every session, not only
    - Never commit or push without J's explicit go-ahead. Approval of one commit or push does not cover the next.
    - Commit each fix separately, with a clear message, so J can check it in Lovable's preview before moving on.
    - Never change a file in `supabase/migrations/` that is already applied. Add a new migration instead.
+   - **Never revert, delete or repair the ledger rows for `20260802212814`, `20260805000142` or `20260811205552`.** Those three files are not safe to run twice (an unguarded `ADD COLUMN`, `CREATE POLICY` and `ADD CONSTRAINT`). Their ledger rows are the only thing stopping a re-run.
 3. **MVP goal.** Every fix should build toward an investor-ready MVP. Think big but smart: choose solutions that will scale (more admins, more cities, more users) without over-building for the current stage. Flag anything that would block scaling.
 4. **One fix per dispatch.** Work through these fixes one at a time, in this order, and stop after each one for J's review. Most come from the 2026-11-03 drift report (`2026-11-03_DRIFT_REPORT.md`); fix 4 was added by J on 2026-11-04 (the date it reached a session).
    1. Add the `dmConfirmed` gate to the CEODashboard business Verify button, matching venue-claim and talent approvals. (Done: `d39c907`.)
    2. Make the Discovery `interactions` insert actually send.
-   3. Make the three migrations that cannot be re-run safe to re-run, through new migrations, not edits to applied ones. **First, investigate read-only** how Lovable and Supabase apply migrations: whether a file already recorded in the ledger is ever re-applied, or only new files run. The fix depends on that answer.
+   3. Make the three migrations that cannot be re-run safe to re-run. **Investigated 2026-11-04, not needed.** Supabase applies only migrations missing from its ledger; no recorded file has been re-run.
+      - The ledger (`supabase_migrations.schema_migrations`) holds exactly the 51 repo versions, one row each.
+      - Since `pg_stat_statements` was reset (2026-11-02 16:58 UTC), the ledger was listed twice with the CLI's pending-check query, and no statement from any migration file ran, not even the guarded ones that would succeed on a re-run.
+      - The history above fits only "new files only". The platform applied `20260901140000` on sync, which a re-run of every file would have blocked at the unguarded `ADD COLUMN` in `20260802212814`.
+      - A new migration could not have fixed this anyway: once a file is in the ledger, nothing reads it again. The working rule below protects those ledger rows instead.
    4. Server-side verification audit trail for all three approval types (venue claims, talent, business). **Design it for the future admin model, not for today's single `ADMIN_USER_ID` secret:** admin accounts will eventually be an in-house admin system, with automated approvals added when needed. Each approval records the approver's user id, the timestamp, which verification check was confirmed, and an approval source (`manual` or `automated`). `admin-actions` rejects, server-side, any approval that is missing the confirmation. Build it through a new migration plus an `admin-actions` update, once for all three gates. Multi-admin support itself is not part of this fix (see the roadmap note below).
    5. Check the row count of the `venue_staff` write in the admin-actions revoke path.
    6. Fix the Wallet realtime channel leak.
    7. Resolve the conflict between the `calculate_ticket_commission` trigger and stripe-webhook. This must be done before ticketing is re-enabled.
 
 **Roadmap (not scheduled).**
+- **High priority: schedule right after the current fix list and before any investor demos.** Schema baseline: export the live database structure (schema only, no user data) into the repo so the full system can be rebuilt from code. This unlocks the separate test/demo database, disaster recovery, and technical due diligence. Plan it as its own fix so it does not disturb the migration ledger. (The tables exist only in the live DB today, so a fresh database cannot be built by replaying `supabase/migrations/`.)
 - Before investor demos, set up a realistic demo dataset and, ideally, a separate test database, so testing and demos never touch real user data.
 - Multi-admin support: an in-house admin system replacing the single `ADMIN_USER_ID` secret, with automated approvals added when needed. A separate future fix from fix 4. It overlaps Build order item 9 (unify the three admin identity mechanisms).
 
