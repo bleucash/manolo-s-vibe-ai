@@ -26,11 +26,17 @@ const Wallet = () => {
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    // The channel is created only after two awaits, so a cleanup that runs
+    // before setup finishes finds no channel to remove, and the subscription
+    // created afterwards would outlive the page. Setup checks this flag after
+    // each await and stops once the page is gone.
+    let cancelled = false;
 
     const setupRealtimeAndFetch = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+      if (cancelled) return;
 
       if (!session?.user) {
         navigate("/auth");
@@ -46,6 +52,7 @@ const Wallet = () => {
         .eq("user_id", userId)
         .eq("status", "active")
         .order("created_at", { ascending: false });
+      if (cancelled) return;
 
       if (!error && data) {
         setTickets(data);
@@ -94,6 +101,7 @@ const Wallet = () => {
     setupRealtimeAndFetch();
 
     return () => {
+      cancelled = true;
       if (channel) {
         supabase.removeChannel(channel);
       }
