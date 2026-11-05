@@ -357,6 +357,23 @@ Deno.serve(async (req) => {
         if (rStaff.error) return json({ error: rStaff.error.message }, 500);
         const downgraded = rStaff.data?.length ?? 0;
 
+        // The downgrade's row count proves nothing on its own: zero is normal
+        // (most venues have no active staff), and writing as service role, RLS
+        // cannot filter it silently. What must hold is the invariant itself, no
+        // active affiliation at the moment the venue loses its owner. A manager
+        // approval landing between the downgrade and the release would break
+        // it, so check it directly and stop, unreleased, if it does not hold.
+        // A retry downgrades whoever became active.
+        const stillActive = await admin
+          .from("venue_staff")
+          .select("id", { count: "exact", head: true })
+          .eq("venue_id", venue_id)
+          .eq("status", "active");
+        if (stillActive.error) return json({ error: `Staff check failed: ${stillActive.error.message}` }, 500);
+        if ((stillActive.count ?? 0) > 0) {
+          return json({ error: "A staff member became active while revoking, so the venue was not released. Revoke again to finish." }, 409);
+        }
+
         // Only now release the venue.
         const rVenue = await admin
           .from("venues")
