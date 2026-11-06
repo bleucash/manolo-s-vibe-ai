@@ -256,6 +256,7 @@ Set by J; reached a session on 2026-11-05. **Nothing in the repo says how the ap
 Order:
 
 1. **Verification and approvals:** venue claims (Tier 1 and Tier 2), talent, and business. Includes the audit trail policy that fix 4 depends on.
+   - Decide what revoking a venue claim does to that venue's outstanding staff invites (cancel, keep as history, notify the talent). Current lean: mark them cancelled rather than deleting, to preserve history for the audit trail. Context: revoke downgrades only `active` staff and leaves `pending_talent_action` invites in place. A separate policy fix stops those invites from being accepted at an ownerless venue; what revoke does to them is still open.
 2. **Spotlight and interaction tracking.** Includes the roadmap's interaction tracking redesign.
 3. **Payments and ticketing.** Direction to evaluate: Stripe Connect for venue payouts and commission splits, and whether Stripe's business verification can serve as Tier 2 for venues that sell tickets, with a separate Tier 2 path for venues that don't. Fix 7 waits on this.
 
