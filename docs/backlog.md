@@ -10,6 +10,30 @@
 
 ---
 
+## Status check, 2026-11-06
+
+J's list of August items (from CLAUDE.md as of `b7e11e6`), each checked against the live database (`pg_policy`, `pg_constraint`, `pg_enum`, `pg_proc`) and the code at `0164ced`, read-only, on 2026-11-06 (query times 04:20 to 04:30 UTC). One item was also run, inside a rolled-back block.
+
+| Item | Status | Evidence | Entry |
+|---|---|---|---|
+| `venues` SELECT carries `true` | **Changed: deliberate, and no longer inert.** | `venues` has exactly one SELECT policy, "Venues are readable by everyone" (`true`), by owner decision (A8: a venue is always visible). Nothing narrower sits beside it. Column exposure was handled separately (A31). | A1, A8, A31 |
+| `venue_staff` SELECT carries `true` | **Still open.** | "Enable read access for all users" (`true`) still makes "Managers can view staff for their owned venues", "Managers view venue staff" and "Talent view own status" inert. It also serves the public roster, so it needs add-before-remove. | A1 |
+| `venue_followers` redundant `FOR ALL` plus `true` SELECT | **Still open.** | 6 policies: FOR ALL "Users can manage their venue follows" overlaps "Users can follow venues" (INSERT), "Users can unfollow venues" (DELETE) and "Users can view their own venue follows" (SELECT); "Public can view venue follower counts" (`true`) makes the own-rows and manager SELECTs inert. | A1 |
+| About 15 ticket policies | **Still open: exactly 15.** | Unchanged count. Its only `true` policy is scoped to `service_role` (never consulted); the real problems are A26 and A27. Dormant while ticketing is withheld. | A26, A27 |
+| Recursive RLS on `conversation_participants` | **Closed (false), re-confirmed.** | SELECT is `(user_id = auth.uid()) OR is_conversation_participant(conversation_id)`; the helper is SECURITY DEFINER with `search_path=public`; `relforcerowsecurity = false`. | Closed since `b7e11e6` |
+| `posts` has no UPDATE or DELETE policy | **Still open (a product decision).** | Exactly two policies: "Public Discovery Feed" (SELECT) and "Talent and managers can post" (INSERT). | C6 |
+| `profiles.venue_id` has no FK; `venues.owner_id` points at `auth.users` | **Still open.** | `profiles` FKs: `current_venue_id -> venues(id)` and `id -> auth.users(id)` only, while the column `venue_id` exists. `venues_owner_id_fkey -> auth.users(id)`. | A3 |
+| Pending talent application and pending venue claim can coexist | **Still open, accepted risk.** | No constraint or trigger on `talent_applications` or `venue_claims` spans the two (constraints: PKs, FKs, the claim status CHECK; no triggers). Enforced in both submission paths and both approve paths only. | D |
+| Discovery's local `FollowButton` | **Still open.** | `src/pages/Discovery.tsx:83`, separate from `@/components/FollowButton`. | E1 |
+| `app_role` carries 3 cruft values | **Still open; smaller in code.** | Enum is still `manager, staff, user, venue_manager, talent, guest`. No profile uses a cruft value (manager 1, guest 1, talent 2). `UserModeContext` no longer mentions `venue_manager`; `MANAGER_ROLES` in `src/lib/roleClaims.ts:20` and in `admin-actions` still do. | A5 |
+| `get_talent_spotlight` migration drifted from live | **Still open, and worse than drift: Spotlight is empty for every user.** | Only `20260331170246` creates it, and that version reads `post_likes`; the live body (802 characters of `prosrc`) reads `interactions` with `EXP(-0.05 * hours)` over 24 hours. Live is `SECURITY INVOKER` and `interactions` has no SELECT policy. **Observed 2026-11-06** with one test tap inserted inside a rolled-back block: `postgres` got 1 row, `authenticated` 0, `anon` 0. | A2, A28 |
+
+**Product gaps are not part of this check.** Venue reviews (C1), the Best Talent competition (C2), the Spotlight rebuild (C3), event browsing (C4) and ticketing belong to the product logic review in CLAUDE.md, not to this queue. The messaging follow-gate is built (see *Closed since `b7e11e6`*).
+
+**Also new since the last check:** the `venue_staff` column hole recorded under A1 ("A9's shape") is now fix 8 in CLAUDE.md, with a drafted trigger; invite acceptance at an ownerless venue was closed by `0164ced` (`20261106120000`).
+
+---
+
 ## A. Coherence problems
 
 *Places the system holds two ideas about itself. These produce silent wrongness rather than errors, which is what makes them expensive.*
@@ -103,6 +127,7 @@ Permissive policies OR together, so one `USING (true)` admits every row, and eve
 
 **A9's shape on the same tables:** a table-level write grant with a policy that bounds only the row. Grants measured 2026-09-13; consequences inferred from the policies, not exercised.
 
+- **Update 2026-11-06:** re-measured unchanged, and now **fix 8** in CLAUDE.md with a drafted BEFORE UPDATE trigger awaiting approval. Separately, `0164ced` made accepting an invite require an owned venue.
 - **`venue_staff`: confirmed.** `authenticated` holds table-level INSERT and UPDATE on all 7 columns, and neither trigger on the table (`venue_staff_clear_check_in`, `venue_staff_sync_conversation`) guards a column.
   - "Talent respond to their own invitations" checks only `auth.uid() = user_id` and the new `status`. A talent accepting an invite could, in the same UPDATE, rewrite `venue_id` to a venue that never invited them and set their own `commission_rate`, limited only by `unique_venue_user_connection`.
   - "Talent request to work a venue" does not constrain `commission_rate` either, and approval (`ManagerApprovalPanel.tsx:85`) updates only `status`, so a self-chosen rate would survive approval.
@@ -640,6 +665,8 @@ MEASURED from source, `create-checkout-session/index.ts:57-58`:
 The fix is to test for NULL rather than falsiness. What an intentionally free ticket should do at checkout, a $0 Stripe session or no Stripe session at all, is a separate decision for that task.
 
 ### A28. `get_talent_spotlight` runs as the caller over a table the caller cannot read: Spotlight is empty for everyone
+
+**Observed 2026-11-06, no longer only inferred.** With one test tap inserted inside a rolled-back block, `get_talent_spotlight(10)` returned 1 row to `postgres`, 0 to `authenticated` and 0 to `anon`. Fix 2 (`e60b43c`) made Discovery's tap insert actually send, so taps are now recorded, but no real user can read them back through this function. Fixing it (definer rights, or a SELECT policy on `interactions`) changes what Spotlight shows, so it belongs to product logic review area 2.
 
 Found 2026-09-13 during the A1 investigation. **Inferred from the catalog, not run.**
 
