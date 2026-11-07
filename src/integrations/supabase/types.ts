@@ -1078,6 +1078,36 @@ export type Database = {
           },
         ]
       }
+      venue_roster: {
+        Row: {
+          user_id: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          user_id?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          user_id?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_staff_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_staff_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_group_member: {
@@ -1152,6 +1182,7 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_conversation: { Args: { target_user_id: string }; Returns: string }
       sync_venue_conversation: { Args: { _venue_id: string }; Returns: string }
+      venue_has_owner: { Args: { p_venue_id: string }; Returns: boolean }
     }
     Enums: {
       app_role:
