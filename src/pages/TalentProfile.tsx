@@ -61,11 +61,11 @@ const TalentProfile = () => {
       }
 
       // Fetch "Upcoming Gigs" for Public View
+      // Public venue list: venue_roster holds active staff only (venue_staff is private).
       const { data: staffData } = await supabase
-        .from("venue_staff")
+        .from("venue_roster")
         .select("venue_id, venues(id, name, location)")
-        .eq("user_id", id)
-        .eq("status", "active");
+        .eq("user_id", id);
 
       if (staffData) {
         setSchedule(staffData.map((s: any) => ({

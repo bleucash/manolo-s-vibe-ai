@@ -89,11 +89,11 @@ const Venue = () => {
       // is a failed load and must not render as "does not exist".
       setLoadFailed(!!venueError && venueError.code !== "PGRST116" && venueError.code !== "22P02");
 
+      // Public roster: venue_roster holds active staff only (venue_staff is private).
       const { data: staff } = await supabase
-        .from("venue_staff")
+        .from("venue_roster")
         .select("user_id, profiles(display_name, username, avatar_url)")
-        .eq("venue_id", id)
-        .eq("status", "active");
+        .eq("venue_id", id);
       
       if (staff) setActiveStaff(staff);
 
