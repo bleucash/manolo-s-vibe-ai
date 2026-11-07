@@ -666,7 +666,7 @@ The fix is to test for NULL rather than falsiness. What an intentionally free ti
 
 ### A28. `get_talent_spotlight` runs as the caller over a table the caller cannot read: Spotlight is empty for everyone
 
-**Observed 2026-11-06, no longer only inferred.** With one test tap inserted inside a rolled-back block, `get_talent_spotlight(10)` returned 1 row to `postgres`, 0 to `authenticated` and 0 to `anon`. Fix 2 (`e60b43c`) made Discovery's tap insert actually send, so taps are now recorded, but no real user can read them back through this function. Fixing it (definer rights, or a SELECT policy on `interactions`) changes what Spotlight shows, so it belongs to product logic review area 2.
+**Observed 2026-11-06, no longer only inferred.** With one test tap inserted inside a rolled-back block, `get_talent_spotlight(10)` returned 1 row to `postgres`, 0 to `authenticated` and 0 to `anon`. Fix 2 (`e60b43c`) made Discovery's tap insert actually send, so taps are now recorded, but no real user can read them back through this function. Fixing it (definer rights, or a SELECT policy on `interactions`) changes what Spotlight shows, so it belongs to product logic review area 1 (Discovery and Spotlight; area 2 before the 2026-11-07 reorder).
 
 Found 2026-09-13 during the A1 investigation. **Inferred from the catalog, not run.**
 

@@ -1,6 +1,6 @@
 # Spotlight: how it works today
 
-Status: a description of current behaviour, for product logic review area 2. It is not a spec and nothing in it is approved design. Checked against the code at `f843037` and the live database on 2026-11-06.
+Status: a description of current behaviour, for product logic review area 1 (Discovery and Spotlight). It is not a spec and nothing in it is approved design. Checked against the code at `f843037` and the live database on 2026-11-06.
 
 ## What users actually see right now
 
